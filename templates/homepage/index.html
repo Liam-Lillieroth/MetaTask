@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="px-4 py-6 sm:px-0">
+    <!-- Hero Section -->
+    <div class="text-center py-16">
+        <h1 class="text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl">
+            Welcome to Mediap
+        </h1>
+        <p class="mt-6 text-lg leading-8 text-gray-600 max-w-2xl mx-auto">
+            Comprehensive service platform designed to streamline workflows for organizations, 
+            small teams, companies, and individuals.
+        </p>
+        <div class="mt-10 flex items-center justify-center gap-x-6">
+            <a href="{% url 'homepage:services' %}" 
+               class="rounded-md bg-blue-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+                Explore Services
+            </a>
+            <a href="{% url 'homepage:about' %}" class="text-sm font-semibold leading-6 text-gray-900">
+                Learn more <span aria-hidden="true">→</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Services Overview -->
+    <div class="py-16">
+        <div class="mx-auto max-w-7xl px-6 lg:px-8">
+            <div class="mx-auto max-w-2xl text-center">
+                <h2 class="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Our Services</h2>
+                <p class="mt-4 text-lg leading-8 text-gray-600">
+                    Integrated services to help you manage workflows and resources efficiently.
+                </p>
+            </div>
+            <div class="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
+                <dl class="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-2">
+                    {% for service in services %}
+                    <div class="flex flex-col">
+                        <dt class="flex items-center gap-x-3 text-base font-semibold leading-7 text-gray-900">
+                            <div class="h-5 w-5 bg-blue-600 rounded-full"></div>
+                            {{ service.name }}
+                        </dt>
+                        <dd class="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
+                            <p class="flex-auto">{{ service.description }}</p>
+                            <p class="mt-6">
+                                <a href="#" class="text-sm font-semibold leading-6 text-blue-600">
+                                    Learn more <span aria-hidden="true">→</span>
+                                </a>
+                            </p>
+                        </dd>
+                    </div>
+                    {% endfor %}
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Section -->
+    <div class="bg-white py-16">
+        <div class="mx-auto max-w-7xl px-6 lg:px-8">
+            <div class="mx-auto max-w-2xl text-center">
+                <h2 class="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+                    Why Choose Mediap?
+                </h2>
+            </div>
+            <div class="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
+                <dl class="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-3">
+                    <div class="flex flex-col">
+                        <dt class="text-base font-semibold leading-7 text-gray-900">
+                            GDPR Compliant
+                        </dt>
+                        <dd class="mt-1 flex flex-auto flex-col text-base leading-7 text-gray-600">
+                            <p class="flex-auto">Built with privacy by design principles and full GDPR compliance.</p>
+                        </dd>
+                    </div>
+                    <div class="flex flex-col">
+                        <dt class="text-base font-semibold leading-7 text-gray-900">
+                            Multi-Service Platform
+                        </dt>
+                        <dd class="mt-1 flex flex-auto flex-col text-base leading-7 text-gray-600">
+                            <p class="flex-auto">Integrated workflow management and job planning in one platform.</p>
+                        </dd>
+                    </div>
+                    <div class="flex flex-col">
+                        <dt class="text-base font-semibold leading-7 text-gray-900">
+                            Scalable Architecture
+                        </dt>
+                        <dd class="mt-1 flex flex-auto flex-col text-base leading-7 text-gray-600">
+                            <p class="flex-auto">Designed to grow with your organization's needs.</p>
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

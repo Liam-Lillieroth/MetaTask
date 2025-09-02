@@ -1,0 +1,30 @@
+# Core Django
+Django>=5.2.0
+djangorestframework>=3.16.0
+
+# Database
+psycopg2-binary>=2.9.0
+
+# Authentication & Authorization
+django-guardian>=3.1.0
+
+# Background Tasks & Caching
+celery>=5.5.0
+redis>=6.4.0
+django-redis>=5.4.0
+
+# File handling
+Pillow>=10.0.0
+
+# Configuration
+python-decouple>=3.8
+
+# CORS handling
+django-cors-headers>=4.7.0
+
+# Development dependencies (optional)
+django-debug-toolbar>=4.0.0
+
+# Production dependencies
+gunicorn>=22.0.0
+whitenoise>=6.0.0
