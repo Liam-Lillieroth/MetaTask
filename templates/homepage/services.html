@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="px-4 py-6 sm:px-0">
+    <div class="text-center py-16">
+        <h1 class="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
+            Our Services
+        </h1>
+        <p class="mt-6 text-lg leading-8 text-gray-600 max-w-2xl mx-auto">
+            Comprehensive service offerings to streamline your organization's workflows.
+        </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-16">
+        <div class="bg-white rounded-lg shadow-sm border p-6">
+            <h3 class="text-xl font-semibold text-gray-900 mb-4">CFlows</h3>
+            <p class="text-gray-600 mb-4">
+                Workflow management system designed to help teams visualize and manage complex business processes.
+            </p>
+            <ul class="list-disc list-inside text-gray-600 mb-6 space-y-1">
+                <li>Visual workflow designer</li>
+                <li>Process automation tools</li>
+                <li>Task assignment and tracking</li>
+                <li>Approval chains and checkpoints</li>
+            </ul>
+            <a href="/services/cflows/" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                Learn More
+            </a>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm border p-6">
+            <h3 class="text-xl font-semibold text-gray-900 mb-4">Job Planning</h3>
+            <p class="text-gray-600 mb-4">
+                Resource allocation and scheduling solution for project management and task planning.
+            </p>
+            <ul class="list-disc list-inside text-gray-600 mb-6 space-y-1">
+                <li>Project management capabilities</li>
+                <li>Resource scheduling and allocation</li>
+                <li>Calendar integration</li>
+                <li>Progress tracking and analytics</li>
+            </ul>
+            <a href="/services/job-planning/" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                Learn More
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
