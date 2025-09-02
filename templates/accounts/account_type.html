@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-lg w-full space-y-8">
+        <div class="text-center">
+            <h2 class="mt-6 text-3xl font-extrabold text-gray-900">
+                Choose Your Account Type
+            </h2>
+            <p class="mt-2 text-sm text-gray-600">
+                Select the type that best fits your needs
+            </p>
+        </div>
+
+        <form method="post" class="mt-8 space-y-6">
+            {% csrf_token %}
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <!-- Personal Account -->
+                <div class="relative">
+                    <input type="radio" id="personal" name="account_type" value="personal" class="sr-only peer" checked>
+                    <label for="personal" class="flex flex-col p-6 bg-white border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 peer-checked:border-blue-600 peer-checked:ring-2 peer-checked:ring-blue-600 peer-checked:ring-offset-2">
+                        <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-blue-100 rounded-full">
+                            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-medium text-gray-900 text-center">Personal Account</h3>
+                        <p class="mt-2 text-sm text-gray-500 text-center">Perfect for individual users and freelancers</p>
+                        <ul class="mt-4 text-sm text-gray-500 space-y-1">
+                            <li class="flex items-center">
+                                <svg class="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                </svg>
+                                Quick setup
+                            </li>
+                            <li class="flex items-center">
+                                <svg class="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                </svg>
+                                Personal workspace
+                            </li>
+                        </ul>
+                    </label>
+                </div>
+
+                <!-- Company Account -->
+                <div class="relative">
+                    <input type="radio" id="company" name="account_type" value="company" class="sr-only peer">
+                    <label for="company" class="flex flex-col p-6 bg-white border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 peer-checked:border-blue-600 peer-checked:ring-2 peer-checked:ring-blue-600 peer-checked:ring-offset-2">
+                        <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-blue-100 rounded-full">
+                            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-medium text-gray-900 text-center">Company Account</h3>
+                        <p class="mt-2 text-sm text-gray-500 text-center">For teams and organizations</p>
+                        <ul class="mt-4 text-sm text-gray-500 space-y-1">
+                            <li class="flex items-center">
+                                <svg class="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                </svg>
+                                Team collaboration
+                            </li>
+                            <li class="flex items-center">
+                                <svg class="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                </svg>
+                                Member invitations
+                            </li>
+                            <li class="flex items-center">
+                                <svg class="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                </svg>
+                                Organization management
+                            </li>
+                        </ul>
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <button type="submit" class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-200">
+                    Continue
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

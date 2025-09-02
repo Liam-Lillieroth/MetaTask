@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 from decouple import config
 import os
+import re
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -30,6 +31,39 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='', cast=lambda v: [s.strip() for s in v.split(',') if s.strip()])
 if not ALLOWED_HOSTS:
     ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+
+# Add GitHub Codespaces host
+codespace_name = os.environ.get('CODESPACE_NAME')
+if codespace_name:
+    codespace_host = f"{codespace_name}-8000.app.github.dev"
+    ALLOWED_HOSTS.append(codespace_host)
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://localhost:8001",
+    "http://localhost:8002", 
+    "http://localhost:8003",
+    "http://localhost:8004",
+    "http://localhost:8005",
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://localhost:8001",
+    "http://localhost:8002",
+    "http://localhost:8003", 
+    "http://localhost:8004",
+    "http://localhost:8005",
+]
+
+# Add GitHub Codespaces URL to trusted origins
+if codespace_name:
+    codespace_url = f"https://{codespace_name}-8000.app.github.dev"
+    CORS_ALLOWED_ORIGINS.append(codespace_url)
+    CSRF_TRUSTED_ORIGINS.append(codespace_url)
+
 
 
 # Application definition
@@ -167,7 +201,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Custom User Model
-AUTH_USER_MODEL = 'accounts.User'
+AUTH_USER_MODEL = 'accounts.CustomUser'
 
 # Django REST Framework configuration
 REST_FRAMEWORK = {

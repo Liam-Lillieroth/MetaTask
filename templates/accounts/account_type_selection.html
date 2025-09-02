@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+
+{% block title %}Choose Account Type - MediaP{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div class="sm:mx-auto sm:w-full sm:max-w-2xl">
+        <div class="flex justify-center">
+            <h1 class="text-3xl font-extrabold text-gray-900">MediaP</h1>
+        </div>
+        <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Choose Your Account Type
+        </h2>
+        <p class="mt-2 text-center text-sm text-gray-600">
+            Select the option that best describes how you'll use MediaP
+        </p>
+    </div>
+
+    <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-4xl">
+        <!-- Account Type Selection Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 px-4">
+            <!-- Personal Account -->
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
+                <div class="p-8">
+                    <div class="text-center">
+                        <div class="text-5xl mb-4">👤</div>
+                        <h3 class="text-2xl font-bold text-gray-900 mb-4">Personal Account</h3>
+                        <p class="text-gray-600 mb-6">Perfect for individual users managing personal projects and tasks</p>
+                        
+                        <div class="text-left space-y-3 mb-8">
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-sm">Personal workspace</span>
+                            </div>
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-sm">Project management tools</span>
+                            </div>
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-sm">Basic analytics</span>
+                            </div>
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-sm">Free forever</span>
+                            </div>
+                        </div>
+                        
+                        <a href="{% url 'accounts:personal_register' %}" 
+                           class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200 inline-block">
+                            Create Personal Account
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Business Account -->
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300 border-2 border-blue-500">
+                <div class="bg-blue-500 text-white text-center py-2 text-sm font-medium">
+                    RECOMMENDED FOR TEAMS
+                </div>
+                <div class="p-8">
+                    <div class="text-center">
+                        <div class="text-5xl mb-4">🏢</div>
+                        <h3 class="text-2xl font-bold text-gray-900 mb-4">Business Account</h3>
+                        <p class="text-gray-600 mb-6">Designed for teams, organizations, and businesses of all sizes</p>
+                        
+                        <div class="text-left space-y-3 mb-8">
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-sm">Team collaboration tools</span>
+                            </div>
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-sm">Advanced project management</span>
+                            </div>
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-sm">Team member invitations</span>
+                            </div>
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-sm">Advanced analytics & reporting</span>
+                            </div>
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-sm">Role-based access control</span>
+                            </div>
+                        </div>
+                        
+                        <a href="{% url 'accounts:business_register' %}" 
+                           class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200 inline-block">
+                            Create Business Account
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Already have an account -->
+        <div class="text-center mt-8">
+            <p class="text-gray-600">
+                Already have an account? 
+                <a href="{% url 'accounts:login' %}" class="font-medium text-blue-600 hover:text-blue-500">
+                    Sign in here
+                </a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

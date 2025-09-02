@@ -1,0 +1,157 @@
+{% extends 'base.html' %}
+
+{% block title %}Profile - {{ user.first_name }} {{ user.last_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- User Profile Header -->
+    <div class="bg-white shadow rounded-lg mb-6">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h1 class="text-2xl font-bold text-gray-900">
+                Welcome, {{ user.first_name|default:user.username }}!
+            </h1>
+            <p class="text-gray-600">{{ user.job_title|default:"User" }} - {{ user.email }}</p>
+        </div>
+        
+        <div class="px-6 py-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Personal Information</h3>
+                    <div class="space-y-2">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Full Name:</span>
+                            <span class="font-medium">{{ user.first_name }} {{ user.last_name }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Email:</span>
+                            <span class="font-medium">{{ user.email }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Phone:</span>
+                            <span class="font-medium">{{ user.phone_number|default:"Not provided" }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Job Title:</span>
+                            <span class="font-medium">{{ user.job_title|default:"Not specified" }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Team Size:</span>
+                            <span class="font-medium">{{ user.get_team_size_display|default:"Not specified" }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">How did you hear about us:</span>
+                            <span class="font-medium">{{ user.get_referral_source_display|default:"Not specified" }}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Account Information</h3>
+                    <div class="space-y-2">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Username:</span>
+                            <span class="font-medium">{{ user.username }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Date Joined:</span>
+                            <span class="font-medium">{{ user.date_joined|date:"M d, Y" }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Last Login:</span>
+                            <span class="font-medium">{{ user.last_login|date:"M d, Y H:i"|default:"Never" }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Account Status:</span>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {% if user.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                {% if user.is_active %}Active{% else %}Inactive{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Organizations -->
+    {% if organizations %}
+    <div class="bg-white shadow rounded-lg mb-6">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-900">My Organizations</h2>
+        </div>
+        <div class="px-6 py-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {% for membership in organizations %}
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="font-semibold text-gray-900">{{ membership.organization.name }}</h3>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {{ membership.get_role_display }}
+                            </span>
+                        </div>
+                        
+                        <div class="text-sm text-gray-600 space-y-1">
+                            <p><strong>Type:</strong> {{ membership.organization.get_company_type_display }}</p>
+                            <p><strong>Purpose:</strong> {{ membership.organization.get_purpose_display }}</p>
+                            <p><strong>Team Size:</strong> {{ membership.organization.get_team_size_display }}</p>
+                            {% if membership.organization.website %}
+                                <p><strong>Website:</strong> 
+                                    <a href="{{ membership.organization.website }}" target="_blank" class="text-blue-600 hover:text-blue-800">
+                                        {{ membership.organization.website }}
+                                    </a>
+                                </p>
+                            {% endif %}
+                            {% if membership.organization.description %}
+                                <p class="mt-2"><strong>Description:</strong> {{ membership.organization.description }}</p>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mt-3 text-xs text-gray-500">
+                            <p>Joined: {{ membership.joined_date|date:"M d, Y" }}</p>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-white shadow rounded-lg mb-6">
+        <div class="px-6 py-4 text-center">
+            <div class="text-gray-400 text-4xl mb-4">🏢</div>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">No Organizations</h3>
+            <p class="text-gray-600 mb-4">You're not currently a member of any organizations.</p>
+            <a href="{% url 'accounts:register' %}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                Create an Organization
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Quick Actions -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-900">Quick Actions</h2>
+        </div>
+        <div class="px-6 py-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                <a href="{% url 'accounts:register' %}" class="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div class="text-blue-600 text-2xl mb-2">🏢</div>
+                    <h3 class="font-medium text-gray-900 mb-1">Create Organization</h3>
+                    <p class="text-sm text-gray-600">Start a new organization and invite team members</p>
+                </a>
+                
+                <a href="#" class="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div class="text-green-600 text-2xl mb-2">⚙️</div>
+                    <h3 class="font-medium text-gray-900 mb-1">Account Settings</h3>
+                    <p class="text-sm text-gray-600">Update your profile and preferences</p>
+                </a>
+                
+                <a href="#" class="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div class="text-purple-600 text-2xl mb-2">📊</div>
+                    <h3 class="font-medium text-gray-900 mb-1">Analytics</h3>
+                    <p class="text-sm text-gray-600">View your activity and insights</p>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

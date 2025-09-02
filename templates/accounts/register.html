@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full space-y-8">
+        <div>
+            <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                Create your account
+            </h2>
+            <p class="mt-2 text-center text-sm text-gray-600">
+                Join Mediap to streamline your workflows
+            </p>
+        </div>
+        <form class="mt-8 space-y-6" method="post">
+            {% csrf_token %}
+            <div class="space-y-4">
+                <!-- First Name & Last Name -->
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label for="{{ form.first_name.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                            First Name
+                        </label>
+                        <div class="mt-1">
+                            {{ form.first_name }}
+                            {% if form.first_name.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.first_name.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div>
+                        <label for="{{ form.last_name.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                            Last Name
+                        </label>
+                        <div class="mt-1">
+                            {{ form.last_name }}
+                            {% if form.last_name.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.last_name.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Email -->
+                <div>
+                    <label for="{{ form.email.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Email Address
+                    </label>
+                    <div class="mt-1">
+                        {{ form.email }}
+                        {% if form.email.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.email.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Username -->
+                <div>
+                    <label for="{{ form.username.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Username
+                    </label>
+                    <div class="mt-1">
+                        {{ form.username }}
+                        {% if form.username.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.username.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Password -->
+                <div>
+                    <label for="{{ form.password1.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Password
+                    </label>
+                    <div class="mt-1">
+                        {{ form.password1 }}
+                        {% if form.password1.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.password1.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Confirm Password -->
+                <div>
+                    <label for="{{ form.password2.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Confirm Password
+                    </label>
+                    <div class="mt-1">
+                        {{ form.password2 }}
+                        {% if form.password2.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.password2.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Referral Source -->
+                <div>
+                    <label for="{{ form.referral_source.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        {{ form.referral_source.label }}
+                    </label>
+                    <div class="mt-1">
+                        {{ form.referral_source }}
+                        {% if form.referral_source.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.referral_source.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Team Size -->
+                <div>
+                    <label for="{{ form.team_size.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        {{ form.team_size.label }}
+                    </label>
+                    <div class="mt-1">
+                        {{ form.team_size }}
+                        {% if form.team_size.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.team_size.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-200">
+                    Create Account
+                </button>
+            </div>
+
+            <div class="text-center">
+                <p class="text-sm text-gray-600">
+                    Already have an account? 
+                    <a href="{% url 'accounts:login' %}" class="font-medium text-blue-600 hover:text-blue-500">
+                        Sign in
+                    </a>
+                </p>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
