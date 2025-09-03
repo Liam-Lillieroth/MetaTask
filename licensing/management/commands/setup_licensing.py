@@ -35,7 +35,42 @@ class Command(BaseCommand):
         if created:
             self.stdout.write(f'✓ Created CFlows service')
         else:
-            self.stdout.write(f'✓ CFlows service already exists')
+            # Update existing service with missing fields
+            cflows_service.icon = 'fas fa-project-diagram'
+            cflows_service.color = '#2563eb'
+            cflows_service.sort_order = 1
+            cflows_service.save()
+            self.stdout.write(f'✓ Updated CFlows service')
+        
+        # Create Job Planning service
+        job_planning_service, created = Service.objects.get_or_create(
+            slug='job-planning',
+            defaults={
+                'name': 'Job Planning',
+                'description': 'Resource Allocation and Scheduling System',
+                'version': '1.0.0',
+                'is_active': False,  # Coming soon
+                'icon': 'fas fa-calendar-alt',
+                'color': '#059669',
+                'sort_order': 2,
+                'allows_personal_free': True,
+                'personal_free_limits': {
+                    'users': 1,
+                    'projects': 2,
+                    'schedules': 5
+                }
+            }
+        )
+        
+        if created:
+            self.stdout.write(f'✓ Created Job Planning service')
+        else:
+            # Update existing service with missing fields
+            job_planning_service.icon = 'fas fa-calendar-alt'
+            job_planning_service.color = '#059669'
+            job_planning_service.sort_order = 2
+            job_planning_service.save()
+            self.stdout.write(f'✓ Updated Job Planning service')
         
         # Create license types for CFlows
         license_types_data = [

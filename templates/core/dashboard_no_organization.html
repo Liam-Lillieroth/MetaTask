@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+
+{% block title %}Organization Setup Required{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div class="max-w-lg w-full space-y-8">
+        <div class="text-center">
+            <div class="mx-auto h-12 w-12 bg-purple-100 rounded-full flex items-center justify-center">
+                <i class="fas fa-building text-purple-600 text-xl"></i>
+            </div>
+            <h2 class="mt-6 text-3xl font-bold text-gray-900">Organization Required</h2>
+            <p class="mt-2 text-sm text-gray-600">
+                You need to create a workspace or join an organization to access Mediap services.
+            </p>
+        </div>
+        
+        <div class="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+            <div class="space-y-6">
+                <div class="text-center">
+                    <p class="text-sm text-gray-700 mb-4">
+                        Choose how you'd like to get started with Mediap:
+                    </p>
+                </div>
+                
+                <!-- Personal Workspace Option -->
+                <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-3">
+                                <i class="fas fa-user text-green-600"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900">Personal Workspace</h3>
+                                <p class="text-sm text-gray-600">Start with a free personal workspace</p>
+                            </div>
+                        </div>
+                        <span class="text-sm font-medium text-green-600">FREE</span>
+                    </div>
+                    
+                    <div class="mt-3 ml-13">
+                        <div class="text-xs text-gray-500 space-y-1">
+                            <div class="flex items-center">
+                                <i class="fas fa-check text-green-500 mr-2"></i>
+                                <span>Up to 3 workflows</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-check text-green-500 mr-2"></i>
+                                <span>100 work items</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-check text-green-500 mr-2"></i>
+                                <span>1GB storage</span>
+                            </div>
+                        </div>
+                        
+                        <a href="/core/setup/" class="mt-4 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
+                            Create Personal Workspace
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Join Organization Option -->
+                <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                                <i class="fas fa-users text-blue-600"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900">Join Organization</h3>
+                                <p class="text-sm text-gray-600">Join an existing team or company</p>
+                            </div>
+                        </div>
+                        <span class="text-sm font-medium text-blue-600">BY INVITE</span>
+                    </div>
+                    
+                    <div class="mt-3 ml-13">
+                        <p class="text-xs text-gray-500 mb-3">
+                            Have an invitation code from your team? Join their organization to collaborate.
+                        </p>
+                        
+                        <a href="/core/join/" class="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            Join with Invitation
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Business Organization Option -->
+                <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
+                                <i class="fas fa-building text-purple-600"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900">Business Organization</h3>
+                                <p class="text-sm text-gray-600">Create a business workspace for your team</p>
+                            </div>
+                        </div>
+                        <span class="text-sm font-medium text-purple-600">PAID</span>
+                    </div>
+                    
+                    <div class="mt-3 ml-13">
+                        <div class="text-xs text-gray-500 space-y-1 mb-3">
+                            <div class="flex items-center">
+                                <i class="fas fa-check text-green-500 mr-2"></i>
+                                <span>Unlimited workflows</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-check text-green-500 mr-2"></i>
+                                <span>Team collaboration</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-check text-green-500 mr-2"></i>
+                                <span>Advanced features</span>
+                            </div>
+                        </div>
+                        
+                        <a href="/accounts/register/business/" class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700">
+                            Create Business Organization
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="text-center mt-6">
+                    <p class="text-xs text-gray-500">
+                        You can upgrade or change your workspace type later
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

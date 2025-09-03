@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block title %}Welcome to Mediap{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div class="max-w-md w-full space-y-8">
+        <div class="text-center">
+            <div class="mx-auto h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <i class="fas fa-user-plus text-blue-600 text-xl"></i>
+            </div>
+            <h2 class="mt-6 text-3xl font-bold text-gray-900">Complete Your Profile</h2>
+            <p class="mt-2 text-sm text-gray-600">
+                Welcome to Mediap! Let's set up your profile to get started.
+            </p>
+        </div>
+        
+        <div class="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+            <div class="space-y-4">
+                <p class="text-center text-sm text-gray-700">
+                    We need to create your Mediap profile to continue. This will give you access to all available services and features.
+                </p>
+                
+                <div class="flex justify-center">
+                    <a href="/accounts/profile/setup/" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <i class="fas fa-arrow-right mr-2"></i>
+                        Set Up Profile
+                    </a>
+                </div>
+                
+                <div class="text-center">
+                    <p class="text-xs text-gray-500">
+                        This will only take a few minutes to complete
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

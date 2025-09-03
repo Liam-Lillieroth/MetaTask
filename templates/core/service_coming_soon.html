@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ service.name }} - Coming Soon{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div class="max-w-md w-full space-y-8">
+        <div class="text-center">
+            <div class="mx-auto h-12 w-12 bg-indigo-100 rounded-full flex items-center justify-center">
+                <i class="fas fa-rocket text-indigo-600 text-xl"></i>
+            </div>
+            <h2 class="mt-6 text-3xl font-bold text-gray-900">Coming Soon</h2>
+            <p class="mt-2 text-sm text-gray-600">
+                {{ service.name }} is currently under development.
+            </p>
+        </div>
+        
+        <div class="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+            <div class="space-y-4">
+                <div class="text-center">
+                    <div class="w-16 h-16 mx-auto bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
+                        <i class="{{ service.icon|default:'fas fa-cube' }} text-2xl text-indigo-600"></i>
+                    </div>
+                    <h3 class="font-semibold text-gray-900">{{ service.name }}</h3>
+                    <p class="text-sm text-gray-600 mt-1">{{ service.description }}</p>
+                </div>
+                
+                <div class="border-t border-gray-200 pt-4">
+                    <p class="text-sm text-gray-700 text-center mb-4">
+                        We're working hard to bring you this service. Stay tuned for updates!
+                    </p>
+                    
+                    <div class="flex justify-center">
+                        <a href="/dashboard/" class="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                            <i class="fas fa-arrow-left mr-2"></i>
+                            Back to Dashboard
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="text-center">
+                    <p class="text-xs text-gray-500">
+                        You have access to this service through your {{ service.name }} license
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

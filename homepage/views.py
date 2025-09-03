@@ -1,9 +1,12 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.http import JsonResponse
 
 
 def index(request):
-    """Homepage view"""
+    """Homepage view - redirect logged in users to dashboard"""
+    if request.user.is_authenticated:
+        return redirect('/dashboard/')
+    
     return render(request, 'homepage/index.html', {
         'title': 'Mediap - Comprehensive Service Platform',
         'services': [
