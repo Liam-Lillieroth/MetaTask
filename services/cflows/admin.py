@@ -1,3 +1,168 @@
 from django.contrib import admin
+from django.utils.html import format_html
+from django.db.models import Count
+from core.models import Organization, UserProfile, Team, JobType, CalendarEvent
+from .models import (
+    Workflow, WorkflowStep, WorkflowTransition,
+    WorkItem, WorkItemHistory, TeamBooking
+)
 
-# Register your models here.
+
+# Only register CFlows-specific models here
+# Core models (Organization, UserProfile, Team, JobType, CalendarEvent) 
+# are registered in core/admin.py
+
+
+class WorkflowStepInline(admin.TabularInline):
+    model = WorkflowStep
+    extra = 1
+    fields = ['name', 'order', 'assigned_team', 'requires_booking', 'is_terminal']
+    ordering = ['order']
+
+
+@admin.register(Workflow)
+class WorkflowAdmin(admin.ModelAdmin):
+    list_display = ['name', 'organization', 'step_count', 'work_item_count', 'is_active', 'created_by', 'created_at']
+    list_filter = ['organization', 'is_active', 'created_at']
+    search_fields = ['name', 'description']
+    raw_id_fields = ['created_by']
+    inlines = [WorkflowStepInline]
+    
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        return queryset.annotate(
+            step_count=Count('steps', distinct=True),
+            work_item_count=Count('work_items', distinct=True)
+        )
+    
+    def step_count(self, obj):
+        return obj.step_count
+    step_count.short_description = 'Steps'
+    step_count.admin_order_field = 'step_count'
+    
+    def work_item_count(self, obj):
+        return obj.work_item_count
+    work_item_count.short_description = 'Work Items'
+    work_item_count.admin_order_field = 'work_item_count'
+
+
+class WorkflowTransitionInline(admin.TabularInline):
+    model = WorkflowTransition
+    fk_name = 'from_step'
+    extra = 1
+    fields = ['to_step', 'label']
+
+
+@admin.register(WorkflowStep)
+class WorkflowStepAdmin(admin.ModelAdmin):
+    list_display = ['name', 'workflow', 'organization_name', 'order', 'assigned_team', 'requires_booking', 'is_terminal']
+    list_filter = ['workflow__organization', 'workflow', 'assigned_team', 'requires_booking', 'is_terminal']
+    search_fields = ['name', 'description', 'workflow__name']
+    raw_id_fields = ['workflow', 'assigned_team']
+    inlines = [WorkflowTransitionInline]
+    
+    def organization_name(self, obj):
+        return obj.workflow.organization.name
+    organization_name.short_description = 'Organization'
+    organization_name.admin_order_field = 'workflow__organization__name'
+
+
+
+
+
+class WorkItemHistoryInline(admin.TabularInline):
+    model = WorkItemHistory
+    extra = 0
+    fields = ['from_step', 'to_step', 'changed_by', 'notes', 'created_at']
+    readonly_fields = ['created_at']
+    ordering = ['-created_at']
+
+
+@admin.register(WorkItem)
+class WorkItemAdmin(admin.ModelAdmin):
+    list_display = ['title', 'workflow', 'current_step', 'current_assignee', 'is_completed', 'created_by', 'updated_at']
+    list_filter = ['workflow__organization', 'workflow', 'current_step', 'is_completed', 'created_at']
+    search_fields = ['title', 'description', 'uuid']
+    raw_id_fields = ['workflow', 'current_step', 'created_by', 'current_assignee']
+    readonly_fields = ['uuid', 'created_at', 'updated_at', 'completed_at']
+    inlines = [WorkItemHistoryInline]
+    
+    fieldsets = (
+        (None, {
+            'fields': ('uuid', 'title', 'description')
+        }),
+        ('Workflow Context', {
+            'fields': ('workflow', 'current_step', 'current_assignee')
+        }),
+        ('Status', {
+            'fields': ('is_completed', 'completed_at')
+        }),
+        ('Data', {
+            'fields': ('data',),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+
+
+
+
+
+@admin.register(TeamBooking)
+class TeamBookingAdmin(admin.ModelAdmin):
+    list_display = ['title', 'team', 'work_item', 'start_time', 'end_time', 'required_members', 'is_completed', 'booked_by']
+    list_filter = ['team__organization', 'team', 'job_type', 'is_completed', 'start_time']
+    search_fields = ['title', 'description', 'work_item__title', 'uuid']
+    raw_id_fields = ['team', 'work_item', 'workflow_step', 'job_type', 'booked_by', 'completed_by']
+    filter_horizontal = ['assigned_members']
+    readonly_fields = ['uuid', 'created_at', 'updated_at', 'completed_at']
+    
+    fieldsets = (
+        (None, {
+            'fields': ('uuid', 'title', 'description')
+        }),
+        ('Context', {
+            'fields': ('team', 'work_item', 'workflow_step', 'job_type')
+        }),
+        ('Scheduling', {
+            'fields': ('start_time', 'end_time', 'required_members')
+        }),
+        ('Assignment', {
+            'fields': ('booked_by', 'assigned_members')
+        }),
+        ('Completion', {
+            'fields': ('is_completed', 'completed_at', 'completed_by')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+
+
+
+
+
+@admin.register(WorkItemHistory)
+class WorkItemHistoryAdmin(admin.ModelAdmin):
+    list_display = ['work_item', 'from_step', 'to_step', 'changed_by', 'created_at']
+    list_filter = ['work_item__workflow__organization', 'work_item__workflow', 'from_step', 'to_step', 'created_at']
+    search_fields = ['work_item__title', 'notes']
+    raw_id_fields = ['work_item', 'from_step', 'to_step', 'changed_by']
+    readonly_fields = ['created_at']
+
+
+@admin.register(WorkflowTransition)
+class WorkflowTransitionAdmin(admin.ModelAdmin):
+    list_display = ['from_step', 'to_step', 'label', 'workflow_name']
+    list_filter = ['from_step__workflow__organization', 'from_step__workflow']
+    search_fields = ['from_step__name', 'to_step__name', 'label']
+    raw_id_fields = ['from_step', 'to_step']
+    
+    def workflow_name(self, obj):
+        return obj.from_step.workflow.name
+    workflow_name.short_description = 'Workflow'
+    workflow_name.admin_order_field = 'from_step__workflow__name'

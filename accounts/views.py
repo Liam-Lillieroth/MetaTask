@@ -6,7 +6,8 @@ from django.views.generic import CreateView, FormView, TemplateView
 from django.urls import reverse_lazy
 from django.http import HttpResponse
 from .forms import RegistrationForm, OrganizationCreationForm, InviteMemberForm
-from .models import CustomUser, Organization, OrganizationMember
+from .models import CustomUser
+from core.models import Organization, UserProfile
 
 
 class AccountTypeSelectionView(TemplateView):
@@ -33,16 +34,18 @@ class PersonalRegistrationView(CreateView):
         org_name = f"{user.first_name} {user.last_name}'s Workspace" if user.first_name and user.last_name else f"{user.username}'s Workspace"
         organization = Organization.objects.create(
             name=org_name,
-            owner=user,
-            slug=f"{user.username}-workspace",
-            company_type='personal',
-            purpose='personal',
-            team_size='1'
+            description=f"Personal workspace for {user.get_full_name() or user.username}",
+            organization_type='personal',
+            is_active=True
         )
-        OrganizationMember.objects.create(
-            organization=organization,
+        
+        # Create user profile
+        UserProfile.objects.create(
             user=user,
-            role='owner'
+            organization=organization,
+            is_organization_admin=True,
+            has_staff_panel_access=True,
+            can_create_organizations=False  # Personal users can't create more orgs
         )
         
         messages.success(self.request, f'Welcome {user.first_name or user.username}! Your personal workspace has been created.')
@@ -58,6 +61,29 @@ class BusinessRegistrationView(CreateView):
     """Business account registration - first step of multi-step process"""
     form_class = RegistrationForm
     template_name = 'accounts/business_register.html'
+    
+    def dispatch(self, request, *args, **kwargs):
+        """If user is already logged in, redirect to organization creation"""
+        if request.user.is_authenticated:
+            # Check if user already has an organization
+            try:
+                profile = request.user.mediap_profile
+                if profile.organization.organization_type == 'business':
+                    messages.info(request, f'You already belong to the business organization: {profile.organization.name}')
+                    return redirect('homepage:dashboard')
+                elif profile.organization.organization_type == 'personal':
+                    # Allow personal users to upgrade to business
+                    messages.info(request, 'Upgrade your personal workspace to a business organization.')
+                    return redirect('accounts:upgrade_to_business')
+            except:
+                # User has no profile, allow them to create organization
+                pass
+            
+            # User is logged in but has no organization, redirect to org creation
+            messages.info(request, 'Create your business organization.')
+            return redirect('accounts:create_organization')
+        
+        return super().dispatch(request, *args, **kwargs)
     
     def form_valid(self, form):
         user = form.save()
@@ -97,36 +123,53 @@ class OrganizationCreationView(CreateView):
             messages.error(self.request, 'You must be logged in to create an organization.')
             return redirect('accounts:business_register')
         
-        # Check if user already owns an organization (OneToOneField constraint)
+        # Check if user already has an organization profile
         try:
-            existing_org = self.request.user.owned_organization
-            messages.error(
-                self.request, 
-                f'You already own an organization called "{existing_org.name}". '
-                'Each user can only own one organization.'
-            )
-            return redirect('accounts:invite_members')
-        except Organization.DoesNotExist:
-            # User doesn't have an organization yet, proceed with creation
+            existing_profile = self.request.user.mediap_profile
+            if existing_profile.organization.organization_type == 'business':
+                messages.error(
+                    self.request, 
+                    f'You already belong to a business organization: "{existing_profile.organization.name}". '
+                )
+                return redirect('homepage:dashboard')
+            elif existing_profile.organization.organization_type == 'personal':
+                # Allow upgrading from personal to business
+                messages.info(self.request, 'Upgrading your personal workspace to a business organization.')
+                existing_profile.organization.organization_type = 'business'
+                existing_profile.organization.name = form.cleaned_data['name']
+                existing_profile.organization.description = form.cleaned_data.get('description', '')
+                existing_profile.organization.save()
+                
+                # Update user permissions
+                existing_profile.can_create_organizations = True
+                existing_profile.save()
+                
+                messages.success(self.request, f'Successfully upgraded to business organization: {existing_profile.organization.name}')
+                return redirect('homepage:dashboard')
+        except UserProfile.DoesNotExist:
+            # User doesn't have a profile yet, create new organization and profile
             pass
             
         try:
-            organization = form.save(commit=False)
-            organization.owner = self.request.user
-            organization.save()
-            
-            # Create organization membership for the owner
-            OrganizationMember.objects.create(
-                organization=organization,
-                user=self.request.user,
-                role='owner'
+            # Create new business organization
+            organization = Organization.objects.create(
+                name=form.cleaned_data['name'],
+                description=form.cleaned_data.get('description', ''),
+                organization_type='business',
+                is_active=True
             )
             
-            # Store organization in session for next step
-            self.request.session['organization_id'] = organization.id
+            # Create user profile as organization admin
+            UserProfile.objects.create(
+                user=self.request.user,
+                organization=organization,
+                is_organization_admin=True,
+                has_staff_panel_access=True,
+                can_create_organizations=True  # Business users can create more orgs
+            )
             
-            messages.success(self.request, f'Organization "{organization.name}" has been created!')
-            return super().form_valid(form)
+            messages.success(self.request, f'Successfully created business organization: {organization.name}')
+            return redirect('homepage:dashboard')
             
         except Exception as e:
             messages.error(self.request, f'Error creating organization: {str(e)}')
@@ -150,22 +193,26 @@ class InviteMembersView(FormView):
         if not request.user.is_authenticated:
             return redirect('accounts:register')
         
-        # Check if user has an organization
-        if not OrganizationMember.objects.filter(user=request.user, role='owner').exists():
-            return redirect('accounts:create_organization')
+        # Check if user has an organization profile
+        try:
+            profile = request.user.mediap_profile
+            if not profile.is_organization_admin:
+                messages.error(request, 'You need to be an organization admin to invite members.')
+                return redirect('homepage:dashboard')
+        except UserProfile.DoesNotExist:
+            messages.error(request, 'Please set up your organization first.')
+            return redirect('core:setup_organization')
         
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
-        # Get the organization from session or user's owned organizations
-        organization_id = self.request.session.get('organization_id')
-        if organization_id:
-            try:
-                organization = Organization.objects.get(id=organization_id, owner=self.request.user)
-            except Organization.DoesNotExist:
-                organization = OrganizationMember.objects.filter(user=self.request.user, role='owner').first().organization
-        else:
-            organization = OrganizationMember.objects.filter(user=self.request.user, role='owner').first().organization
+        # Get the user's organization
+        try:
+            profile = self.request.user.mediap_profile
+            organization = profile.organization
+        except UserProfile.DoesNotExist:
+            messages.error(self.request, 'Organization not found.')
+            return redirect('core:setup_organization')
 
         email_list = form.cleaned_data['email_list'].strip()
         if email_list:
@@ -232,7 +279,12 @@ class AccountTypeView(TemplateView):
 @login_required
 def profile_view(request):
     """User profile view with organization information"""
-    user_orgs = OrganizationMember.objects.filter(user=request.user).select_related('organization')
+    # Get user's organization
+    try:
+        profile = request.user.mediap_profile
+        user_orgs = [profile.organization]
+    except UserProfile.DoesNotExist:
+        user_orgs = []
     
     context = {
         'user': request.user,
@@ -240,6 +292,13 @@ def profile_view(request):
     }
     
     return render(request, 'accounts/profile.html', context)
+
+
+@login_required
+def upgrade_to_business(request):
+    """Simple redirect to organization creation for business upgrade"""
+    messages.info(request, 'Create your business organization to unlock team features.')
+    return redirect('accounts:create_organization')
 
 
 class LoginView(TemplateView):

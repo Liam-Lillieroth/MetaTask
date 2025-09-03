@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.core.validators import MinValueValidator, MaxValueValidator
 import uuid
 
 
@@ -220,3 +221,267 @@ class FileUpload(models.Model):
                 return f"{self.file_size:.1f} {unit}"
             self.file_size /= 1024.0
         return f"{self.file_size:.1f} TB"
+
+
+class Organization(models.Model):
+    """Multi-tenant organization model for complete data isolation across all services"""
+    ORGANIZATION_TYPES = [
+        ('personal', 'Personal Account'),
+        ('business', 'Business'),
+        ('enterprise', 'Enterprise'),
+        ('non_profit', 'Non-Profit'),
+        ('educational', 'Educational'),
+        ('government', 'Government'),
+    ]
+    
+    name = models.CharField(max_length=200)
+    slug = models.SlugField(unique=True)
+    description = models.TextField(blank=True)
+    organization_type = models.CharField(max_length=20, choices=ORGANIZATION_TYPES, default='business')
+    
+    # Organization settings
+    time_format_24h = models.BooleanField(default=True, help_text="Use 24-hour time format")
+    timezone = models.CharField(max_length=50, default='UTC')
+    
+    # Contact information
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    address = models.TextField(blank=True)
+    website = models.URLField(blank=True)
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    class Meta:
+        ordering = ['name']
+        indexes = [
+            models.Index(fields=['slug']),
+            models.Index(fields=['is_active']),
+            models.Index(fields=['organization_type']),
+        ]
+    
+    def __str__(self):
+        return self.name
+    
+    @property
+    def is_personal(self):
+        """Check if this is a personal account"""
+        return self.organization_type == 'personal'
+    
+    def can_have_multiple_users(self):
+        """Check if organization can have multiple users"""
+        return not self.is_personal
+
+
+class UserProfile(models.Model):
+    """Extended user information with organization association for all Mediap services"""
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='mediap_profile')
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='members')
+    
+    # Profile information
+    title = models.CharField(max_length=100, blank=True)
+    department = models.CharField(max_length=100, blank=True)
+    location = models.CharField(max_length=200, blank=True)
+    timezone = models.CharField(max_length=50, default='UTC')
+    bio = models.TextField(blank=True)
+    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    
+    # Contact preferences
+    phone = models.CharField(max_length=20, blank=True)
+    mobile = models.CharField(max_length=20, blank=True)
+    
+    # Organization roles
+    is_organization_admin = models.BooleanField(default=False)
+    has_staff_panel_access = models.BooleanField(default=False)
+    can_create_organizations = models.BooleanField(default=False, help_text="Allow user to create new organizations")
+    
+    # Notification preferences
+    email_notifications = models.BooleanField(default=True)
+    desktop_notifications = models.BooleanField(default=True)
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['user', 'organization']
+        ordering = ['user__last_name', 'user__first_name']
+        indexes = [
+            models.Index(fields=['organization', 'is_active']),
+            models.Index(fields=['user']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.get_full_name() or self.user.username} ({self.organization.name})"
+    
+    @classmethod
+    def can_user_create_organization(cls, user):
+        """Check if user can create a new organization"""
+        if user.is_superuser:
+            return True
+        
+        # Check if user already has a profile (is part of an organization)
+        existing_profile = cls.objects.filter(user=user, is_active=True).first()
+        if existing_profile:
+            # User is already part of an organization, can't create new one
+            return False
+        
+        # New user without organization can create one
+        return True
+    
+    @classmethod
+    def get_user_organizations(cls, user):
+        """Get all organizations a user belongs to"""
+        return Organization.objects.filter(
+            members__user=user, 
+            members__is_active=True, 
+            is_active=True
+        ).distinct()
+
+
+class Team(models.Model):
+    """Teams within organizations - reusable across all services"""
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='teams')
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    
+    # Team settings
+    color = models.CharField(max_length=7, default='#007bff', help_text='Hex color code for visual identification')
+    
+    # Capacity management (useful for scheduling/booking systems)
+    default_capacity = models.PositiveIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+        help_text="Default number of team members available for scheduling"
+    )
+    
+    # Team structure
+    manager = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_teams')
+    members = models.ManyToManyField(UserProfile, related_name='teams', blank=True)
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_teams')
+    
+    class Meta:
+        unique_together = ['organization', 'name']
+        ordering = ['name']
+        indexes = [
+            models.Index(fields=['organization', 'is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} ({self.organization.name})"
+    
+    @property
+    def member_count(self):
+        return self.members.count()
+
+
+class JobType(models.Model):
+    """Generic job/work type definitions - reusable across scheduling and workflow systems"""
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='job_types')
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    
+    # Scheduling defaults
+    default_duration_hours = models.DecimalField(max_digits=5, decimal_places=2, default=1.0)
+    
+    # Visual settings
+    color = models.CharField(max_length=7, default='#007bff', help_text="Hex color code for calendar/UI display")
+    
+    # Categorization
+    category = models.CharField(max_length=50, blank=True, help_text="Category for grouping job types")
+    
+    # Requirements
+    required_skills = models.JSONField(default=list, blank=True, help_text="List of required skills/qualifications")
+    
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_job_types')
+    
+    class Meta:
+        unique_together = ['organization', 'name']
+        ordering = ['category', 'name']
+        indexes = [
+            models.Index(fields=['organization', 'is_active']),
+            models.Index(fields=['category']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} ({self.organization.name})"
+
+
+class CalendarEvent(models.Model):
+    """Generic calendar events - reusable across all services"""
+    EVENT_TYPES = [
+        ('personal', 'Personal'),
+        ('team', 'Team'),
+        ('organization', 'Organization'),
+        ('system', 'System'),
+    ]
+    
+    # Event identification
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    
+    # Context
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='calendar_events')
+    event_type = models.CharField(max_length=20, choices=EVENT_TYPES, default='personal')
+    
+    # Event details
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    location = models.CharField(max_length=200, blank=True)
+    
+    # Scheduling
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField()
+    is_all_day = models.BooleanField(default=False)
+    timezone = models.CharField(max_length=50, default='UTC')
+    
+    # Participants
+    created_by = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='created_events')
+    invitees = models.ManyToManyField(UserProfile, related_name='invited_events', blank=True)
+    
+    # Optional associations (generic)
+    related_team = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, related_name='team_events')
+    
+    # Generic foreign key for linking to any model
+    content_type = models.CharField(max_length=100, blank=True, help_text="Model type this event relates to")
+    object_id = models.CharField(max_length=100, blank=True, help_text="ID of the related object")
+    
+    # Display settings
+    color = models.CharField(max_length=7, default='#007bff', help_text="Hex color code for calendar display")
+    
+    # Recurrence (for future expansion)
+    is_recurring = models.BooleanField(default=False)
+    recurrence_pattern = models.JSONField(default=dict, blank=True, help_text="Recurrence pattern configuration")
+    
+    # Status
+    is_cancelled = models.BooleanField(default=False)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['start_time']
+        indexes = [
+            models.Index(fields=['organization', 'start_time']),
+            models.Index(fields=['event_type', 'start_time']),
+            models.Index(fields=['created_by', 'start_time']),
+            models.Index(fields=['content_type', 'object_id']),
+        ]
+    
+    def __str__(self):
+        return f"{self.title} ({self.start_time.strftime('%Y-%m-%d %H:%M')})"

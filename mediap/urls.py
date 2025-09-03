@@ -24,6 +24,7 @@ urlpatterns = [
     path('api/', include('api.urls')),
     path('', include('homepage.urls')),
     path('accounts/', include('accounts.urls')),
+    path('core/', include('core.urls')),
     path('services/cflows/', include('services.cflows.urls')),
     path('services/job-planning/', include('services.job_planning.urls')),
 ]

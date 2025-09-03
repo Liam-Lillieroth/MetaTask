@@ -1,0 +1,10 @@
+from django.urls import path
+from . import views
+
+app_name = 'core'
+
+urlpatterns = [
+    path('check-organization/', views.check_organization_access, name='check_organization_access'),
+    path('create-personal-org/', views.create_personal_organization, name='create_personal_organization'),
+    path('setup/', views.setup_organization, name='setup_organization'),
+]
