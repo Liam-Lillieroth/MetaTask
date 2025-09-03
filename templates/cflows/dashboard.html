@@ -2,7 +2,7 @@
 
 {% block title %}Dashboard - CFlows{% endblock %}
 
-{% block cflows_content %}
+{% block content %}
 <div class="space-y-8">
     <!-- Page Header -->
     <div>
@@ -95,7 +95,7 @@
                         <div class="flex items-center justify-between">
                             <div class="flex-1">
                                 <h3 class="text-sm font-medium text-gray-900">
-                                    <a href="{% url 'cflows:work_item_detail' item.uuid %}" class="hover:text-indigo-600">
+                                    <a href="{% url 'cflows:work_item_detail' item.id %}" class="hover:text-indigo-600">
                                         {{ item.title }}
                                     </a>
                                 </h3>

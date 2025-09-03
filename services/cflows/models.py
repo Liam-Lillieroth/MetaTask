@@ -8,14 +8,52 @@ import json
 import uuid
 
 
+class WorkflowTemplate(models.Model):
+    """Reusable workflow templates"""
+    name = models.CharField(max_length=200)
+    description = models.TextField()
+    category = models.CharField(max_length=100, default='General')
+    
+    # Template configuration
+    is_public = models.BooleanField(default=False, help_text="Available to all organizations")
+    created_by_org = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, blank=True, related_name='workflow_templates')
+    
+    # Template data (JSON structure for steps and transitions)
+    template_data = models.JSONField(default=dict, help_text="Template configuration for steps and transitions")
+    
+    # Metadata
+    usage_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['category', 'name']
+    
+    def __str__(self):
+        return f"{self.name} ({self.category})"
+
+
 class Workflow(models.Model):
     """Organization-scoped workflow definitions"""
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='workflows')
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     
+    # Template relationship
+    template = models.ForeignKey(WorkflowTemplate, on_delete=models.SET_NULL, null=True, blank=True, related_name='workflows')
+    
     # Workflow metadata
     is_active = models.BooleanField(default=True)
+    version = models.PositiveIntegerField(default=1)
+    
+    # Permissions and sharing
+    is_shared = models.BooleanField(default=False, help_text="Share with other organizations")
+    allowed_organizations = models.ManyToManyField(Organization, blank=True, related_name='shared_workflows')
+    
+    # Advanced settings
+    auto_assign = models.BooleanField(default=False, help_text="Auto-assign work items to team members")
+    requires_approval = models.BooleanField(default=False, help_text="Workflow changes require approval")
+    
     created_by = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, related_name='created_workflows')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -85,13 +123,32 @@ class WorkItem(models.Model):
     workflow = models.ForeignKey(Workflow, on_delete=models.CASCADE, related_name='work_items')
     current_step = models.ForeignKey(WorkflowStep, on_delete=models.PROTECT, related_name='current_work_items')
     
-    # Custom title/identifier
+    # Enhanced content
     title = models.CharField(max_length=200, help_text="Human-readable identifier for this item")
     description = models.TextField(blank=True)
+    rich_content = models.TextField(blank=True, help_text="Rich HTML content for detailed descriptions")
+    
+    # Priority and classification
+    PRIORITY_CHOICES = [
+        ('low', 'Low'),
+        ('normal', 'Normal'),
+        ('high', 'High'),
+        ('critical', 'Critical'),
+    ]
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='normal')
+    tags = models.JSONField(default=list, help_text="List of tags for categorization")
     
     # Assignment and ownership
     created_by = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, related_name='created_work_items')
     current_assignee = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_work_items')
+    watchers = models.ManyToManyField(UserProfile, blank=True, related_name='watched_work_items')
+    
+    # Dependencies
+    depends_on = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='dependents')
+    
+    # Due dates and scheduling
+    due_date = models.DateTimeField(null=True, blank=True)
+    estimated_duration = models.DurationField(null=True, blank=True, help_text="Estimated time to complete")
     
     # Custom data storage (JSON)
     data = models.JSONField(default=dict, help_text="Custom data specific to this work item")
@@ -148,6 +205,74 @@ class WorkItemHistory(models.Model):
     def __str__(self):
         from_text = f"from {self.from_step.name}" if self.from_step else "started"
         return f"{self.work_item.title}: {from_text} to {self.to_step.name}"
+
+
+class WorkItemAttachment(models.Model):
+    """File attachments for work items"""
+    work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='attachments')
+    file = models.FileField(upload_to='cflows/attachments/%Y/%m/%d/')
+    filename = models.CharField(max_length=255)
+    file_size = models.PositiveIntegerField()
+    content_type = models.CharField(max_length=100)
+    
+    # Metadata
+    uploaded_by = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    description = models.TextField(blank=True)
+    
+    class Meta:
+        ordering = ['-uploaded_at']
+    
+    def __str__(self):
+        return f"{self.work_item.title} - {self.filename}"
+
+
+class WorkItemComment(models.Model):
+    """Comments and activity on work items"""
+    work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True)
+    
+    # Comment content
+    content = models.TextField()
+    is_system_comment = models.BooleanField(default=False, help_text="Auto-generated system comment")
+    
+    # Threading
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies')
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_edited = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ['created_at']
+    
+    def __str__(self):
+        return f"Comment on {self.work_item.title} by {self.author}"
+
+
+class WorkItemRevision(models.Model):
+    """Track revisions of work items for version control"""
+    work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='revisions')
+    revision_number = models.PositiveIntegerField()
+    
+    # Snapshot data
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    rich_content = models.TextField(blank=True)
+    data = models.JSONField(default=dict)
+    
+    # Change tracking
+    changed_by = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True)
+    change_summary = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['work_item', 'revision_number']
+        ordering = ['-revision_number']
+    
+    def __str__(self):
+        return f"{self.work_item.title} v{self.revision_number}"
 
 
 class TeamBooking(models.Model):

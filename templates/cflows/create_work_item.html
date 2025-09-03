@@ -1,0 +1,231 @@
+{% extends 'cflows/base.html' %}
+
+{% block title %}Create Work Item - {{ workflow.name }} - CFlows{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Create Work Item</h1>
+                <p class="text-gray-600 mt-2">Add a new work item to the <strong>{{ workflow.name }}</strong> workflow</p>
+            </div>
+            <div class="flex space-x-3">
+                <a href="{% url 'cflows:workflow_detail' workflow.id %}" 
+                   class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-arrow-left mr-2"></i>Back to Workflow
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Form -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <form method="post" class="space-y-6" x-data="workItemForm()">
+            {% csrf_token %}
+            
+            <!-- Basic Information -->
+            <div class="space-y-6">
+                <div>
+                    <label for="{{ form.title.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        Title <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.title }}
+                    {% if form.title.errors %}
+                        <div class="mt-1 text-sm text-red-600">{{ form.title.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label for="{{ form.description.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        Brief Description
+                    </label>
+                    {{ form.description }}
+                    <p class="mt-1 text-sm text-gray-500">A short summary of this work item</p>
+                    {% if form.description.errors %}
+                        <div class="mt-1 text-sm text-red-600">{{ form.description.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label for="{{ form.rich_content.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        Detailed Content
+                    </label>
+                    {{ form.rich_content }}
+                    <p class="mt-1 text-sm text-gray-500">Detailed description with formatting support</p>
+                    {% if form.rich_content.errors %}
+                        <div class="mt-1 text-sm text-red-600">{{ form.rich_content.errors.0 }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Metadata -->
+            <div class="border-t border-gray-200 pt-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Item Details</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="{{ form.priority.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Priority
+                        </label>
+                        {{ form.priority }}
+                        {% if form.priority.errors %}
+                            <div class="mt-1 text-sm text-red-600">{{ form.priority.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        <label for="{{ form.current_assignee.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Assignee (Optional)
+                        </label>
+                        {{ form.current_assignee }}
+                        {% if form.current_assignee.errors %}
+                            <div class="mt-1 text-sm text-red-600">{{ form.current_assignee.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        <label for="{{ form.due_date.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Due Date (Optional)
+                        </label>
+                        {{ form.due_date }}
+                        {% if form.due_date.errors %}
+                            <div class="mt-1 text-sm text-red-600">{{ form.due_date.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        <label for="{{ form.estimated_duration.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Estimated Duration (Optional)
+                        </label>
+                        {{ form.estimated_duration }}
+                        <p class="mt-1 text-sm text-gray-500">Format: HH:MM:SS</p>
+                        {% if form.estimated_duration.errors %}
+                            <div class="mt-1 text-sm text-red-600">{{ form.estimated_duration.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tags -->
+            <div class="border-t border-gray-200 pt-6">
+                <div>
+                    <label for="{{ form.tags_input.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        Tags (Optional)
+                    </label>
+                    {{ form.tags_input }}
+                    <p class="mt-1 text-sm text-gray-500">{{ form.tags_input.help_text }}</p>
+                    {% if form.tags_input.errors %}
+                        <div class="mt-1 text-sm text-red-600">{{ form.tags_input.errors.0 }}</div>
+                    {% endif %}
+                    
+                    <!-- Tag suggestions -->
+                    <div class="mt-2" x-show="showTagSuggestions">
+                        <div class="text-xs font-medium text-gray-500 mb-2">SUGGESTED TAGS:</div>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" x-on:click="addTag('urgent')" 
+                                    class="px-2 py-1 bg-red-100 text-red-800 text-xs rounded hover:bg-red-200 transition-colors">
+                                urgent
+                            </button>
+                            <button type="button" x-on:click="addTag('review-needed')" 
+                                    class="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded hover:bg-yellow-200 transition-colors">
+                                review-needed
+                            </button>
+                            <button type="button" x-on:click="addTag('client-facing')" 
+                                    class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded hover:bg-blue-200 transition-colors">
+                                client-facing
+                            </button>
+                            <button type="button" x-on:click="addTag('internal')" 
+                                    class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded hover:bg-green-200 transition-colors">
+                                internal
+                            </button>
+                            <button type="button" x-on:click="addTag('documentation')" 
+                                    class="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded hover:bg-purple-200 transition-colors">
+                                documentation
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                <a href="{% url 'cflows:workflow_detail' workflow.id %}" 
+                   class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                    Cancel
+                </a>
+                <button type="submit" 
+                        class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm font-medium transition-colors">
+                    <i class="fas fa-plus mr-2"></i>Create Work Item
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Workflow Context -->
+    <div class="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div class="flex items-start">
+            <div class="flex-shrink-0">
+                <i class="fas fa-info-circle text-blue-400"></i>
+            </div>
+            <div class="ml-3">
+                <h3 class="text-sm font-medium text-blue-800">Workflow Information</h3>
+                <div class="mt-2 text-sm text-blue-700">
+                    <p class="mb-2">This work item will be created in the <strong>{{ workflow.name }}</strong> workflow.</p>
+                    {% if workflow.description %}
+                        <p class="mb-2">{{ workflow.description }}</p>
+                    {% endif %}
+                    <p>The work item will start at the first step and can be moved through the workflow by authorized team members.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alpine.js Component for Form Interactivity -->
+<script>
+function workItemForm() {
+    return {
+        showTagSuggestions: true,
+        
+        addTag(tag) {
+            const tagsInput = document.getElementById('{{ form.tags_input.id_for_label }}');
+            const currentTags = tagsInput.value ? tagsInput.value.split(',').map(t => t.trim()) : [];
+            
+            if (!currentTags.includes(tag)) {
+                currentTags.push(tag);
+                tagsInput.value = currentTags.join(', ');
+            }
+        }
+    }
+}
+
+// Rich text editor initialization (basic)
+document.addEventListener('DOMContentLoaded', function() {
+    const richTextArea = document.getElementById('rich-content-editor');
+    if (richTextArea) {
+        // Add basic formatting toolbar
+        const toolbar = document.createElement('div');
+        toolbar.className = 'border border-b-0 border-gray-300 bg-gray-50 px-3 py-2 rounded-t-md flex space-x-2';
+        toolbar.innerHTML = `
+            <button type="button" onclick="formatText('bold')" class="px-2 py-1 text-sm border rounded hover:bg-gray-200" title="Bold">
+                <strong>B</strong>
+            </button>
+            <button type="button" onclick="formatText('italic')" class="px-2 py-1 text-sm border rounded hover:bg-gray-200" title="Italic">
+                <em>I</em>
+            </button>
+            <button type="button" onclick="formatText('underline')" class="px-2 py-1 text-sm border rounded hover:bg-gray-200" title="Underline">
+                <u>U</u>
+            </button>
+        `;
+        richTextArea.parentNode.insertBefore(toolbar, richTextArea);
+        richTextArea.style.borderTopLeftRadius = '0';
+        richTextArea.style.borderTopRightRadius = '0';
+    }
+});
+
+function formatText(command) {
+    document.execCommand(command, false, null);
+}
+</script>
+{% endblock %}

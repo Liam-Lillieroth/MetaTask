@@ -1,0 +1,239 @@
+{% extends 'cflows/base.html' %}
+
+{% block title %}{{ workflow.name }} - CFlows{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto py-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">{{ workflow.name }}</h1>
+                <p class="text-gray-600 mt-2">{{ workflow.description|default:"No description provided" }}</p>
+                <div class="flex items-center space-x-4 mt-3">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                {% if workflow.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                        {% if workflow.is_active %}Active{% else %}Inactive{% endif %}
+                    </span>
+                    {% if workflow.template %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            Template: {{ workflow.template.name }}
+                        </span>
+                    {% endif %}
+                    <span class="text-sm text-gray-500">
+                        Created by {{ workflow.created_by.user.get_full_name|default:workflow.created_by.user.username }}
+                        on {{ workflow.created_at|date:"M d, Y" }}
+                    </span>
+                </div>
+            </div>
+            <div class="flex space-x-3">
+                <a href="{% url 'cflows:workflows_list' %}" 
+                   class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-arrow-left mr-2"></i>Back to Workflows
+                </a>
+                <a href="{% url 'cflows:create_work_item' workflow.id %}" 
+                   class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-plus mr-2"></i>New Work Item
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-2 bg-blue-100 rounded-lg">
+                    <i class="fas fa-tasks text-blue-600"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Total Items</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ stats.total_items }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-2 bg-yellow-100 rounded-lg">
+                    <i class="fas fa-clock text-yellow-600"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Active Items</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ stats.active_items }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-2 bg-green-100 rounded-lg">
+                    <i class="fas fa-check-circle text-green-600"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Completed</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ stats.completed_items }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="p-2 bg-purple-100 rounded-lg">
+                    <i class="fas fa-sitemap text-purple-600"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Steps</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ stats.steps_count }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Workflow Steps -->
+        <div class="lg:col-span-2">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">Workflow Steps</h2>
+                </div>
+                <div class="p-6">
+                    {% if steps %}
+                        <div class="space-y-4">
+                            {% for step in steps %}
+                                <div class="border border-gray-200 rounded-lg p-4 hover:border-purple-300 transition-colors">
+                                    <div class="flex items-start justify-between">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-8 h-8 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-sm font-semibold">
+                                                {{ step.order }}
+                                            </div>
+                                            <div>
+                                                <h3 class="font-medium text-gray-900">{{ step.name }}</h3>
+                                                {% if step.description %}
+                                                    <p class="text-sm text-gray-600 mt-1">{{ step.description }}</p>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <div class="flex flex-col items-end space-y-1">
+                                            {% if step.is_terminal %}
+                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                    Terminal
+                                                </span>
+                                            {% endif %}
+                                            {% if step.requires_booking %}
+                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                    <i class="fas fa-calendar-alt mr-1"></i>Booking Required
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    {% if step.assigned_team or step.estimated_duration_hours %}
+                                        <div class="mt-3 flex flex-wrap items-center gap-4 text-sm text-gray-500">
+                                            {% if step.assigned_team %}
+                                                <div class="flex items-center">
+                                                    <i class="fas fa-users mr-1"></i>
+                                                    {{ step.assigned_team.name }}
+                                                </div>
+                                            {% endif %}
+                                            {% if step.estimated_duration_hours %}
+                                                <div class="flex items-center">
+                                                    <i class="fas fa-clock mr-1"></i>
+                                                    {{ step.estimated_duration_hours }}h estimated
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                    
+                                    <!-- Outgoing Transitions -->
+                                    {% if step.outgoing_transitions.all %}
+                                        <div class="mt-3 pt-3 border-t border-gray-100">
+                                            <div class="text-xs font-medium text-gray-500 mb-2">NEXT STEPS:</div>
+                                            <div class="flex flex-wrap gap-2">
+                                                {% for transition in step.outgoing_transitions.all %}
+                                                    <div class="flex items-center text-xs bg-gray-50 rounded px-2 py-1">
+                                                        <i class="fas fa-arrow-right mr-1 text-gray-400"></i>
+                                                        {{ transition.to_step.name }}
+                                                        {% if transition.label %}
+                                                            <span class="ml-1 text-gray-500">({{ transition.label }})</span>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-8">
+                            <div class="text-gray-400 mb-4">
+                                <i class="fas fa-sitemap text-4xl"></i>
+                            </div>
+                            <p class="text-gray-500">No steps defined for this workflow yet.</p>
+                            <a href="/admin/cflows/workflowstep/add/?workflow={{ workflow.id }}" 
+                               class="mt-2 text-purple-600 hover:text-purple-700 text-sm font-medium">
+                                Add steps in admin panel
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Work Items -->
+        <div class="lg:col-span-1">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-gray-900">Recent Work Items</h2>
+                    <a href="{% url 'cflows:work_items_list' %}?workflow={{ workflow.id }}" 
+                       class="text-purple-600 hover:text-purple-700 text-sm font-medium">View All</a>
+                </div>
+                <div class="p-6">
+                    {% if recent_items %}
+                        <div class="space-y-4">
+                            {% for item in recent_items %}
+                                <div class="border-l-4 border-purple-200 pl-4">
+                                    <div class="flex items-center justify-between">
+                                        <a href="{% url 'cflows:work_item_detail' item.id %}" 
+                                           class="font-medium text-gray-900 hover:text-purple-600 transition-colors">
+                                            {{ item.title }}
+                                        </a>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                                   {% if item.priority == 'critical' %}bg-red-100 text-red-800
+                                                   {% elif item.priority == 'high' %}bg-orange-100 text-orange-800
+                                                   {% elif item.priority == 'normal' %}bg-blue-100 text-blue-800
+                                                   {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                            {{ item.get_priority_display }}
+                                        </span>
+                                    </div>
+                                    <div class="text-sm text-gray-500 mt-1">
+                                        {{ item.current_step.name }}
+                                        {% if item.current_assignee %}
+                                            • {{ item.current_assignee.user.get_full_name|default:item.current_assignee.user.username }}
+                                        {% endif %}
+                                    </div>
+                                    <div class="text-xs text-gray-400 mt-1">
+                                        {{ item.updated_at|timesince }} ago
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-8">
+                            <div class="text-gray-400 mb-4">
+                                <i class="fas fa-clipboard-list text-4xl"></i>
+                            </div>
+                            <p class="text-gray-500 mb-4">No work items yet.</p>
+                            <a href="{% url 'cflows:create_work_item' workflow.id %}" 
+                               class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm transition-colors">
+                                Create First Work Item
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

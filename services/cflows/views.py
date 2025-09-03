@@ -22,14 +22,60 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
 from django.core.paginator import Paginator
-from django.db.models import Q, Count, Prefetch
+from django.db.models import Q, Count, Prefetch, Case, When, IntegerField
 from django.utils import timezone
+from django.views.decorators.http import require_POST
+from django.db import transaction
 from core.models import Organization, UserProfile, Team, JobType, CalendarEvent
 from core.views import require_organization_access, require_business_organization
 from .models import (
-    Workflow, WorkflowStep, WorkflowTransition,
-    WorkItem, WorkItemHistory, TeamBooking
+    Workflow, WorkflowStep, WorkflowTransition, WorkflowTemplate,
+    WorkItem, WorkItemHistory, WorkItemComment, WorkItemAttachment,
+    WorkItemRevision, TeamBooking
 )
+from .forms import (
+    WorkflowForm, WorkflowStepForm, WorkItemForm, WorkItemCommentForm,
+    WorkItemAttachmentForm, WorkflowTransitionForm, TeamBookingForm
+)
+import json
+
+
+def apply_workflow_template(workflow):
+    """Apply template structure to a workflow"""
+    if not workflow.template or not workflow.template.template_data:
+        return
+    
+    template_data = workflow.template.template_data
+    steps_data = template_data.get('steps', [])
+    transitions_data = template_data.get('transitions', [])
+    
+    # Create steps
+    step_mapping = {}
+    for step_data in steps_data:
+        step = WorkflowStep.objects.create(
+            workflow=workflow,
+            name=step_data['name'],
+            description=step_data.get('description', ''),
+            order=step_data.get('order', 1),
+            requires_booking=step_data.get('requires_booking', False),
+            estimated_duration_hours=step_data.get('estimated_duration_hours'),
+            is_terminal=step_data.get('is_terminal', False),
+            data_schema=step_data.get('data_schema', {})
+        )
+        step_mapping[step_data['id']] = step
+    
+    # Create transitions
+    for transition_data in transitions_data:
+        from_step = step_mapping.get(transition_data['from_step_id'])
+        to_step = step_mapping.get(transition_data['to_step_id'])
+        
+        if from_step and to_step:
+            WorkflowTransition.objects.create(
+                from_step=from_step,
+                to_step=to_step,
+                label=transition_data.get('label', ''),
+                condition=transition_data.get('condition', {})
+            )
 
 
 def get_user_profile(request):
@@ -130,23 +176,294 @@ def workflows_list(request):
 
 
 @login_required
+@require_organization_access
 def create_workflow(request):
-    """Create new workflow - placeholder for now"""
+    """Create new workflow with enhanced form"""
     profile = get_user_profile(request)
     
     if not profile:
         return render(request, 'cflows/no_profile.html')
     
-    # This would be replaced with a proper form
     if request.method == 'POST':
-        messages.info(request, "Workflow creation form will be implemented next!")
-        return redirect('cflows:workflows_list')
+        form = WorkflowForm(request.POST, organization=profile.organization)
+        if form.is_valid():
+            workflow = form.save(commit=False)
+            workflow.organization = profile.organization
+            workflow.created_by = profile
+            workflow.save()
+            
+            # If created from template, apply template structure
+            if workflow.template:
+                apply_workflow_template(workflow)
+            
+            messages.success(request, f'Workflow "{workflow.name}" created successfully!')
+            return redirect('cflows:workflow_detail', workflow_id=workflow.id)
+    else:
+        form = WorkflowForm(organization=profile.organization)
+    
+    # Get available templates
+    templates = WorkflowTemplate.objects.filter(
+        Q(is_public=True) | Q(created_by_org=profile.organization)
+    ).order_by('category', 'name')
     
     context = {
         'profile': profile,
+        'form': form,
+        'templates': templates,
     }
     
     return render(request, 'cflows/create_workflow.html', context)
+
+
+@login_required
+@require_organization_access
+def workflow_detail(request, workflow_id):
+    """Detailed view of a workflow with steps and statistics"""
+    profile = get_user_profile(request)
+    if not profile:
+        return render(request, 'cflows/no_profile.html')
+    
+    workflow = get_object_or_404(
+        Workflow.objects.select_related('created_by__user', 'template'),
+        id=workflow_id,
+        organization=profile.organization
+    )
+    
+    # Get workflow steps with transitions
+    steps = workflow.steps.prefetch_related(
+        'outgoing_transitions__to_step',
+        'incoming_transitions__from_step'
+    ).order_by('order')
+    
+    # Statistics
+    stats = {
+        'total_items': workflow.work_items.count(),
+        'active_items': workflow.work_items.filter(is_completed=False).count(),
+        'completed_items': workflow.work_items.filter(is_completed=True).count(),
+        'steps_count': steps.count(),
+    }
+    
+    # Recent work items
+    recent_items = workflow.work_items.select_related(
+        'current_step', 'current_assignee__user', 'created_by__user'
+    ).order_by('-updated_at')[:10]
+    
+    context = {
+        'profile': profile,
+        'workflow': workflow,
+        'steps': steps,
+        'stats': stats,
+        'recent_items': recent_items,
+    }
+    
+    return render(request, 'cflows/workflow_detail.html', context)
+
+
+@login_required
+@require_organization_access
+def work_items_list(request):
+    """Enhanced work items list with filtering and search"""
+    profile = get_user_profile(request)
+    if not profile:
+        return render(request, 'cflows/no_profile.html')
+    
+    # Base queryset
+    work_items = WorkItem.objects.filter(
+        workflow__organization=profile.organization
+    ).select_related(
+        'workflow', 'current_step', 'current_assignee__user', 'created_by__user'
+    ).prefetch_related('attachments', 'comments')
+    
+    # Filtering
+    workflow_id = request.GET.get('workflow')
+    if workflow_id:
+        work_items = work_items.filter(workflow_id=workflow_id)
+    
+    assignee_id = request.GET.get('assignee')
+    if assignee_id:
+        work_items = work_items.filter(current_assignee_id=assignee_id)
+    
+    priority = request.GET.get('priority')
+    if priority:
+        work_items = work_items.filter(priority=priority)
+    
+    status = request.GET.get('status')
+    if status == 'active':
+        work_items = work_items.filter(is_completed=False)
+    elif status == 'completed':
+        work_items = work_items.filter(is_completed=True)
+    
+    # Search
+    search = request.GET.get('search')
+    if search:
+        work_items = work_items.filter(
+            Q(title__icontains=search) | 
+            Q(description__icontains=search) |
+            Q(tags__contains=[search])
+        )
+    
+    # Sorting
+    sort = request.GET.get('sort', '-updated_at')
+    if sort in ['-updated_at', 'updated_at', 'title', '-title', 'priority', '-priority', 'due_date', '-due_date']:
+        work_items = work_items.order_by(sort)
+    
+    # Pagination
+    paginator = Paginator(work_items, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Get filter options
+    workflows = Workflow.objects.filter(
+        organization=profile.organization, is_active=True
+    ).order_by('name')
+    
+    assignees = UserProfile.objects.filter(
+        organization=profile.organization, user__is_active=True
+    ).order_by('user__first_name', 'user__last_name')
+    
+    context = {
+        'profile': profile,
+        'page_obj': page_obj,
+        'workflows': workflows,
+        'assignees': assignees,
+        'current_filters': {
+            'workflow': workflow_id,
+            'assignee': assignee_id,
+            'priority': priority,
+            'status': status,
+            'search': search,
+            'sort': sort,
+        }
+    }
+    
+    return render(request, 'cflows/work_items_list.html', context)
+
+
+@login_required
+@require_organization_access
+def create_work_item(request, workflow_id):
+    """Create a new work item in a workflow"""
+    profile = get_user_profile(request)
+    if not profile:
+        return render(request, 'cflows/no_profile.html')
+    
+    workflow = get_object_or_404(
+        Workflow,
+        id=workflow_id,
+        organization=profile.organization,
+        is_active=True
+    )
+    
+    # Get the first step of the workflow
+    first_step = workflow.steps.order_by('order').first()
+    if not first_step:
+        messages.error(request, 'This workflow has no steps defined.')
+        return redirect('cflows:workflow_detail', workflow_id=workflow.id)
+    
+    if request.method == 'POST':
+        form = WorkItemForm(request.POST, organization=profile.organization)
+        if form.is_valid():
+            work_item = form.save(commit=False)
+            work_item.workflow = workflow
+            work_item.current_step = first_step
+            work_item.created_by = profile
+            work_item.save()
+            
+            # Create initial history entry
+            WorkItemHistory.objects.create(
+                work_item=work_item,
+                to_step=first_step,
+                changed_by=profile,
+                notes="Work item created",
+                data_snapshot=work_item.data
+            )
+            
+            # Create revision
+            WorkItemRevision.objects.create(
+                work_item=work_item,
+                revision_number=1,
+                title=work_item.title,
+                description=work_item.description,
+                rich_content=work_item.rich_content,
+                data=work_item.data,
+                changed_by=profile,
+                change_summary="Initial creation"
+            )
+            
+            messages.success(request, f'Work item "{work_item.title}" created successfully!')
+            return redirect('cflows:work_item_detail', work_item_id=work_item.id)
+    else:
+        form = WorkItemForm(organization=profile.organization)
+    
+    context = {
+        'profile': profile,
+        'workflow': workflow,
+        'form': form,
+    }
+    
+    return render(request, 'cflows/create_work_item.html', context)
+
+
+@login_required
+@require_organization_access
+def work_item_detail(request, work_item_id):
+    """Detailed view of a work item with comments, attachments, and history"""
+    profile = get_user_profile(request)
+    if not profile:
+        return render(request, 'cflows/no_profile.html')
+    
+    work_item = get_object_or_404(
+        WorkItem.objects.select_related(
+            'workflow', 'current_step', 'current_assignee__user', 'created_by__user'
+        ).prefetch_related(
+            'attachments__uploaded_by__user',
+            'comments__author__user',
+            'history__from_step',
+            'history__to_step',
+            'history__changed_by__user',
+            'depends_on',
+            'dependents',
+            'watchers__user'
+        ),
+        id=work_item_id,
+        workflow__organization=profile.organization
+    )
+    
+    # Available transitions from current step
+    available_transitions = work_item.current_step.outgoing_transitions.select_related('to_step')
+    
+    # Handle comment form
+    comment_form = None
+    if request.method == 'POST':
+        if 'add_comment' in request.POST:
+            comment_form = WorkItemCommentForm(request.POST)
+            if comment_form.is_valid():
+                comment = comment_form.save(commit=False)
+                comment.work_item = work_item
+                comment.author = profile
+                comment.save()
+                messages.success(request, 'Comment added successfully!')
+                return redirect('cflows:work_item_detail', work_item_id=work_item.id)
+    
+    if not comment_form:
+        comment_form = WorkItemCommentForm()
+    
+    # Get comments in thread order
+    comments = work_item.comments.filter(parent=None).order_by('created_at')
+    
+    # Get history
+    history = work_item.history.order_by('-created_at')
+    
+    context = {
+        'profile': profile,
+        'work_item': work_item,
+        'available_transitions': available_transitions,
+        'comment_form': comment_form,
+        'comments': comments,
+        'history': history,
+    }
+    
+    return render(request, 'cflows/work_item_detail.html', context)
 
 
 @login_required
@@ -257,48 +574,6 @@ def work_items_list(request):
     }
     
     return render(request, 'cflows/work_items_list.html', context)
-
-
-@login_required
-def work_item_detail(request, uuid):
-    """Work item detail view"""
-    profile = get_user_profile(request)
-    
-    if not profile:
-        return render(request, 'cflows/no_profile.html')
-    
-    work_item = get_object_or_404(
-        WorkItem.objects.select_related(
-            'workflow', 'current_step', 'current_assignee__user', 'created_by__user'
-        ),
-        uuid=uuid,
-        workflow__organization=profile.organization
-    )
-    
-    # Get history
-    history = WorkItemHistory.objects.filter(work_item=work_item).select_related(
-        'from_step', 'to_step', 'changed_by__user'
-    ).order_by('-created_at')
-    
-    # Get available transitions from current step
-    available_transitions = WorkflowTransition.objects.filter(
-        from_step=work_item.current_step
-    ).select_related('to_step')
-    
-    # Get related bookings
-    bookings = TeamBooking.objects.filter(work_item=work_item).select_related(
-        'team', 'job_type', 'booked_by__user', 'completed_by__user'
-    ).order_by('-start_time')
-    
-    context = {
-        'profile': profile,
-        'work_item': work_item,
-        'history': history,
-        'available_transitions': available_transitions,
-        'bookings': bookings,
-    }
-    
-    return render(request, 'cflows/work_item_detail.html', context)
 
 
 @login_required
