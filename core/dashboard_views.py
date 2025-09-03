@@ -102,7 +102,7 @@ def dashboard(request):
     quick_actions = []
     
     # Add service-specific actions
-    if 'cflows' in licensed_services and profile.has_staff_panel_access():
+    if 'cflows' in licensed_services and profile.has_staff_panel_access:
         quick_actions.extend([
             {
                 'title': 'Create Workflow',
