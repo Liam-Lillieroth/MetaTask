@@ -70,7 +70,7 @@
                             <i class="fas fa-tachometer-alt mr-2"></i>
                             Dashboard
                         </a>
-                        <a href="{% url 'cflows:workflows_list' %}" 
+                        <a href="{% url 'cflows:workflow_list' %}" 
                            class="{% if 'workflow' in request.resolver_match.url_name %}bg-white bg-opacity-20 text-white{% else %}text-indigo-100 hover:bg-white hover:bg-opacity-10{% endif %} px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center">
                             <i class="fas fa-sitemap mr-2"></i>
                             Workflows
@@ -209,7 +209,7 @@
                     <a href="{% url 'cflows:index' %}" class="text-indigo-100 hover:bg-white hover:bg-opacity-10 block px-3 py-2 rounded-md text-base font-medium">
                         <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
                     </a>
-                    <a href="{% url 'cflows:workflows_list' %}" class="text-indigo-100 hover:bg-white hover:bg-opacity-10 block px-3 py-2 rounded-md text-base font-medium">
+                    <a href="{% url 'cflows:workflow_list' %}" class="text-indigo-100 hover:bg-white hover:bg-opacity-10 block px-3 py-2 rounded-md text-base font-medium">
                         <i class="fas fa-sitemap mr-2"></i>Workflows
                     </a>
                     <a href="{% url 'cflows:work_items_list' %}" class="text-indigo-100 hover:bg-white hover:bg-opacity-10 block px-3 py-2 rounded-md text-base font-medium">

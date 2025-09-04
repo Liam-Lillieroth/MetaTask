@@ -315,3 +315,270 @@ class TeamBooking(models.Model):
     
     def __str__(self):
         return f"{self.team.name}: {self.title} ({self.start_time.strftime('%Y-%m-%d %H:%M')})"
+
+
+class CustomField(models.Model):
+    """Custom fields that organizations can define for their work items"""
+    
+    FIELD_TYPES = [
+        ('text', 'Text Input'),
+        ('textarea', 'Text Area'), 
+        ('number', 'Number'),
+        ('decimal', 'Decimal'),
+        ('date', 'Date'),
+        ('datetime', 'Date & Time'),
+        ('checkbox', 'Checkbox'),
+        ('select', 'Dropdown Select'),
+        ('multiselect', 'Multiple Select'),
+        ('email', 'Email'),
+        ('url', 'URL'),
+        ('phone', 'Phone Number'),
+    ]
+    
+    # Basic field definition
+    organization = models.ForeignKey('core.Organization', on_delete=models.CASCADE, related_name='custom_fields')
+    name = models.CharField(max_length=100, help_text="Internal field name (no spaces)")
+    label = models.CharField(max_length=200, help_text="Display label for users")
+    field_type = models.CharField(max_length=20, choices=FIELD_TYPES, default='text')
+    
+    # Field configuration
+    is_required = models.BooleanField(default=False)
+    default_value = models.TextField(blank=True, help_text="Default value (JSON for complex types)")
+    help_text = models.CharField(max_length=500, blank=True, help_text="Help text shown to users")
+    placeholder = models.CharField(max_length=200, blank=True, help_text="Placeholder text for input fields")
+    
+    # Validation
+    min_length = models.PositiveIntegerField(null=True, blank=True, help_text="Minimum length for text fields")
+    max_length = models.PositiveIntegerField(null=True, blank=True, help_text="Maximum length for text fields")
+    min_value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Minimum value for number fields")
+    max_value = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Maximum value for number fields")
+    
+    # Select field options (JSON array)
+    options = models.JSONField(default=list, blank=True, help_text="Options for select fields (JSON array)")
+    
+    # Field ordering and organization
+    order = models.PositiveIntegerField(default=0, help_text="Display order")
+    section = models.CharField(max_length=100, blank=True, help_text="Section to group fields")
+    
+    # Workflow context - optional workflow filtering
+    workflows = models.ManyToManyField(Workflow, blank=True, help_text="Limit to specific workflows (empty = all workflows)")
+    workflow_steps = models.ManyToManyField(WorkflowStep, blank=True, help_text="Show only for specific steps")
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['section', 'order', 'label']
+        unique_together = ['organization', 'name']
+    
+    def __str__(self):
+        return f"{self.organization.name} - {self.label}"
+    
+    def get_form_field(self):
+        """Generate Django form field based on field type"""
+        from django import forms
+        
+        field_class = forms.CharField
+        widget_attrs = {
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500'
+        }
+        
+        if self.placeholder:
+            widget_attrs['placeholder'] = self.placeholder
+        
+        field_kwargs = {
+            'label': self.label,
+            'required': self.is_required,
+            'help_text': self.help_text,
+        }
+        
+        if self.field_type == 'text':
+            if self.max_length:
+                field_kwargs['max_length'] = self.max_length
+            if self.min_length:
+                field_kwargs['min_length'] = self.min_length
+            field_class = forms.CharField
+            widget_attrs.update({'type': 'text'})
+            
+        elif self.field_type == 'textarea':
+            field_class = forms.CharField
+            widget_attrs.update({'rows': '4'})
+            field_kwargs['widget'] = forms.Textarea(attrs=widget_attrs)
+            
+        elif self.field_type == 'number':
+            field_class = forms.IntegerField
+            widget_attrs.update({'type': 'number'})
+            if self.min_value is not None:
+                field_kwargs['min_value'] = int(self.min_value)
+            if self.max_value is not None:
+                field_kwargs['max_value'] = int(self.max_value)
+                
+        elif self.field_type == 'decimal':
+            field_class = forms.DecimalField
+            widget_attrs.update({'type': 'number', 'step': '0.01'})
+            if self.min_value is not None:
+                field_kwargs['min_value'] = self.min_value
+            if self.max_value is not None:
+                field_kwargs['max_value'] = self.max_value
+                
+        elif self.field_type == 'date':
+            field_class = forms.DateField
+            widget_attrs.update({'type': 'date'})
+            
+        elif self.field_type == 'datetime':
+            field_class = forms.DateTimeField
+            widget_attrs.update({'type': 'datetime-local'})
+            
+        elif self.field_type == 'checkbox':
+            field_class = forms.BooleanField
+            widget_attrs = {'class': 'rounded text-purple-600 focus:ring-purple-500'}
+            field_kwargs['widget'] = forms.CheckboxInput(attrs=widget_attrs)
+            
+        elif self.field_type == 'select':
+            field_class = forms.ChoiceField
+            choices = [(opt, opt) for opt in self.options] if self.options else []
+            field_kwargs['choices'] = [('', '-- Select --')] + choices
+            field_kwargs['widget'] = forms.Select(attrs=widget_attrs)
+            
+        elif self.field_type == 'multiselect':
+            field_class = forms.MultipleChoiceField
+            choices = [(opt, opt) for opt in self.options] if self.options else []
+            field_kwargs['choices'] = choices
+            widget_attrs.update({'multiple': True, 'size': min(len(choices), 5)})
+            field_kwargs['widget'] = forms.SelectMultiple(attrs=widget_attrs)
+            
+        elif self.field_type == 'email':
+            field_class = forms.EmailField
+            widget_attrs.update({'type': 'email'})
+            
+        elif self.field_type == 'url':
+            field_class = forms.URLField
+            widget_attrs.update({'type': 'url'})
+            
+        elif self.field_type == 'phone':
+            field_class = forms.CharField
+            widget_attrs.update({'type': 'tel'})
+        
+        # Set default widget if not already set
+        if 'widget' not in field_kwargs:
+            if self.field_type == 'checkbox':
+                pass  # Already set above
+            else:
+                field_kwargs['widget'] = forms.TextInput(attrs=widget_attrs) if field_class == forms.CharField else None
+        
+        # Set default value
+        if self.default_value and self.field_type != 'checkbox':
+            field_kwargs['initial'] = self.default_value
+        elif self.field_type == 'checkbox' and self.default_value:
+            field_kwargs['initial'] = self.default_value.lower() in ['true', '1', 'yes']
+        
+        return field_class(**field_kwargs)
+
+
+class WorkItemCustomFieldValue(models.Model):
+    """Values for custom fields on work items"""
+    
+    work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='custom_field_values')
+    custom_field = models.ForeignKey(CustomField, on_delete=models.CASCADE)
+    workflow_step = models.ForeignKey(WorkflowStep, on_delete=models.CASCADE, help_text="Step where this data was collected")
+    
+    # Store value as text - will be converted based on field type
+    value = models.TextField(blank=True)
+    
+    # Track when this was collected
+    collected_by = models.ForeignKey('core.UserProfile', on_delete=models.SET_NULL, null=True, help_text="User who provided this data")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['work_item', 'custom_field']
+    
+    def __str__(self):
+        return f"{self.work_item.title} - {self.custom_field.label}: {self.value[:50]}"
+    
+    def get_display_value(self):
+        """Get formatted value for display"""
+        if not self.value:
+            return ''
+            
+        field_type = self.custom_field.field_type
+        
+        if field_type == 'checkbox':
+            return 'Yes' if self.value.lower() in ['true', '1', 'yes'] else 'No'
+        elif field_type in ['date', 'datetime']:
+            try:
+                from django.utils import timezone
+                if field_type == 'date':
+                    date_obj = timezone.datetime.strptime(self.value, '%Y-%m-%d').date()
+                    return date_obj.strftime('%B %d, %Y')
+                else:
+                    datetime_obj = timezone.datetime.fromisoformat(self.value.replace('Z', '+00:00'))
+                    return datetime_obj.strftime('%B %d, %Y at %I:%M %p')
+            except (ValueError, AttributeError):
+                return self.value
+        elif field_type == 'multiselect':
+            try:
+                import json
+                values = json.loads(self.value) if isinstance(self.value, str) else self.value
+                return ', '.join(values) if isinstance(values, list) else str(values)
+            except (json.JSONDecodeError, TypeError):
+                return self.value
+        else:
+            return self.value
+    
+    def set_value(self, value):
+        """Set value with proper formatting"""
+        if self.custom_field.field_type == 'multiselect' and isinstance(value, list):
+            import json
+            self.value = json.dumps(value)
+        elif self.custom_field.field_type == 'checkbox':
+            self.value = str(bool(value)).lower()
+        else:
+            self.value = str(value) if value is not None else ''
+
+
+class StepDataCollection(models.Model):
+    """Tracks when a work item needs custom data collection for a step"""
+    
+    work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='step_data_collections')
+    workflow_step = models.ForeignKey(WorkflowStep, on_delete=models.CASCADE)
+    
+    # Status of data collection
+    is_completed = models.BooleanField(default=False)
+    completed_by = models.ForeignKey('core.UserProfile', on_delete=models.SET_NULL, null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Track when this was initiated
+    initiated_by = models.ForeignKey('core.UserProfile', on_delete=models.SET_NULL, null=True, related_name='initiated_data_collections')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['work_item', 'workflow_step']
+    
+    def __str__(self):
+        return f"{self.work_item.title} - {self.workflow_step.name} data collection"
+    
+    def get_required_fields(self):
+        """Get required custom fields for this step"""
+        return self.workflow_step.custom_fields.filter(is_required=True)
+    
+    def get_optional_fields(self):
+        """Get optional custom fields for this step"""
+        return self.workflow_step.custom_fields.filter(is_required=False)
+    
+    def has_all_required_data(self):
+        """Check if all required fields have been filled"""
+        required_fields = self.get_required_fields()
+        for field in required_fields:
+            try:
+                value = WorkItemCustomFieldValue.objects.get(
+                    work_item=self.work_item,
+                    custom_field=field
+                )
+                if not value.value:  # Empty values count as missing
+                    return False
+            except WorkItemCustomFieldValue.DoesNotExist:
+                return False
+        return True

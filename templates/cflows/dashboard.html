@@ -5,9 +5,42 @@
 {% block content %}
 <div class="space-y-8">
     <!-- Page Header -->
-    <div>
-        <h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p class="mt-2 text-lg text-gray-600">Welcome to CFlows workflow management</p>
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p class="mt-2 text-lg text-gray-600">Welcome to CFlows workflow management</p>
+        </div>
+        
+        <!-- Notification Bell -->
+        <div class="relative">
+            <button onclick="toggleNotifications()" 
+                    class="relative p-2 text-gray-500 hover:text-gray-900 focus:outline-none focus:text-gray-900">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M15 17h5l-5-5v5zM4 12h5l5 5v-5H9l-5-5v5z"></path>
+                </svg>
+                <span id="notificationBadge" class="absolute top-0 right-0 -mt-1 -mr-1 px-2 py-1 text-xs font-medium text-white bg-red-500 rounded-full hidden">0</span>
+            </button>
+            
+            <!-- Notifications Dropdown -->
+            <div id="notificationsPanel" class="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50 hidden">
+                <div class="p-4 border-b border-gray-200">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-semibold text-gray-900">Notifications</h3>
+                        <button onclick="markAllAsRead()" class="text-sm text-blue-600 hover:text-blue-800">Mark all as read</button>
+                    </div>
+                </div>
+                <div id="notificationsList" class="max-h-80 overflow-y-auto">
+                    <div class="p-4 text-center text-gray-500">
+                        <i class="fas fa-bell text-2xl mb-2"></i>
+                        <p>Loading notifications...</p>
+                    </div>
+                </div>
+                <div class="p-3 border-t border-gray-200">
+                    <a href="{% url 'cflows:work_items_list' %}" class="text-sm text-blue-600 hover:text-blue-800">View all work items</a>
+                </div>
+            </div>
+        </div>
     </div>
     
     <!-- Statistics Cards -->
@@ -103,7 +136,7 @@
                                 <p class="text-xs text-gray-400 mt-1">
                                     Updated {{ item.updated_at|timesince }} ago
                                     {% if item.current_assignee %}
-                                        • Assigned to {{ item.current_assignee.user.get_full_name|default:item.current_assignee.user.username }}
+                                        • Assigned to {% if item.current_assignee.user %}{{ item.current_assignee.user.get_full_name|default:item.current_assignee.user.username }}{% else %}Unknown User{% endif %}
                                     {% endif %}
                                 </p>
                             </div>
@@ -225,4 +258,140 @@
         </div>
     </div>
 </div>
+
+<script>
+let notificationsOpen = false;
+let lastNotificationCheck = new Date().toISOString();
+
+// Real-time notifications
+function checkNotifications() {
+    fetch(`{% url 'cflows:api_notifications' %}?last_check=${lastNotificationCheck}`)
+        .then(response => response.json())
+        .then(data => {
+            updateNotifications(data.notifications);
+            lastNotificationCheck = data.timestamp;
+        })
+        .catch(error => {
+            console.error('Error checking notifications:', error);
+        });
+}
+
+function updateNotifications(notifications) {
+    const badge = document.getElementById('notificationBadge');
+    const list = document.getElementById('notificationsList');
+    
+    if (notifications.length > 0) {
+        badge.textContent = notifications.length;
+        badge.classList.remove('hidden');
+        
+        // Update notifications list
+        list.innerHTML = '';
+        notifications.forEach(notification => {
+            const item = createNotificationItem(notification);
+            list.appendChild(item);
+        });
+    } else {
+        badge.classList.add('hidden');
+        list.innerHTML = `
+            <div class="p-4 text-center text-gray-500">
+                <i class="fas fa-check-circle text-2xl mb-2 text-green-500"></i>
+                <p>All caught up!</p>
+            </div>
+        `;
+    }
+}
+
+function createNotificationItem(notification) {
+    const div = document.createElement('div');
+    div.className = 'p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer';
+    
+    const priorityColors = {
+        'low': 'text-green-600',
+        'normal': 'text-blue-600', 
+        'high': 'text-orange-600',
+        'critical': 'text-red-600'
+    };
+    
+    const priorityColor = priorityColors[notification.priority] || 'text-gray-600';
+    
+    div.innerHTML = `
+        <div class="flex justify-between items-start">
+            <div class="flex-1">
+                <p class="text-sm font-medium text-gray-900">${notification.title}</p>
+                <p class="text-sm text-gray-600 mt-1">${notification.message}</p>
+                <div class="flex items-center mt-2 text-xs text-gray-500">
+                    <span>${new Date(notification.timestamp).toLocaleDateString()}</span>
+                    ${notification.workflow ? `<span class="mx-2">•</span><span>${notification.workflow}</span>` : ''}
+                    ${notification.priority ? `<span class="mx-2">•</span><span class="${priorityColor} font-medium">${notification.priority.toUpperCase()}</span>` : ''}
+                </div>
+            </div>
+            <div class="ml-2">
+                <i class="fas fa-chevron-right text-gray-400"></i>
+            </div>
+        </div>
+    `;
+    
+    div.addEventListener('click', () => {
+        if (notification.url) {
+            window.location.href = notification.url;
+        }
+    });
+    
+    return div;
+}
+
+function toggleNotifications() {
+    const panel = document.getElementById('notificationsPanel');
+    notificationsOpen = !notificationsOpen;
+    
+    if (notificationsOpen) {
+        panel.classList.remove('hidden');
+        checkNotifications(); // Refresh when opening
+    } else {
+        panel.classList.add('hidden');
+    }
+}
+
+function markAllAsRead() {
+    fetch('{% url "cflows:api_notification_read" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({notification_ids: []})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('notificationBadge').classList.add('hidden');
+            document.getElementById('notificationsList').innerHTML = `
+                <div class="p-4 text-center text-gray-500">
+                    <i class="fas fa-check-circle text-2xl mb-2 text-green-500"></i>
+                    <p>All caught up!</p>
+                </div>
+            `;
+        }
+    })
+    .catch(error => console.error('Error marking notifications as read:', error));
+}
+
+// Close notifications when clicking outside
+document.addEventListener('click', function(event) {
+    const panel = document.getElementById('notificationsPanel');
+    const button = event.target.closest('[onclick="toggleNotifications()"]');
+    
+    if (!panel.contains(event.target) && !button && notificationsOpen) {
+        toggleNotifications();
+    }
+});
+
+// Start checking notifications every 30 seconds
+document.addEventListener('DOMContentLoaded', function() {
+    checkNotifications(); // Initial check
+    setInterval(checkNotifications, 30000); // Check every 30 seconds
+});
+</script>
+
+{% csrf_token %}
 {% endblock %}

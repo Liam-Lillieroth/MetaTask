@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    .workflow-diagram {
+        background: #f8fafc;
+        border: 2px dashed #cbd5e0;
+        border-radius: 0.5rem;
+        padding: 2rem;
+        margin: 1.5rem 0;
+        min-height: 300px;
+        position: relative;
+        overflow: auto;
+    }
+    .step-node {
+        background: white;
+        border: 2px solid #e2e8f0;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin: 0.5rem;
+        min-width: 200px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        position: relative;
+        display: inline-block;
+        vertical-align: top;
+    }
+    .step-node.terminal {
+        border-color: #10b981;
+        background: #f0fdf4;
+    }
+    .step-node.booking-required {
+        border-left: 4px solid #f59e0b;
+    }
+    .step-title {
+        font-weight: 600;
+        color: #1f2937;
+        margin-bottom: 0.5rem;
+    }
+    .step-description {
+        font-size: 0.875rem;
+        color: #6b7280;
+        line-height: 1.4;
+    }
+    .step-meta {
+        margin-top: 0.75rem;
+        font-size: 0.75rem;
+        color: #9ca3af;
+        border-top: 1px solid #f3f4f6;
+        padding-top: 0.5rem;
+    }
+    .transition-arrow {
+        display: inline-block;
+        margin: 0 1rem;
+        color: #6b7280;
+        font-size: 1.5rem;
+        vertical-align: middle;
+    }
+    .template-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 0.5rem;
+        margin-bottom: 2rem;
+    }
+    .template-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+    .stat-card {
+        background: rgba(255,255,255,0.1);
+        padding: 1rem;
+        border-radius: 0.375rem;
+        text-align: center;
+    }
+    .stat-number {
+        font-size: 1.5rem;
+        font-weight: 700;
+        display: block;
+    }
+    .stat-label {
+        font-size: 0.875rem;
+        opacity: 0.9;
+    }
+    .legend {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin: 0.5rem 0;
+        font-size: 0.875rem;
+    }
+    .legend-color {
+        width: 1rem;
+        height: 1rem;
+        border-radius: 0.25rem;
+        margin-right: 0.5rem;
+    }
+    .transitions-list {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        overflow: hidden;
+    }
+    .transition-item {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #f3f4f6;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .transition-item:last-child {
+        border-bottom: none;
+    }
+    .transition-path {
+        font-weight: 500;
+        color: #374151;
+    }
+    .transition-label {
+        background: #f3f4f6;
+        color: #6b7280;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+    .btn-primary {
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        text-decoration: none;
+        display: inline-block;
+        transition: all 0.2s ease;
+    }
+    .btn-primary:hover {
+        background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%);
+        color: white;
+        text-decoration: none;
+        transform: translateY(-1px);
+    }
+    .btn-secondary {
+        background: white;
+        color: #374151;
+        border: 1px solid #d1d5db;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        text-decoration: none;
+        display: inline-block;
+        transition: all 0.2s ease;
+    }
+    .btn-secondary:hover {
+        background: #f9fafb;
+        border-color: #9ca3af;
+        color: #374151;
+        text-decoration: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <div class="template-header">
+        <div class="flex justify-between items-start">
+            <div class="flex-1">
+                <div class="flex items-center mb-2">
+                    <h1 class="text-3xl font-bold mr-4">{{ template.name }}</h1>
+                    {% if template.is_public %}
+                        <span class="bg-white bg-opacity-20 text-white px-3 py-1 rounded-full text-sm font-medium">
+                            <i class="fas fa-globe-americas mr-1"></i>Public Template
+                        </span>
+                    {% else %}
+                        <span class="bg-white bg-opacity-20 text-white px-3 py-1 rounded-full text-sm font-medium">
+                            <i class="fas fa-building mr-1"></i>Private Template
+                        </span>
+                    {% endif %}
+                </div>
+                <p class="text-lg opacity-90 mb-4">{{ template.description|default:"No description available" }}</p>
+                <div class="flex items-center text-sm opacity-75">
+                    <i class="fas fa-tag mr-2"></i>{{ template.category }}
+                    {% if template.created_by %}
+                        <span class="mx-3">•</span>
+                        <i class="fas fa-user mr-2"></i>{{ template.created_by.get_full_name|default:template.created_by.username }}
+                    {% endif %}
+                    <span class="mx-3">•</span>
+                    <i class="fas fa-calendar mr-2"></i>{{ template.created_at|date:"M j, Y" }}
+                </div>
+            </div>
+        </div>
+        
+        <div class="template-stats">
+            <div class="stat-card">
+                <span class="stat-number">{{ template_steps|length }}</span>
+                <span class="stat-label">Steps</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number">{{ template_transitions|length }}</span>
+                <span class="stat-label">Transitions</span>
+            </div>
+            {% if template_steps %}
+                {% with booking_steps=template_steps|default_if_none:[] %}
+                    <div class="stat-card">
+                        <span class="stat-number">
+                            {% widthratio template_steps|default_if_none:[]|length 1 1 as total_steps %}
+                            {{ template_steps|default_if_none:[]|length|floatformat:0 }}
+                        </span>
+                        <span class="stat-label">Booking Required</span>
+                    </div>
+                {% endwith %}
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main Content -->
+        <div class="lg:col-span-2">
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4">
+                    <i class="fas fa-sitemap mr-2 text-blue-500"></i>Workflow Steps
+                </h2>
+                
+                {% if template_steps %}
+                    <div class="workflow-diagram">
+                        {% for step in template_steps %}
+                            <div class="step-node {% if step.is_terminal %}terminal{% endif %} {% if step.requires_booking %}booking-required{% endif %}">
+                                <div class="step-title">
+                                    {{ step.order }}. {{ step.name }}
+                                </div>
+                                {% if step.description %}
+                                    <div class="step-description">
+                                        {{ step.description }}
+                                    </div>
+                                {% endif %}
+                                <div class="step-meta">
+                                    {% if step.requires_booking %}
+                                        <div><i class="fas fa-calendar-check text-amber-500 mr-1"></i>Booking Required</div>
+                                    {% endif %}
+                                    {% if step.estimated_duration_hours %}
+                                        <div><i class="fas fa-clock mr-1"></i>{{ step.estimated_duration_hours }}h estimated</div>
+                                    {% endif %}
+                                    {% if step.is_terminal %}
+                                        <div><i class="fas fa-flag-checkered text-green-500 mr-1"></i>Terminal Step</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            {% if not forloop.last %}
+                                <span class="transition-arrow">→</span>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="legend">
+                        <h4 class="font-semibold mb-3">Legend</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div class="legend-item">
+                                <div class="legend-color bg-white border-2 border-gray-300"></div>
+                                <span>Regular Step</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color bg-green-50 border-2 border-green-500"></div>
+                                <span>Terminal Step</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color bg-amber-50 border-l-4 border-amber-500"></div>
+                                <span>Booking Required</span>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-exclamation-circle text-3xl mb-4"></i>
+                        <p>No steps defined for this template.</p>
+                    </div>
+                {% endif %}
+            </div>
+            
+            {% if template_transitions %}
+                <div class="bg-white rounded-lg shadow-sm p-6">
+                    <h2 class="text-xl font-semibold mb-4">
+                        <i class="fas fa-route mr-2 text-green-500"></i>Workflow Transitions
+                    </h2>
+                    <div class="transitions-list">
+                        {% for transition in template_transitions %}
+                            {% for step in template_steps %}
+                                {% if step.id == transition.from_step_id %}
+                                    {% with from_step=step %}
+                                        {% for to_step in template_steps %}
+                                            {% if to_step.id == transition.to_step_id %}
+                                                <div class="transition-item">
+                                                    <div class="transition-path">
+                                                        <span class="font-medium">{{ from_step.name }}</span>
+                                                        <i class="fas fa-arrow-right mx-2 text-gray-400"></i>
+                                                        <span class="font-medium">{{ to_step.name }}</span>
+                                                    </div>
+                                                    <div class="transition-label">
+                                                        {{ transition.label }}
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endwith %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="space-y-6">
+            <!-- Actions -->
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <h3 class="font-semibold mb-4">Actions</h3>
+                <div class="space-y-3">
+                    <a href="{% url 'cflows:create_from_template' template.id %}" 
+                       class="btn-primary w-full text-center block">
+                        <i class="fas fa-plus mr-2"></i>Create Workflow
+                    </a>
+                    <a href="{% url 'cflows:template_list' %}" 
+                       class="btn-secondary w-full text-center block">
+                        <i class="fas fa-arrow-left mr-2"></i>Back to Templates
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Template Info -->
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <h3 class="font-semibold mb-4">Template Information</h3>
+                <div class="space-y-3 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Category:</span>
+                        <span class="font-medium">{{ template.category }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Visibility:</span>
+                        <span class="font-medium">
+                            {% if template.is_public %}
+                                <i class="fas fa-globe-americas text-green-500 mr-1"></i>Public
+                            {% else %}
+                                <i class="fas fa-building text-blue-500 mr-1"></i>Private
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% if template.created_by %}
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Created By:</span>
+                            <span class="font-medium">{{ template.created_by.get_full_name|default:template.created_by.username }}</span>
+                        </div>
+                    {% endif %}
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Created:</span>
+                        <span class="font-medium">{{ template.created_at|date:"M j, Y" }}</span>
+                    </div>
+                    {% if template.modified_at != template.created_at %}
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Modified:</span>
+                            <span class="font-medium">{{ template.modified_at|date:"M j, Y" }}</span>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Usage Tips -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 class="font-semibold text-blue-900 mb-2">
+                    <i class="fas fa-lightbulb mr-1"></i>Usage Tips
+                </h4>
+                <ul class="text-sm text-blue-800 space-y-1">
+                    <li>• Review the workflow steps and transitions</li>
+                    <li>• Click "Create Workflow" to start using this template</li>
+                    <li>• You can customize the workflow after creation</li>
+                    <li>• Booking-required steps need team scheduling</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

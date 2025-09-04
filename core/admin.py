@@ -52,12 +52,12 @@ class TeamAdmin(admin.ModelAdmin):
     
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
-        return queryset.annotate(member_count=Count('members'))
+        return queryset.annotate(members_count=Count('members'))
     
     def member_count(self, obj):
-        return obj.member_count
+        return obj.members_count if hasattr(obj, 'members_count') else obj.member_count
     member_count.short_description = 'Members'
-    member_count.admin_order_field = 'member_count'
+    member_count.admin_order_field = 'members_count'
 
 
 @admin.register(JobType)

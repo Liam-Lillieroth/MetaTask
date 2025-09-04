@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    .template-preview {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin: 1rem 0;
+    }
+    .step-preview {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        display: flex;
+        align-items: center;
+        justify-content: between;
+    }
+    .step-preview.terminal {
+        border-left: 4px solid #10b981;
+        background: #f0fdf4;
+    }
+    .step-preview.booking {
+        border-left: 4px solid #f59e0b;
+    }
+    .step-number {
+        background: #3b82f6;
+        color: white;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.875rem;
+        margin-right: 1rem;
+        flex-shrink: 0;
+    }
+    .step-content {
+        flex: 1;
+    }
+    .step-name {
+        font-weight: 600;
+        color: #1f2937;
+        margin-bottom: 0.25rem;
+    }
+    .step-description {
+        font-size: 0.875rem;
+        color: #6b7280;
+        line-height: 1.4;
+    }
+    .step-meta {
+        display: flex;
+        gap: 1rem;
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        color: #9ca3af;
+    }
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    .form-label {
+        display: block;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.5rem;
+    }
+    .form-input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.5rem;
+        font-size: 1rem;
+        transition: border-color 0.2s ease;
+    }
+    .form-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    .form-textarea {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.5rem;
+        font-size: 1rem;
+        resize: vertical;
+        min-height: 100px;
+        transition: border-color 0.2s ease;
+    }
+    .form-textarea:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    .btn-primary {
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .btn-primary:hover {
+        background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%);
+        transform: translateY(-1px);
+    }
+    .btn-secondary {
+        background: white;
+        color: #374151;
+        border: 1px solid #d1d5db;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        text-decoration: none;
+        display: inline-block;
+        transition: all 0.2s ease;
+    }
+    .btn-secondary:hover {
+        background: #f9fafb;
+        border-color: #9ca3af;
+        color: #374151;
+        text-decoration: none;
+    }
+    .template-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .stat-card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        text-align: center;
+    }
+    .stat-number {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #3b82f6;
+        display: block;
+    }
+    .stat-label {
+        font-size: 0.875rem;
+        color: #6b7280;
+        margin-top: 0.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="mb-6">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Create Workflow from Template</h1>
+            <p class="text-gray-600">Create a new workflow based on the "{{ template.name }}" template</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Form -->
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <h2 class="text-xl font-semibold mb-4">Workflow Details</h2>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="form-group">
+                        <label for="name" class="form-label">
+                            Workflow Name <span class="text-red-500">*</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            id="name" 
+                            name="name" 
+                            class="form-input" 
+                            required 
+                            placeholder="Enter workflow name"
+                            value="{{ request.POST.name|default:'' }}"
+                        >
+                        <p class="text-sm text-gray-500 mt-1">A descriptive name for your workflow instance</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea 
+                            id="description" 
+                            name="description" 
+                            class="form-textarea"
+                            placeholder="Optional description for this workflow instance"
+                        >{{ request.POST.description|default:'' }}</textarea>
+                        <p class="text-sm text-gray-500 mt-1">Describe the purpose or context of this workflow</p>
+                    </div>
+                    
+                    <div class="flex gap-3">
+                        <button type="submit" class="btn-primary">
+                            <i class="fas fa-plus mr-2"></i>Create Workflow
+                        </button>
+                        <a href="{% url 'cflows:template_detail' template.id %}" class="btn-secondary">
+                            <i class="fas fa-arrow-left mr-2"></i>Back to Template
+                        </a>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Template Preview -->
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <h2 class="text-xl font-semibold mb-4">Template Preview</h2>
+                
+                <!-- Template Info -->
+                <div class="mb-4">
+                    <h3 class="font-semibold text-gray-900">{{ template.name }}</h3>
+                    <p class="text-gray-600 text-sm mt-1">{{ template.description|default:"No description" }}</p>
+                    <div class="flex items-center mt-2 text-xs text-gray-500">
+                        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full mr-2">{{ template.category }}</span>
+                        {% if template.is_public %}
+                            <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full">Public</span>
+                        {% else %}
+                            <span class="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">Private</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Stats -->
+                {% if template.template_data %}
+                    <div class="template-stats">
+                        <div class="stat-card">
+                            <span class="stat-number">{{ template.template_data.steps|length }}</span>
+                            <div class="stat-label">Steps</div>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-number">{{ template.template_data.transitions|length }}</span>
+                            <div class="stat-label">Transitions</div>
+                        </div>
+                        <div class="stat-card">
+                            {% with booking_count=0 %}
+                                {% for step in template.template_data.steps %}
+                                    {% if step.requires_booking %}
+                                        {% with booking_count=booking_count|add:1 %}{% endwith %}
+                                    {% endif %}
+                                {% endfor %}
+                                <span class="stat-number">
+                                    {% for step in template.template_data.steps %}{% if step.requires_booking %}{% if forloop.first %}1{% else %}{{ forloop.counter }}{% endif %}{% endif %}{% empty %}0{% endfor %}
+                                </span>
+                            {% endwith %}
+                            <div class="stat-label">Booking Required</div>
+                        </div>
+                    </div>
+                {% endif %}
+                
+                <!-- Steps Preview -->
+                {% if template.template_data.steps %}
+                    <div class="template-preview">
+                        <h4 class="font-semibold mb-3 text-gray-900">Workflow Steps</h4>
+                        {% for step in template.template_data.steps %}
+                            <div class="step-preview {% if step.is_terminal %}terminal{% endif %} {% if step.requires_booking %}booking{% endif %}">
+                                <div class="step-number">{{ step.order }}</div>
+                                <div class="step-content">
+                                    <div class="step-name">{{ step.name }}</div>
+                                    {% if step.description %}
+                                        <div class="step-description">{{ step.description }}</div>
+                                    {% endif %}
+                                    <div class="step-meta">
+                                        {% if step.requires_booking %}
+                                            <span><i class="fas fa-calendar-check text-amber-500 mr-1"></i>Booking</span>
+                                        {% endif %}
+                                        {% if step.estimated_duration_hours %}
+                                            <span><i class="fas fa-clock mr-1"></i>{{ step.estimated_duration_hours }}h</span>
+                                        {% endif %}
+                                        {% if step.is_terminal %}
+                                            <span><i class="fas fa-flag-checkered text-green-500 mr-1"></i>Terminal</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                
+                <!-- What happens next -->
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+                    <h4 class="font-semibold text-blue-900 mb-2">
+                        <i class="fas fa-info-circle mr-1"></i>What happens next?
+                    </h4>
+                    <ul class="text-sm text-blue-800 space-y-1">
+                        <li>• A new workflow will be created with all template steps</li>
+                        <li>• You can modify steps and transitions after creation</li>
+                        <li>• Work items can be created and processed immediately</li>
+                        <li>• Team members can be assigned to booking-required steps</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-focus the name field
+    const nameField = document.getElementById('name');
+    if (nameField) {
+        nameField.focus();
+    }
+    
+    // Character counter for name field
+    const maxLength = 100;
+    nameField.addEventListener('input', function() {
+        const remaining = maxLength - this.value.length;
+        let counter = document.getElementById('name-counter');
+        
+        if (!counter) {
+            counter = document.createElement('div');
+            counter.id = 'name-counter';
+            counter.className = 'text-xs text-gray-500 mt-1';
+            nameField.parentNode.appendChild(counter);
+        }
+        
+        counter.textContent = `${remaining} characters remaining`;
+        
+        if (remaining < 20) {
+            counter.className = 'text-xs text-amber-600 mt-1';
+        } else if (remaining < 0) {
+            counter.className = 'text-xs text-red-600 mt-1';
+        } else {
+            counter.className = 'text-xs text-gray-500 mt-1';
+        }
+    });
+});
+</script>
+{% endblock %}

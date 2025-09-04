@@ -1,0 +1,622 @@
+{% extends 'cflows/cflows_base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_head %}
+<!-- FullCalendar CSS -->
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+<style>
+    .fc-toolbar-title {
+        font-size: 1.75rem !important;
+        font-weight: 700 !important;
+        color: #1f2937;
+    }
+    .fc-button {
+        background: #3b82f6 !important;
+        border-color: #3b82f6 !important;
+        font-weight: 500 !important;
+    }
+    .fc-button:hover {
+        background: #2563eb !important;
+        border-color: #2563eb !important;
+    }
+    .fc-button-active {
+        background: #1d4ed8 !important;
+        border-color: #1d4ed8 !important;
+    }
+    .fc-daygrid-event {
+        border-radius: 4px;
+        font-weight: 500;
+    }
+    .fc-event-title {
+        font-weight: 600;
+    }
+    .calendar-filters {
+        background: white;
+        border-radius: 0.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .filter-section {
+        margin-bottom: 1rem;
+    }
+    .filter-section:last-child {
+        margin-bottom: 0;
+    }
+    .filter-label {
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+    .filter-select {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.375rem;
+        font-size: 0.875rem;
+    }
+    .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        align-items: center;
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+    }
+    .legend-color {
+        width: 1rem;
+        height: 1rem;
+        border-radius: 0.25rem;
+    }
+    .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+    .modal.hidden {
+        display: none;
+    }
+    .modal-content {
+        background: white;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        width: 90%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    .form-group {
+        margin-bottom: 1rem;
+    }
+    .form-label {
+        display: block;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.5rem;
+    }
+    .form-input, .form-select, .form-textarea {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.375rem;
+        font-size: 1rem;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    .btn-primary {
+        background: #3b82f6;
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.375rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .btn-primary:hover {
+        background: #2563eb;
+    }
+    .btn-secondary {
+        background: #6b7280;
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.375rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .btn-secondary:hover {
+        background: #4b5563;
+    }
+    .btn-danger {
+        background: #ef4444;
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.375rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .btn-danger:hover {
+        background: #dc2626;
+    }
+    .priority-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .priority-low { background: #d1fae5; color: #065f46; }
+    .priority-normal { background: #dbeafe; color: #1e3a8a; }
+    .priority-high { background: #fef3c7; color: #92400e; }
+    .priority-critical { background: #fee2e2; color: #991b1b; }
+    .status-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: capitalize;
+    }
+    .status-scheduled { background: #e0e7ff; color: #3730a3; }
+    .status-in_progress { background: #fef3c7; color: #92400e; }
+    .status-completed { background: #d1fae5; color: #065f46; }
+    .status-cancelled { background: #fee2e2; color: #991b1b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Team Calendar</h1>
+            <p class="text-gray-600 mt-1">Manage team bookings and work item schedules</p>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="showCreateBookingModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors">
+                <i class="fas fa-plus mr-2"></i>New Booking
+            </button>
+            <a href="{% url 'cflows:index' %}" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors">
+                <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="calendar-filters">
+        <h3 class="text-lg font-semibold mb-4">Filters & Legend</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div class="filter-section">
+                <label class="filter-label">Team</label>
+                <select id="teamFilter" class="filter-select" onchange="filterCalendar()">
+                    <option value="">All Teams</option>
+                    {% for team in teams %}
+                        <option value="{{ team.id }}">{{ team.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-section">
+                <label class="filter-label">Workflow</label>
+                <select id="workflowFilter" class="filter-select" onchange="filterCalendar()">
+                    <option value="">All Workflows</option>
+                    {% for workflow in workflows %}
+                        <option value="{{ workflow.id }}">{{ workflow.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-section">
+                <label class="filter-label">Status</label>
+                <select id="statusFilter" class="filter-select" onchange="filterCalendar()">
+                    <option value="">All Status</option>
+                    <option value="scheduled">Scheduled</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+            </div>
+        </div>
+        <div class="legend">
+            <span class="font-semibold text-gray-700 mr-2">Priority Colors:</span>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #10b981;"></div>
+                <span>Low</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #3b82f6;"></div>
+                <span>Normal</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #f59e0b;"></div>
+                <span>High</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ef4444;"></div>
+                <span>Critical</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calendar -->
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <div id="calendar"></div>
+    </div>
+</div>
+
+<!-- Create/Edit Booking Modal -->
+<div id="bookingModal" class="modal hidden">
+    <div class="modal-content">
+        <h3 id="bookingModalTitle" class="text-xl font-semibold mb-4">Create Booking</h3>
+        <form id="bookingForm">
+            <div class="form-group">
+                <label for="workItemSelect" class="form-label">Work Item <span class="text-red-500">*</span></label>
+                <select id="workItemSelect" class="form-select" required>
+                    <option value="">Select work item...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="teamSelect" class="form-label">Team <span class="text-red-500">*</span></label>
+                <select id="teamSelect" class="form-select" required onchange="loadTeamMembers()">
+                    <option value="">Select team...</option>
+                    {% for team in teams %}
+                        <option value="{{ team.id }}">{{ team.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="form-group">
+                    <label for="startDate" class="form-label">Start Date <span class="text-red-500">*</span></label>
+                    <input type="date" id="startDate" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label for="endDate" class="form-label">End Date <span class="text-red-500">*</span></label>
+                    <input type="date" id="endDate" class="form-input" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="assignedToSelect" class="form-label">Assigned To</label>
+                <select id="assignedToSelect" class="form-select">
+                    <option value="">No specific assignment</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="statusSelect" class="form-label">Status</label>
+                <select id="statusSelect" class="form-select">
+                    <option value="scheduled">Scheduled</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="notesTextarea" class="form-label">Notes</label>
+                <textarea id="notesTextarea" class="form-textarea" rows="3" placeholder="Additional notes..."></textarea>
+            </div>
+            <div class="flex justify-end gap-3 mt-6">
+                <button type="button" onclick="closeBookingModal()" class="btn-secondary">Cancel</button>
+                <button type="button" onclick="deleteBooking()" id="deleteBookingBtn" class="btn-danger hidden">Delete</button>
+                <button type="submit" class="btn-primary">Save Booking</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Event Details Modal -->
+<div id="eventModal" class="modal hidden">
+    <div class="modal-content">
+        <h3 id="eventModalTitle" class="text-xl font-semibold mb-4">Event Details</h3>
+        <div id="eventDetails"></div>
+        <div class="flex justify-end gap-3 mt-6">
+            <button onclick="closeEventModal()" class="btn-secondary">Close</button>
+            <button onclick="editEvent()" id="editEventBtn" class="btn-primary">Edit</button>
+        </div>
+    </div>
+</div>
+
+{% csrf_token %}
+{% endblock %}
+
+{% block extra_js %}
+<!-- FullCalendar JS -->
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+
+<script>
+let calendar;
+let currentBookingId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    const calendarEl = document.getElementById('calendar');
+    
+    calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        editable: true,
+        droppable: true,
+        events: {
+            url: '{% url "cflows:calendar_events" %}',
+            failure: function() {
+                alert('Error loading calendar events');
+            }
+        },
+        eventClick: function(info) {
+            showEventDetails(info.event);
+        },
+        eventDrop: function(info) {
+            updateBookingDates(info.event);
+        },
+        eventResize: function(info) {
+            updateBookingDates(info.event);
+        },
+        dateClick: function(info) {
+            showCreateBookingModal(info.dateStr);
+        }
+    });
+    
+    calendar.render();
+    loadWorkItems();
+});
+
+function showCreateBookingModal(dateStr = null) {
+    currentBookingId = null;
+    document.getElementById('bookingModalTitle').textContent = 'Create Booking';
+    document.getElementById('deleteBookingBtn').classList.add('hidden');
+    
+    // Reset form
+    document.getElementById('bookingForm').reset();
+    
+    // Set date if provided
+    if (dateStr) {
+        document.getElementById('startDate').value = dateStr;
+        document.getElementById('endDate').value = dateStr;
+    }
+    
+    document.getElementById('bookingModal').classList.remove('hidden');
+}
+
+function showEventDetails(event) {
+    const props = event.extendedProps;
+    
+    if (props.type === 'booking') {
+        showEditBookingModal(props.bookingId);
+    } else {
+        // Show read-only event details
+        document.getElementById('eventModalTitle').textContent = event.title;
+        
+        let detailsHtml = `
+            <div class="space-y-3">
+                <div><strong>Type:</strong> ${props.type === 'event' ? 'Calendar Event' : 'Work Item Due Date'}</div>
+                <div><strong>Start:</strong> ${event.start.toLocaleDateString()}</div>
+        `;
+        
+        if (event.end) {
+            detailsHtml += `<div><strong>End:</strong> ${event.end.toLocaleDateString()}</div>`;
+        }
+        
+        if (props.description) {
+            detailsHtml += `<div><strong>Description:</strong> ${props.description}</div>`;
+        }
+        
+        if (props.location) {
+            detailsHtml += `<div><strong>Location:</strong> ${props.location}</div>`;
+        }
+        
+        detailsHtml += `</div>`;
+        
+        document.getElementById('eventDetails').innerHTML = detailsHtml;
+        document.getElementById('editEventBtn').style.display = props.type === 'booking' ? 'inline-block' : 'none';
+        document.getElementById('eventModal').classList.remove('hidden');
+    }
+}
+
+function showEditBookingModal(bookingId) {
+    fetch(`{% url 'cflows:booking_detail' 0 %}`.replace('0', bookingId))
+        .then(response => response.json())
+        .then(data => {
+            currentBookingId = bookingId;
+            document.getElementById('bookingModalTitle').textContent = 'Edit Booking';
+            document.getElementById('deleteBookingBtn').classList.remove('hidden');
+            
+            // Populate form
+            document.getElementById('workItemSelect').value = data.work_item.id;
+            document.getElementById('teamSelect').value = data.team.id;
+            document.getElementById('startDate').value = data.start_date;
+            document.getElementById('endDate').value = data.end_date;
+            document.getElementById('statusSelect').value = data.status;
+            document.getElementById('notesTextarea').value = data.notes || '';
+            
+            // Load team members and set assignment
+            loadTeamMembers().then(() => {
+                if (data.assigned_to) {
+                    document.getElementById('assignedToSelect').value = data.assigned_to.id;
+                }
+            });
+            
+            document.getElementById('bookingModal').classList.remove('hidden');
+        })
+        .catch(error => {
+            console.error('Error loading booking details:', error);
+            alert('Error loading booking details');
+        });
+}
+
+function closeBookingModal() {
+    document.getElementById('bookingModal').classList.add('hidden');
+    currentBookingId = null;
+}
+
+function closeEventModal() {
+    document.getElementById('eventModal').classList.add('hidden');
+}
+
+function editEvent() {
+    closeEventModal();
+    // This would open edit modal for the event
+}
+
+function loadWorkItems() {
+    // Load work items that can be booked
+    fetch('{% url "cflows:work_items_list" %}?api=true')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('workItemSelect');
+            select.innerHTML = '<option value="">Select work item...</option>';
+            
+            if (data.work_items) {
+                data.work_items.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.id;
+                    option.textContent = `${item.title} (${item.workflow})`;
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(error => console.error('Error loading work items:', error));
+}
+
+function loadTeamMembers() {
+    return new Promise((resolve) => {
+        const teamId = document.getElementById('teamSelect').value;
+        const assignedToSelect = document.getElementById('assignedToSelect');
+        
+        assignedToSelect.innerHTML = '<option value="">No specific assignment</option>';
+        
+        if (!teamId) {
+            resolve();
+            return;
+        }
+        
+        // This would fetch team members from an API endpoint
+        // For now, we'll just resolve immediately
+        resolve();
+    });
+}
+
+function updateBookingDates(event) {
+    const props = event.extendedProps;
+    
+    if (props.type !== 'booking') return;
+    
+    const data = {
+        start_date: event.start.toISOString().split('T')[0],
+        end_date: event.end ? new Date(event.end.getTime() - 24*60*60*1000).toISOString().split('T')[0] : event.start.toISOString().split('T')[0]
+    };
+    
+    fetch(`{% url 'cflows:update_booking' 0 %}`.replace('0', props.bookingId), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (!result.success) {
+            alert('Error updating booking: ' + result.error);
+            calendar.refetchEvents();
+        }
+    })
+    .catch(error => {
+        console.error('Error updating booking:', error);
+        calendar.refetchEvents();
+    });
+}
+
+function deleteBooking() {
+    if (!currentBookingId) return;
+    
+    if (!confirm('Are you sure you want to delete this booking?')) return;
+    
+    fetch(`{% url 'cflows:delete_booking' 0 %}`.replace('0', currentBookingId), {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            closeBookingModal();
+            calendar.refetchEvents();
+        } else {
+            alert('Error deleting booking: ' + result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting booking:', error);
+        alert('Error deleting booking');
+    });
+}
+
+function filterCalendar() {
+    calendar.refetchEvents();
+}
+
+// Handle booking form submission
+document.getElementById('bookingForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        work_item_id: document.getElementById('workItemSelect').value,
+        team_id: document.getElementById('teamSelect').value,
+        start_date: document.getElementById('startDate').value,
+        end_date: document.getElementById('endDate').value,
+        assigned_to_id: document.getElementById('assignedToSelect').value || null,
+        status: document.getElementById('statusSelect').value,
+        notes: document.getElementById('notesTextarea').value
+    };
+    
+    if (!formData.work_item_id || !formData.team_id || !formData.start_date || !formData.end_date) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    const url = currentBookingId 
+        ? `{% url 'cflows:update_booking' 0 %}`.replace('0', currentBookingId)
+        : '{% url "cflows:create_booking" %}';
+    
+    const method = 'POST';
+    
+    fetch(url, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            closeBookingModal();
+            calendar.refetchEvents();
+        } else {
+            alert('Error saving booking: ' + result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error saving booking:', error);
+        alert('Error saving booking');
+    });
+});
+</script>
+{% endblock %}

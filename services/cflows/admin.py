@@ -4,7 +4,8 @@ from django.db.models import Count
 from core.models import Organization, UserProfile, Team, JobType, CalendarEvent
 from .models import (
     Workflow, WorkflowStep, WorkflowTransition,
-    WorkItem, WorkItemHistory, TeamBooking
+    WorkItem, WorkItemHistory, TeamBooking,
+    CustomField, WorkItemCustomFieldValue
 )
 
 
@@ -166,3 +167,50 @@ class WorkflowTransitionAdmin(admin.ModelAdmin):
         return obj.from_step.workflow.name
     workflow_name.short_description = 'Workflow'
     workflow_name.admin_order_field = 'from_step__workflow__name'
+
+
+@admin.register(CustomField)
+class CustomFieldAdmin(admin.ModelAdmin):
+    list_display = ['label', 'name', 'field_type', 'organization', 'is_required', 'section', 'order', 'is_active']
+    list_filter = ['organization', 'field_type', 'is_required', 'is_active', 'section']
+    search_fields = ['name', 'label', 'help_text']
+    ordering = ['organization', 'section', 'order', 'label']
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('organization', 'name', 'label', 'field_type', 'is_active')
+        }),
+        ('Field Configuration', {
+            'fields': ('is_required', 'default_value', 'help_text', 'placeholder')
+        }),
+        ('Validation', {
+            'fields': ('min_length', 'max_length', 'min_value', 'max_value', 'options'),
+            'classes': ('collapse',)
+        }),
+        ('Organization', {
+            'fields': ('section', 'order')
+        }),
+        ('Workflow Context', {
+            'fields': ('workflows', 'workflow_steps'),
+            'classes': ('collapse',),
+            'description': 'Leave empty to show field for all workflows/steps'
+        }),
+    )
+    
+    filter_horizontal = ['workflows', 'workflow_steps']
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('organization')
+
+
+@admin.register(WorkItemCustomFieldValue)
+class WorkItemCustomFieldValueAdmin(admin.ModelAdmin):
+    list_display = ['work_item', 'custom_field', 'display_value', 'updated_at']
+    list_filter = ['custom_field__organization', 'custom_field', 'work_item__workflow']
+    search_fields = ['work_item__title', 'custom_field__label', 'value']
+    raw_id_fields = ['work_item', 'custom_field']
+    readonly_fields = ['created_at', 'updated_at']
+    
+    def display_value(self, obj):
+        return obj.get_display_value()[:100]
+    display_value.short_description = 'Value'

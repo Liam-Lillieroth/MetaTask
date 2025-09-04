@@ -95,11 +95,115 @@
                    class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-colors">
                     <i class="fas fa-arrow-left mr-2"></i>Back to List
                 </a>
-                {% if not work_item.is_completed %}
-                    <button class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors">
-                        <i class="fas fa-edit mr-2"></i>Edit
-                    </button>
+                
+                {% if not work_item.is_completed and available_transitions %}
+                    <!-- Transition Dropdown -->
+                    <div class="relative inline-block text-left" x-data="{ open: false }">
+                        <div>
+                            <button type="button" 
+                                    @click="open = !open"
+                                    class="inline-flex justify-center w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                <i class="fas fa-arrow-right mr-2"></i>
+                                Move Forward
+                                <svg class="-mr-1 ml-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div x-show="open" 
+                             @click.away="open = false"
+                             x-transition:enter="transition ease-out duration-100"
+                             x-transition:enter-start="transform opacity-0 scale-95"
+                             x-transition:enter-end="transform opacity-100 scale-100"
+                             x-transition:leave="transition ease-in duration-75"
+                             x-transition:leave-start="transform opacity-100 scale-100"
+                             x-transition:leave-end="transform opacity-0 scale-95"
+                             class="origin-top-right absolute right-0 mt-2 w-80 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+                            <div class="py-1">
+                                {% for transition in available_transitions %}
+                                    <a href="{% url 'cflows:transition_form' work_item.id transition.id %}" 
+                                       class="flex items-start px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900">
+                                        <i class="fas fa-arrow-right mt-0.5 mr-3 text-indigo-500"></i>
+                                        <div class="flex-1">
+                                            <div class="font-medium">
+                                                {{ transition.label|default:transition.to_step.name }}
+                                            </div>
+                                            <div class="text-xs text-gray-500 mt-1">
+                                                Move to {{ transition.to_step.name }}
+                                                {% if transition.to_step.requires_booking %} • Requires booking{% endif %}
+                                                {% if transition.to_step.is_terminal %} • Completes work item{% endif %}
+                                            </div>
+                                        </div>
+                                    </a>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
                 {% endif %}
+                
+                <!-- Assignment and Priority Actions -->
+                <div class="relative inline-block text-left" x-data="{ open: false }">
+                    <div>
+                        <button type="button" 
+                                @click="open = !open"
+                                class="inline-flex justify-center w-full rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            <i class="fas fa-cog mr-2"></i>
+                            Actions
+                            <svg class="-mr-1 ml-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div x-show="open" 
+                         @click.away="open = false"
+                         class="origin-top-right absolute right-0 mt-2 w-64 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+                        <div class="py-1">
+                            <!-- Assignment -->
+                            <div class="px-4 py-2 border-b">
+                                <form method="post" action="{% url 'cflows:assign_work_item' work_item.id %}">
+                                    {% csrf_token %}
+                                    <label for="assignee-select" class="block text-xs font-medium text-gray-700 mb-2">
+                                        Assign to:
+                                    </label>
+                                    <select name="assignee_id" 
+                                            class="w-full text-sm border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                                            onchange="this.form.submit()">
+                                        <option value="">Unassigned</option>
+                                        {% for user_profile in profile.organization.userprofile_set.all %}
+                                            {% if user_profile.user.is_active %}
+                                                <option value="{{ user_profile.id }}"
+                                                        {% if work_item.current_assignee.id == user_profile.id %}selected{% endif %}>
+                                                    {{ user_profile.user.get_full_name|default:user_profile.user.username }}
+                                                    {% if user_profile.title %} - {{ user_profile.title }}{% endif %}
+                                                </option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                </form>
+                            </div>
+                            
+                            <!-- Priority -->
+                            <div class="px-4 py-2">
+                                <form method="post" action="{% url 'cflows:update_work_item_priority' work_item.id %}">
+                                    {% csrf_token %}
+                                    <label for="priority-select" class="block text-xs font-medium text-gray-700 mb-2">
+                                        Priority:
+                                    </label>
+                                    <select name="priority" 
+                                            class="w-full text-sm border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                                            onchange="this.form.submit()">
+                                        <option value="low" {% if work_item.priority == 'low' %}selected{% endif %}>Low</option>
+                                        <option value="normal" {% if work_item.priority == 'normal' %}selected{% endif %}>Normal</option>
+                                        <option value="high" {% if work_item.priority == 'high' %}selected{% endif %}>High</option>
+                                        <option value="critical" {% if work_item.priority == 'critical' %}selected{% endif %}>Critical</option>
+                                    </select>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -307,6 +411,45 @@
                     </div>
                 </dl>
             </div>
+
+            <!-- Custom Fields -->
+            {% if work_item.custom_field_values.all %}
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Additional Information</h3>
+                    <dl class="space-y-4">
+                        {% for custom_value in work_item.custom_field_values.all %}
+                            {% if custom_value.value %}
+                                <div>
+                                    <dt class="text-sm font-medium text-gray-500">{{ custom_value.custom_field.label }}</dt>
+                                    <dd class="mt-1 text-sm text-gray-900">
+                                        {% if custom_value.custom_field.field_type == 'url' %}
+                                            <a href="{{ custom_value.value }}" target="_blank" class="text-purple-600 hover:text-purple-700">
+                                                {{ custom_value.get_display_value }}
+                                                <i class="fas fa-external-link-alt ml-1"></i>
+                                            </a>
+                                        {% elif custom_value.custom_field.field_type == 'email' %}
+                                            <a href="mailto:{{ custom_value.value }}" class="text-purple-600 hover:text-purple-700">
+                                                {{ custom_value.get_display_value }}
+                                            </a>
+                                        {% elif custom_value.custom_field.field_type == 'phone' %}
+                                            <a href="tel:{{ custom_value.value }}" class="text-purple-600 hover:text-purple-700">
+                                                {{ custom_value.get_display_value }}
+                                            </a>
+                                        {% elif custom_value.custom_field.field_type == 'checkbox' %}
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                                       {% if custom_value.value == 'true' %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                                                {{ custom_value.get_display_value }}
+                                            </span>
+                                        {% else %}
+                                            {{ custom_value.get_display_value }}
+                                        {% endif %}
+                                    </dd>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </dl>
+                </div>
+            {% endif %}
 
             <!-- Attachments -->
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">

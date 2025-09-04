@@ -1,22 +1,3 @@
-from django.shortcuts import render
-from django.http import HttpResponse
-
-
-def index(request):
-    """CFlows homepage"""
-    return HttpResponse("CFlows - Workflow Management System (To be implemented)")
-
-
-def workflows_list(request):
-    """List workflows"""
-    return HttpResponse("Workflows list - To be implemented")
-
-
-def create_workflow(request):
-    """Create new workflow"""
-    return HttpResponse("Create workflow - To be implemented")
-
-
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -24,7 +5,7 @@ from django.http import HttpResponse, JsonResponse
 from django.core.paginator import Paginator
 from django.db.models import Q, Count, Prefetch, Case, When, IntegerField
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 from django.db import transaction
 from core.models import Organization, UserProfile, Team, JobType, CalendarEvent
 from core.views import require_organization_access, require_business_organization
@@ -267,6 +248,9 @@ def work_items_list(request):
     if not profile:
         return render(request, 'cflows/no_profile.html')
     
+    # Check if this is an API request
+    is_api = request.GET.get('api') == 'true'
+    
     # Base queryset
     work_items = WorkItem.objects.filter(
         workflow__organization=profile.organization
@@ -311,6 +295,29 @@ def work_items_list(request):
     paginator = Paginator(work_items, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
+    
+    # For API requests, return JSON
+    if is_api:
+        work_items_data = []
+        for item in page_obj.object_list:
+            work_items_data.append({
+                'id': item.id,
+                'title': item.title,
+                'workflow': item.workflow.name,
+                'priority': item.priority,
+                'current_step': item.current_step.name if item.current_step else 'Unknown',
+                'assigned_to': item.current_assignee.user.get_full_name() if item.current_assignee and item.current_assignee.user else None,
+                'due_date': item.due_date.isoformat() if item.due_date else None,
+                'created_at': item.created_at.isoformat(),
+                'completed': item.is_completed
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'work_items': work_items_data,
+            'total_count': paginator.count,
+            'page_count': paginator.num_pages
+        })
     
     # Get filter options
     workflows = Workflow.objects.filter(
@@ -361,13 +368,16 @@ def create_work_item(request, workflow_id):
         return redirect('cflows:workflow_detail', workflow_id=workflow.id)
     
     if request.method == 'POST':
-        form = WorkItemForm(request.POST, organization=profile.organization)
+        form = WorkItemForm(request.POST, organization=profile.organization, workflow=workflow)
         if form.is_valid():
             work_item = form.save(commit=False)
             work_item.workflow = workflow
             work_item.current_step = first_step
             work_item.created_by = profile
             work_item.save()
+            
+            # Save custom fields after the work item is saved
+            form.save_custom_fields(work_item)
             
             # Create initial history entry
             WorkItemHistory.objects.create(
@@ -392,13 +402,40 @@ def create_work_item(request, workflow_id):
             
             messages.success(request, f'Work item "{work_item.title}" created successfully!')
             return redirect('cflows:work_item_detail', work_item_id=work_item.id)
+        else:
+            # Log form errors for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"WorkItem form validation failed: {form.errors}")
+            messages.error(request, 'Please correct the errors below.')
     else:
-        form = WorkItemForm(organization=profile.organization)
+        form = WorkItemForm(organization=profile.organization, workflow=workflow)
+    
+    # Get custom fields for template display
+    from .models import CustomField
+    custom_fields = []
+    if profile.organization:
+        custom_field_objects = CustomField.objects.filter(
+            organization=profile.organization,
+            is_active=True
+        ).filter(
+            Q(workflows__isnull=True) | Q(workflows=workflow)
+        ).order_by('section', 'order', 'label')
+        
+        for cf in custom_field_objects:
+            field_name = f'custom_{cf.id}'
+            if field_name in form.fields:
+                custom_fields.append({
+                    'field': form[field_name],
+                    'section': cf.section or '',
+                    'custom_field': cf
+                })
     
     context = {
         'profile': profile,
         'workflow': workflow,
         'form': form,
+        'custom_fields': custom_fields,
     }
     
     return render(request, 'cflows/create_work_item.html', context)
@@ -466,114 +503,10 @@ def work_item_detail(request, work_item_id):
     return render(request, 'cflows/work_item_detail.html', context)
 
 
-@login_required
-def workflow_detail(request, pk):
-    """Workflow detail view"""
-    profile = get_user_profile(request)
-    
-    if not profile:
-        return render(request, 'cflows/no_profile.html')
-    
-    workflow = get_object_or_404(
-        Workflow.objects.select_related('organization', 'created_by__user'),
-        pk=pk,
-        organization=profile.organization
-    )
-    
-    # Get workflow steps with transition information
-    steps = WorkflowStep.objects.filter(workflow=workflow).select_related(
-        'assigned_team'
-    ).prefetch_related(
-        'outgoing_transitions__to_step',
-        'incoming_transitions__from_step'
-    ).order_by('order')
-    
-    # Get work items for this workflow
-    work_items = WorkItem.objects.filter(workflow=workflow).select_related(
-        'current_step', 'current_assignee__user', 'created_by__user'
-    ).order_by('-updated_at')
-    
-    # Pagination for work items
-    paginator = Paginator(work_items, 20)
-    page_number = request.GET.get('page')
-    work_items_page = paginator.get_page(page_number)
-    
-    context = {
-        'profile': profile,
-        'workflow': workflow,
-        'steps': steps,
-        'work_items': work_items_page,
-    }
-    
-    return render(request, 'cflows/workflow_detail.html', context)
 
 
-@login_required
-def work_items_list(request):
-    """List work items with filtering"""
-    profile = get_user_profile(request)
-    
-    if not profile:
-        return render(request, 'cflows/no_profile.html')
-    
-    # Base queryset
-    work_items = WorkItem.objects.filter(
-        workflow__organization=profile.organization
-    ).select_related(
-        'workflow', 'current_step', 'current_assignee__user', 'created_by__user'
-    )
-    
-    # Filtering
-    workflow_id = request.GET.get('workflow')
-    if workflow_id:
-        work_items = work_items.filter(workflow_id=workflow_id)
-    
-    status_filter = request.GET.get('status')
-    if status_filter == 'completed':
-        work_items = work_items.filter(is_completed=True)
-    elif status_filter == 'active':
-        work_items = work_items.filter(is_completed=False)
-    
-    assignee_filter = request.GET.get('assignee')
-    if assignee_filter == 'me':
-        work_items = work_items.filter(current_assignee=profile)
-    elif assignee_filter == 'unassigned':
-        work_items = work_items.filter(current_assignee=None)
-    
-    # Search
-    search = request.GET.get('search')
-    if search:
-        work_items = work_items.filter(
-            Q(title__icontains=search) | 
-            Q(description__icontains=search)
-        )
-    
-    work_items = work_items.order_by('-updated_at')
-    
-    # Pagination
-    paginator = Paginator(work_items, 25)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
-    # Get workflows for filter dropdown
-    workflows = Workflow.objects.filter(
-        organization=profile.organization, is_active=True
-    ).order_by('name')
-    
-    context = {
-        'profile': profile,
-        'page_obj': page_obj,
-        'work_items': page_obj,
-        'workflows': workflows,
-        'current_filters': {
-            'workflow': workflow_id,
-            'status': status_filter,
-            'assignee': assignee_filter,
-            'search': search,
-        }
-    }
-    
-    return render(request, 'cflows/work_items_list.html', context)
+
+
 
 
 @login_required
@@ -592,7 +525,7 @@ def team_bookings_list(request):
     bookings = TeamBooking.objects.filter(
         team__in=user_teams
     ).select_related(
-        'team', 'work_item', 'job_type', 'booked_by__user', 'completed_by__user'
+        'team', 'work_item', 'job_type', 'booked_by', 'completed_by'
     )
     
     # Filtering
@@ -607,6 +540,15 @@ def team_bookings_list(request):
         bookings = bookings.filter(is_completed=False, start_time__gte=timezone.now())
     elif status_filter == 'active':
         bookings = bookings.filter(is_completed=False)
+    
+    # Date filtering
+    date_from = request.GET.get('date_from')
+    if date_from:
+        bookings = bookings.filter(start_time__gte=date_from)
+    
+    date_to = request.GET.get('date_to')
+    if date_to:
+        bookings = bookings.filter(end_time__lte=date_to)
     
     bookings = bookings.order_by('-start_time')
     
@@ -623,10 +565,40 @@ def team_bookings_list(request):
         'current_filters': {
             'team': team_id,
             'status': status_filter,
+            'date_from': date_from,
+            'date_to': date_to,
         }
     }
     
     return render(request, 'cflows/team_bookings_list.html', context)
+
+
+@login_required
+@require_business_organization
+@require_http_methods(["POST"])
+def complete_booking(request, booking_id):
+    """Complete a team booking"""
+    try:
+        profile = request.user.mediap_profile
+        booking = get_object_or_404(TeamBooking, id=booking_id, team__members=profile)
+        
+        if booking.is_completed:
+            return JsonResponse({'success': False, 'error': 'Booking is already completed'})
+        
+        booking.is_completed = True
+        booking.completed_at = timezone.now()
+        booking.completed_by = profile
+        booking.save()
+        
+        # If linked to workflow step, progress the work item
+        if booking.work_item and booking.workflow_step:
+            # This could trigger workflow progression logic
+            pass
+        
+        return JsonResponse({'success': True})
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
 
 
 @login_required

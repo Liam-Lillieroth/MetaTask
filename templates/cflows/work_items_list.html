@@ -48,7 +48,7 @@
                         <option value="">All Assignees</option>
                         {% for assignee in assignees %}
                             <option value="{{ assignee.id }}" {% if current_filters.assignee == assignee.id|stringformat:"s" %}selected{% endif %}>
-                                {{ assignee.user.get_full_name|default:assignee.user.username }}
+                                {% if assignee.user %}{{ assignee.user.get_full_name|default:assignee.user.username }}{% else %}Unknown User{% endif %}
                             </option>
                         {% endfor %}
                     </select>
@@ -146,7 +146,7 @@
                                             <span>{{ item.current_step.name }}</span>
                                             {% if item.current_assignee %}
                                                 <span>•</span>
-                                                <span>{{ item.current_assignee.user.get_full_name|default:item.current_assignee.user.username }}</span>
+                                                <span>{% if item.current_assignee.user %}{{ item.current_assignee.user.get_full_name|default:item.current_assignee.user.username }}{% else %}Unknown User{% endif %}</span>
                                             {% endif %}
                                             {% if item.due_date %}
                                                 <span>•</span>

@@ -1,0 +1,238 @@
+{% extends 'cflows/base.html' %}
+
+{% block title %}Schedule Booking - {{ work_item.title }} - CFlows{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Schedule Required Booking</h1>
+                <p class="text-gray-600 mt-2">
+                    The workflow step <strong>{{ workflow_step.name }}</strong> requires a team booking to proceed.
+                </p>
+            </div>
+            <div class="flex space-x-3">
+                <a href="{% url 'cflows:work_item_detail' work_item.id %}" 
+                   class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-arrow-left mr-2"></i>Back to Work Item
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Alert -->
+    <div class="mb-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div class="flex items-start">
+            <div class="flex-shrink-0">
+                <i class="fas fa-info-circle text-blue-400"></i>
+            </div>
+            <div class="ml-3">
+                <h3 class="text-sm font-medium text-blue-800">Booking Required</h3>
+                <div class="mt-2 text-sm text-blue-700">
+                    <p class="mb-2">
+                        Work item <strong>"{{ work_item.title }}"</strong> has been moved to the 
+                        <strong>"{{ workflow_step.name }}"</strong> step, which requires team capacity booking.
+                    </p>
+                    <p class="mb-2">
+                        <strong>Assigned Team:</strong> {{ team.name }}
+                        {% if workflow_step.estimated_duration_hours %}
+                        <br><strong>Estimated Duration:</strong> {{ workflow_step.estimated_duration_hours }} hours
+                        {% endif %}
+                    </p>
+                    <p>Please schedule the booking below to continue with the workflow.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Booking Form -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            
+            <!-- Basic Information -->
+            <div class="space-y-6">
+                <div>
+                    <label for="title" class="block text-sm font-medium text-gray-700 mb-2">
+                        Booking Title
+                    </label>
+                    <input type="text" 
+                           id="title" 
+                           name="title" 
+                           value="{{ default_title }}"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                           placeholder="Booking title">
+                </div>
+
+                <div>
+                    <label for="description" class="block text-sm font-medium text-gray-700 mb-2">
+                        Description (Optional)
+                    </label>
+                    <textarea id="description" 
+                              name="description" 
+                              rows="3"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                              placeholder="Additional details about this booking...">Booking for work item: {{ work_item.title }}</textarea>
+                </div>
+            </div>
+
+            <!-- Scheduling -->
+            <div class="border-t border-gray-200 pt-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Schedule Details</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="start_date" class="block text-sm font-medium text-gray-700 mb-2">
+                            Date <span class="text-red-500">*</span>
+                        </label>
+                        <input type="date" 
+                               id="start_date" 
+                               name="start_date" 
+                               value="{{ suggested_start_date }}"
+                               required
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    </div>
+
+                    <div>
+                        <label for="start_time" class="block text-sm font-medium text-gray-700 mb-2">
+                            Start Time <span class="text-red-500">*</span>
+                        </label>
+                        <input type="time" 
+                               id="start_time" 
+                               name="start_time" 
+                               value="{{ suggested_start_time }}"
+                               required
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    </div>
+
+                    <div>
+                        <label for="duration_hours" class="block text-sm font-medium text-gray-700 mb-2">
+                            Duration (Hours) <span class="text-red-500">*</span>
+                        </label>
+                        <input type="number" 
+                               id="duration_hours" 
+                               name="duration_hours" 
+                               value="{{ suggested_duration }}"
+                               step="0.25"
+                               min="0.25"
+                               max="24"
+                               required
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        <p class="mt-1 text-sm text-gray-500">Use 0.25 for 15-minute increments</p>
+                    </div>
+
+                    <div>
+                        <label for="required_members" class="block text-sm font-medium text-gray-700 mb-2">
+                            Required Team Members <span class="text-red-500">*</span>
+                        </label>
+                        <input type="number" 
+                               id="required_members" 
+                               name="required_members" 
+                               value="1"
+                               min="1"
+                               max="10"
+                               required
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        <p class="mt-1 text-sm text-gray-500">How many team members are needed for this booking</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Team Information -->
+            <div class="border-t border-gray-200 pt-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Team Information</h3>
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="flex-shrink-0">
+                            <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-users text-purple-600"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-900">{{ team.name }}</h4>
+                            <p class="text-sm text-gray-600">
+                                {% if team.description %}{{ team.description }}{% else %}Team assigned to this workflow step{% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                <a href="{% url 'cflows:work_item_detail' work_item.id %}" 
+                   class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                    Cancel
+                </a>
+                <button type="submit" 
+                        class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm font-medium transition-colors">
+                    <i class="fas fa-calendar-plus mr-2"></i>Schedule Booking
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Calendar Preview -->
+    <div class="mt-8 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Quick Calendar View</h3>
+        <div class="text-sm text-gray-600 mb-4">
+            <p>Use the calendar below to check team availability before scheduling.</p>
+        </div>
+        
+        <!-- Mini calendar placeholder -->
+        <div class="border border-gray-300 rounded-lg p-4 bg-gray-50">
+            <div class="text-center text-gray-500">
+                <i class="fas fa-calendar text-2xl mb-2"></i>
+                <p>Calendar integration coming soon</p>
+                <p class="text-xs">For now, check the main calendar view for team availability</p>
+                <a href="{% url 'cflows:calendar' %}" 
+                   class="mt-2 inline-flex items-center text-purple-600 hover:text-purple-700 text-sm">
+                    <i class="fas fa-external-link-alt mr-1"></i>
+                    View Full Calendar
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-update end time when duration changes
+document.getElementById('duration_hours').addEventListener('input', function() {
+    const duration = parseFloat(this.value) || 0;
+    const startTime = document.getElementById('start_time').value;
+    
+    if (startTime && duration > 0) {
+        const [hours, minutes] = startTime.split(':').map(Number);
+        const startDate = new Date();
+        startDate.setHours(hours, minutes, 0, 0);
+        
+        const endDate = new Date(startDate.getTime() + duration * 60 * 60 * 1000);
+        const endTimeString = endDate.toTimeString().slice(0, 5);
+        
+        // Show estimated end time (informational only)
+        const existingInfo = document.querySelector('.end-time-info');
+        if (existingInfo) {
+            existingInfo.remove();
+        }
+        
+        const info = document.createElement('p');
+        info.className = 'mt-1 text-sm text-gray-500 end-time-info';
+        info.textContent = `Estimated end time: ${endTimeString}`;
+        this.parentNode.appendChild(info);
+    }
+});
+
+// Validate that the date is not in the past
+document.getElementById('start_date').addEventListener('change', function() {
+    const selectedDate = new Date(this.value);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (selectedDate < today) {
+        alert('Please select a date that is today or in the future.');
+        this.value = '{{ suggested_start_date }}';
+    }
+});
+</script>
+{% endblock %}

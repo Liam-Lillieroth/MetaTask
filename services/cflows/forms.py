@@ -107,7 +107,7 @@ class WorkItemForm(forms.ModelForm):
     class Meta:
         model = WorkItem
         fields = [
-            'title', 'description', 'rich_content', 'priority', 'tags',
+            'title', 'description', 'rich_content', 'priority',
             'current_assignee', 'due_date', 'estimated_duration'
         ]
         widgets = {
@@ -152,7 +152,7 @@ class WorkItemForm(forms.ModelForm):
         help_text='Enter tags separated by commas'
     )
 
-    def __init__(self, *args, organization=None, **kwargs):
+    def __init__(self, *args, organization=None, workflow=None, **kwargs):
         super().__init__(*args, **kwargs)
         if organization:
             # Filter assignees to organization members
@@ -163,20 +163,96 @@ class WorkItemForm(forms.ModelForm):
         # Handle tags display
         if self.instance and self.instance.pk:
             self.fields['tags_input'].initial = ', '.join(self.instance.tags)
+        
+        # Add custom fields for this organization
+        if organization:
+            from .models import CustomField
+            custom_fields = CustomField.objects.filter(
+                organization=organization,
+                is_active=True
+            )
+            
+            # Filter by workflow if provided
+            if workflow:
+                custom_fields = custom_fields.filter(
+                    models.Q(workflows__isnull=True) | models.Q(workflows=workflow)
+                )
+            
+            # Sort by section and order
+            custom_fields = custom_fields.order_by('section', 'order', 'label')
+            
+            # Add each custom field to the form
+            for custom_field in custom_fields:
+                field_name = f'custom_{custom_field.id}'
+                self.fields[field_name] = custom_field.get_form_field()
+                
+                # Set initial value if editing existing work item
+                if self.instance and self.instance.pk:
+                    try:
+                        from .models import WorkItemCustomFieldValue
+                        custom_value = WorkItemCustomFieldValue.objects.get(
+                            work_item=self.instance,
+                            custom_field=custom_field
+                        )
+                        if custom_field.field_type == 'checkbox':
+                            self.fields[field_name].initial = custom_value.value.lower() in ['true', '1', 'yes']
+                        elif custom_field.field_type == 'multiselect':
+                            import json
+                            try:
+                                self.fields[field_name].initial = json.loads(custom_value.value)
+                            except json.JSONDecodeError:
+                                self.fields[field_name].initial = []
+                        else:
+                            self.fields[field_name].initial = custom_value.value
+                    except WorkItemCustomFieldValue.DoesNotExist:
+                        pass
 
     def clean_tags_input(self):
         tags_input = self.cleaned_data.get('tags_input', '')
         if tags_input:
-            tags = [tag.strip() for tag in tags_input.split(',') if tag.strip()]
-            return tags
+            # Handle both string and list inputs
+            if isinstance(tags_input, list):
+                return tags_input
+            elif isinstance(tags_input, str):
+                tags = [tag.strip() for tag in tags_input.split(',') if tag.strip()]
+                return tags
         return []
 
     def save(self, commit=True):
         instance = super().save(commit=False)
-        instance.tags = self.clean_tags_input()
+        # Handle tags from tags_input
+        tags_data = self.clean_tags_input()
+        instance.tags = tags_data
+        
         if commit:
             instance.save()
+            # Save custom field values
+            self.save_custom_fields(instance)
+        
         return instance
+    
+    def save_custom_fields(self, work_item):
+        """Save custom field values for the work item"""
+        from .models import CustomField, WorkItemCustomFieldValue
+        
+        for field_name, value in self.cleaned_data.items():
+            if field_name.startswith('custom_'):
+                try:
+                    custom_field_id = int(field_name.replace('custom_', ''))
+                    custom_field = CustomField.objects.get(id=custom_field_id)
+                    
+                    # Get or create the custom field value
+                    custom_value, created = WorkItemCustomFieldValue.objects.get_or_create(
+                        work_item=work_item,
+                        custom_field=custom_field
+                    )
+                    
+                    # Set the value based on field type
+                    custom_value.set_value(value)
+                    custom_value.save()
+                    
+                except (ValueError, CustomField.DoesNotExist):
+                    continue
 
 
 class WorkItemCommentForm(forms.ModelForm):

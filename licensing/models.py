@@ -113,6 +113,7 @@ class License(models.Model):
     ACCOUNT_TYPE_CHOICES = [
         ('personal', 'Personal Account'),
         ('organization', 'Organization Account'),
+        ('customer-service', 'Customer Service Account'),
     ]
     
     license_type = models.ForeignKey(LicenseType, on_delete=models.CASCADE)
