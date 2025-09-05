@@ -46,6 +46,8 @@ urlpatterns = [
     # Work Item Transitions
     path('work-items/<int:work_item_id>/transition/<int:transition_id>/', transition_views.transition_work_item, name='transition_work_item'),
     path('work-items/<int:work_item_id>/transition/<int:transition_id>/form/', transition_views.transition_form, name='transition_form'),
+    path('work-items/<int:work_item_id>/move-back/<int:step_id>/', transition_views.move_work_item_back, name='move_work_item_back'),
+    path('work-items/<int:work_item_id>/move-back/<int:step_id>/form/', transition_views.backward_transition_form, name='backward_transition_form'),
     path('work-items/<int:work_item_id>/assign/', transition_views.assign_work_item, name='assign_work_item'),
     path('work-items/<int:work_item_id>/priority/', transition_views.update_work_item_priority, name='update_work_item_priority'),
     path('work-items/<int:work_item_id>/transitions/', transition_views.get_available_transitions, name='get_available_transitions'),

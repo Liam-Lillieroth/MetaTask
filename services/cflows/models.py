@@ -345,6 +345,72 @@ class WorkItem(models.Model):
     def __str__(self):
         return f"{self.title} ({self.workflow.name})"
     
+    def get_available_backward_steps(self):
+        """Get steps that this work item can be moved back to based on history"""
+        # Get unique previous steps from history, ordered by most recent
+        previous_steps = self.history.filter(
+            from_step__isnull=False
+        ).values_list('from_step_id', flat=True).distinct()
+        
+        if not previous_steps:
+            return WorkflowStep.objects.none()
+        
+        # Return the workflow steps that were previously visited
+        return WorkflowStep.objects.filter(
+            id__in=previous_steps,
+            workflow=self.workflow
+        ).select_related('assigned_team').order_by('order')
+    
+    def get_backward_transitions(self, user_profile=None):
+        """Get available backward transitions for this work item"""
+        backward_steps = self.get_available_backward_steps()
+        backward_transitions = []
+        
+        for step in backward_steps:
+            # Create virtual backward transition
+            transition_data = {
+                'id': f'back_{step.id}',
+                'from_step': self.current_step,
+                'to_step': step,
+                'label': f'Return to {step.name}',
+                'description': f'Move back to the {step.name} step',
+                'color': 'gray',
+                'icon': 'fas fa-undo',
+                'is_backward': True,
+                'requires_confirmation': True,
+                'confirmation_message': f'Are you sure you want to move this item back to {step.name}? This will reverse the workflow progress.',
+                'requires_comment': True,
+                'comment_prompt': 'Please explain why you are moving this item backward',
+                'permission_level': 'admin',  # Only admins can move items backward by default
+                'is_active': True
+            }
+            
+            # Check permissions if user_profile is provided
+            if user_profile:
+                can_execute = (
+                    user_profile.is_organization_admin or 
+                    user_profile.has_staff_panel_access or
+                    self.created_by == user_profile  # Creator can also move back
+                )
+                if not can_execute:
+                    continue
+            
+            backward_transitions.append(type('BackwardTransition', (), transition_data)())
+        
+        return backward_transitions
+    
+    def can_move_backward(self, user_profile):
+        """Check if the user can move this work item backward"""
+        if not self.get_available_backward_steps().exists():
+            return False
+        
+        # Only allow backward movement if user has appropriate permissions
+        return (
+            user_profile.is_organization_admin or 
+            user_profile.has_staff_panel_access or
+            self.created_by == user_profile
+        )
+
     def save(self, *args, **kwargs):
         # Mark as completed if in terminal step
         if self.current_step.is_terminal and not self.is_completed:

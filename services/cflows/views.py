@@ -560,6 +560,10 @@ def work_item_detail(request, work_item_id):
     # Available transitions from current step
     available_transitions = work_item.current_step.outgoing_transitions.select_related('to_step')
     
+    # Backward transition support
+    can_move_backward = work_item.can_move_backward(profile)
+    backward_steps = work_item.get_available_backward_steps() if can_move_backward else None
+    
     # Handle comment form
     comment_form = None
     if request.method == 'POST':
@@ -586,6 +590,8 @@ def work_item_detail(request, work_item_id):
         'profile': profile,
         'work_item': work_item,
         'available_transitions': available_transitions,
+        'can_move_backward': can_move_backward,
+        'backward_steps': backward_steps,
         'comment_form': comment_form,
         'comments': comments,
         'history': history,

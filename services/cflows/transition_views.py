@@ -363,3 +363,188 @@ def get_available_transitions(request, work_item_id):
         'transitions': transitions_data,
         'current_step': work_item.current_step.name
     })
+
+
+@login_required
+@require_organization_access
+def backward_transition_form(request, work_item_id, step_id):
+    """Show form for moving work item backward to a previous step"""
+    profile = get_user_profile(request)
+    if not profile:
+        messages.error(request, 'No user profile found')
+        return redirect('cflows:work_items_list')
+    
+    work_item = get_object_or_404(
+        WorkItem.objects.select_related('workflow', 'current_step'),
+        id=work_item_id,
+        workflow__organization=profile.organization
+    )
+    
+    # Check if user can move items backward
+    if not work_item.can_move_backward(profile):
+        messages.error(request, 'You do not have permission to move work items backward.')
+        return redirect('cflows:work_item_detail', work_item_id=work_item.id)
+    
+    # Get the target step
+    target_step = get_object_or_404(
+        WorkflowStep.objects.select_related('assigned_team'),
+        id=step_id,
+        workflow=work_item.workflow
+    )
+    
+    # Verify this step is in the work item's history
+    if not work_item.history.filter(from_step=target_step).exists():
+        messages.error(request, 'Cannot move to a step that was not previously visited.')
+        return redirect('cflows:work_item_detail', work_item_id=work_item.id)
+    
+    if request.method == 'POST':
+        notes = request.POST.get('notes', '')
+        if not notes:
+            messages.error(request, 'A comment explaining the backward movement is required.')
+        else:
+            try:
+                with transaction.atomic():
+                    # Store previous step for history
+                    from_step = work_item.current_step
+                    
+                    # Update work item
+                    work_item.current_step = target_step
+                    
+                    # Reset completion status if moving back from terminal step
+                    if work_item.is_completed:
+                        work_item.is_completed = False
+                        work_item.completed_at = None
+                    
+                    work_item.save()
+                    
+                    # Create history entry
+                    WorkItemHistory.objects.create(
+                        work_item=work_item,
+                        from_step=from_step,
+                        to_step=target_step,
+                        changed_by=profile,
+                        notes=notes,
+                        data_snapshot=work_item.data.copy()
+                    )
+                    
+                    # Add system comment
+                    WorkItemComment.objects.create(
+                        work_item=work_item,
+                        content=f"Moved back from '{from_step.name}' to '{target_step.name}': {notes}",
+                        author=profile,
+                        is_system_comment=True
+                    )
+                    
+                    messages.success(request, f'Work item moved back to "{target_step.name}"')
+                    return redirect('cflows:work_item_detail', work_item_id=work_item.id)
+                    
+            except Exception as e:
+                messages.error(request, f'Error moving work item backward: {str(e)}')
+    
+    context = {
+        'work_item': work_item,
+        'target_step': target_step,
+        'current_step': work_item.current_step,
+    }
+    
+    return render(request, 'cflows/backward_transition_form.html', context)
+
+
+@login_required
+@require_organization_access
+@require_POST
+def move_work_item_back(request, work_item_id, step_id):
+    """Move a work item back to a previous step"""
+    profile = get_user_profile(request)
+    if not profile:
+        return JsonResponse({'success': False, 'error': 'No user profile found'})
+    
+    work_item = get_object_or_404(
+        WorkItem.objects.select_related('workflow', 'current_step'),
+        id=work_item_id,
+        workflow__organization=profile.organization
+    )
+    
+    # Check if user can move items backward
+    if not work_item.can_move_backward(profile):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': 'Permission denied'})
+        else:
+            messages.error(request, 'You do not have permission to move work items backward.')
+            return redirect('cflows:work_item_detail', work_item_id=work_item.id)
+    
+    # Get the target step
+    target_step = get_object_or_404(
+        WorkflowStep.objects.select_related('assigned_team'),
+        id=step_id,
+        workflow=work_item.workflow
+    )
+    
+    # Verify this step is in the work item's history
+    if not work_item.history.filter(from_step=target_step).exists():
+        error_msg = 'Cannot move to a step that was not previously visited.'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': error_msg})
+        else:
+            messages.error(request, error_msg)
+            return redirect('cflows:work_item_detail', work_item_id=work_item.id)
+    
+    notes = request.POST.get('notes', '')
+    if not notes:
+        error_msg = 'A comment explaining the backward movement is required.'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': error_msg})
+        else:
+            messages.error(request, error_msg)
+            return redirect('cflows:work_item_detail', work_item_id=work_item.id)
+    
+    try:
+        with transaction.atomic():
+            # Store previous step for history
+            from_step = work_item.current_step
+            
+            # Update work item
+            work_item.current_step = target_step
+            
+            # Reset completion status if moving back from terminal step
+            if work_item.is_completed:
+                work_item.is_completed = False
+                work_item.completed_at = None
+            
+            work_item.save()
+            
+            # Create history entry
+            WorkItemHistory.objects.create(
+                work_item=work_item,
+                from_step=from_step,
+                to_step=target_step,
+                changed_by=profile,
+                notes=notes,
+                data_snapshot=work_item.data.copy()
+            )
+            
+            # Add system comment
+            WorkItemComment.objects.create(
+                work_item=work_item,
+                content=f"Moved back from '{from_step.name}' to '{target_step.name}': {notes}",
+                author=profile,
+                is_system_comment=True
+            )
+            
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': True,
+                    'new_step': target_step.name,
+                    'is_completed': work_item.is_completed,
+                    'message': f'Moved back to {target_step.name}'
+                })
+            else:
+                messages.success(request, f'Work item moved back to "{target_step.name}"')
+                return redirect('cflows:work_item_detail', work_item_id=work_item.id)
+                
+    except Exception as e:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': str(e)})
+        else:
+            messages.error(request, f'Error moving work item backward: {str(e)}')
+            return redirect('cflows:work_item_detail', work_item_id=work_item.id)
