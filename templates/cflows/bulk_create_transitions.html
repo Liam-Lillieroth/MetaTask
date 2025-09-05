@@ -1,0 +1,625 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.pattern-card {
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 20px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.pattern-card:hover {
+    border-color: #6366f1;
+    background-color: #f8fafc;
+}
+
+.pattern-card.selected {
+    border-color: #6366f1;
+    background-color: #eff6ff;
+}
+
+.pattern-icon {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 15px;
+    background: #f3f4f6;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+}
+
+.pattern-card.selected .pattern-icon {
+    background: #dbeafe;
+    color: #2563eb;
+}
+
+.dynamic-fields {
+    display: none;
+    margin-top: 20px;
+    padding: 20px;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.step-preview {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.step-item {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 10px;
+    text-align: center;
+    font-size: 0.875rem;
+}
+
+.step-item.central {
+    border-color: #fbbf24;
+    background: #fef3c7;
+}
+
+.step-item.source {
+    border-color: #34d399;
+    background: #d1fae5;
+}
+
+.step-item.target {
+    border-color: #60a5fa;
+    background: #dbeafe;
+}
+
+.step-selector {
+    transition: all 0.2s ease;
+}
+
+.step-selector.selected .flex {
+    border-color: #6366f1;
+    background-color: #eff6ff;
+}
+
+.step-selector.selected .w-4 {
+    background-color: #6366f1;
+    border-color: #6366f1;
+}
+
+.step-selector.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.transition-item {
+    display: flex;
+    align-items: center;
+    justify-content: between;
+    padding: 8px 12px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+.transition-item:last-child {
+    margin-bottom: 0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-8">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">{{ title }}</h1>
+                        <p class="mt-1 text-sm text-gray-600">
+                            Create multiple transitions at once using common patterns
+                        </p>
+                    </div>
+                    <a href="{% url 'cflows:workflow_transitions_manager' workflow.id %}" 
+                       class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                        Back to Transitions
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Current Status -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+            <div class="px-6 py-4">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Current Workflow Status</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-gray-900">{{ steps_count }}</div>
+                        <div class="text-sm text-gray-600">Steps</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-gray-900">{{ current_transitions }}</div>
+                        <div class="text-sm text-gray-600">Current Transitions</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-gray-900">
+                            {% widthratio steps_count steps_count 1 %}
+                        </div>
+                        <div class="text-sm text-gray-600">Max Sequential</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-gray-900">
+                            {% widthratio steps_count 1 2 %}
+                        </div>
+                        <div class="text-sm text-gray-600">Max Hub & Spoke</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <form method="post" id="bulk-form">
+            {% csrf_token %}
+            
+            <!-- Pattern Selection -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">Select Transition Pattern</h3>
+                    <p class="text-sm text-gray-600 mt-1">Choose how you want to connect your workflow steps</p>
+                </div>
+                
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        
+                        <!-- Sequential Pattern -->
+                        <div class="pattern-card" data-pattern="sequential">
+                            <div class="pattern-icon">→</div>
+                            <h4 class="font-semibold text-gray-900 text-center mb-2">Sequential Flow</h4>
+                            <p class="text-sm text-gray-600 text-center mb-3">
+                                Step 1 → Step 2 → Step 3 → ...
+                            </p>
+                            <p class="text-xs text-gray-500 text-center">
+                                Creates a linear workflow where items move from one step to the next in order.
+                            </p>
+                        </div>
+
+                        <!-- Hub and Spoke Pattern -->
+                        <div class="pattern-card" data-pattern="hub_spoke">
+                            <div class="pattern-icon">✱</div>
+                            <h4 class="font-semibold text-gray-900 text-center mb-2">Hub and Spoke</h4>
+                            <p class="text-sm text-gray-600 text-center mb-3">
+                                All steps ↔ Central step
+                            </p>
+                            <p class="text-xs text-gray-500 text-center">
+                                All steps can transition to and from a central hub step.
+                            </p>
+                        </div>
+
+                        <!-- Parallel Branches Pattern -->
+                        <div class="pattern-card" data-pattern="parallel">
+                            <div class="pattern-icon">⫷</div>
+                            <h4 class="font-semibold text-gray-900 text-center mb-2">Parallel Branches</h4>
+                            <p class="text-sm text-gray-600 text-center mb-3">
+                                One step → Multiple steps
+                            </p>
+                            <p class="text-xs text-gray-500 text-center">
+                                From one step, items can branch out to multiple different paths.
+                            </p>
+                        </div>
+
+                        <!-- Custom Selection -->
+                        <div class="pattern-card" data-pattern="custom">
+                            <div class="pattern-icon">⚙</div>
+                            <h4 class="font-semibold text-gray-900 text-center mb-2">Custom Selection</h4>
+                            <p class="text-sm text-gray-600 text-center mb-3">
+                                Choose specific transitions
+                            </p>
+                            <p class="text-xs text-gray-500 text-center">
+                                Manually select which steps should connect to which other steps.
+                            </p>
+                        </div>
+
+                    </div>
+
+                    <!-- Hidden radio inputs -->
+                    <div class="hidden">
+                        {% for choice in form.transition_type %}
+                            {{ choice.tag }}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dynamic Configuration Fields -->
+            <div id="hub-spoke-config" class="dynamic-fields">
+                <h4 class="font-semibold text-gray-900 mb-3">Hub and Spoke Configuration</h4>
+                <div class="mb-4">
+                    <label for="{{ form.central_step.id_for_label }}" 
+                           class="block text-sm font-medium text-gray-700 mb-2">
+                        {{ form.central_step.label }}
+                    </label>
+                    {{ form.central_step }}
+                    {% if form.central_step.help_text %}
+                    <p class="mt-1 text-sm text-gray-500">{{ form.central_step.help_text }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div id="parallel-config" class="dynamic-fields">
+                <h4 class="font-semibold text-gray-900 mb-3">Parallel Branches Configuration</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="{{ form.source_step.id_for_label }}" 
+                               class="block text-sm font-medium text-gray-700 mb-2">
+                            {{ form.source_step.label }}
+                        </label>
+                        {{ form.source_step }}
+                        {% if form.source_step.help_text %}
+                        <p class="mt-1 text-sm text-gray-500">{{ form.source_step.help_text }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            {{ form.target_steps.label }}
+                        </label>
+                        <div class="max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2">
+                            {{ form.target_steps }}
+                        </div>
+                        {% if form.target_steps.help_text %}
+                        <p class="mt-1 text-sm text-gray-500">{{ form.target_steps.help_text }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div id="custom-config" class="dynamic-fields">
+                <h4 class="font-semibold text-gray-900 mb-3">Custom Selection Configuration</h4>
+                <p class="text-sm text-gray-600 mb-4">
+                    Select specific step-to-step transitions you want to create. Click on a "From Step" 
+                    and then click on one or more "To Steps" to create transitions.
+                </p>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                        <h5 class="font-medium text-gray-900 mb-3">From Steps</h5>
+                        <div id="from-steps-list" class="space-y-2">
+                            {% for step in workflow.steps.all|dictsort:"order" %}
+                            <div class="step-selector from-step" data-step-id="{{ step.id }}" data-step-name="{{ step.name }}">
+                                <div class="flex items-center p-3 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50">
+                                    <div class="flex-1">
+                                        <div class="font-medium text-gray-900">{{ step.name }}</div>
+                                        {% if step.description %}
+                                        <div class="text-sm text-gray-600">{{ step.description|truncatechars:50 }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="ml-2">
+                                        <div class="w-4 h-4 border-2 border-gray-300 rounded-full"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h5 class="font-medium text-gray-900 mb-3">To Steps</h5>
+                        <div id="to-steps-list" class="space-y-2">
+                            {% for step in workflow.steps.all|dictsort:"order" %}
+                            <div class="step-selector to-step" data-step-id="{{ step.id }}" data-step-name="{{ step.name }}">
+                                <div class="flex items-center p-3 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50">
+                                    <div class="flex-1">
+                                        <div class="font-medium text-gray-900">{{ step.name }}</div>
+                                        {% if step.description %}
+                                        <div class="text-sm text-gray-600">{{ step.description|truncatechars:50 }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="ml-2">
+                                        <div class="w-4 h-4 border-2 border-gray-300 rounded"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <h5 class="font-medium text-gray-900 mb-2">Selected Transitions</h5>
+                    <div id="selected-transitions" class="min-h-[100px] p-4 border border-gray-300 rounded-md bg-gray-50">
+                        <p class="text-sm text-gray-500 italic">No transitions selected yet</p>
+                    </div>
+                </div>
+                
+                {{ form.custom_transitions }}
+            </div>
+
+            <!-- Preview Section -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">Preview</h3>
+                    <p class="text-sm text-gray-600 mt-1">
+                        This shows how the selected pattern will affect your workflow
+                    </p>
+                </div>
+                
+                <div class="p-6">
+                    <div id="preview-content">
+                        <p class="text-gray-500 italic">Select a pattern to see preview</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Form Errors -->
+            {% if form.errors %}
+            <div class="bg-white rounded-lg shadow-sm border border-red-200 mb-6">
+                <div class="px-6 py-4">
+                    <h3 class="text-lg font-semibold text-red-800">Please fix the following errors:</h3>
+                    <div class="mt-2 space-y-1">
+                        {% for field, errors in form.errors.items %}
+                            {% for error in errors %}
+                            <p class="text-sm text-red-600">{{ field }}: {{ error }}</p>
+                            {% endfor %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Actions -->
+            <div class="flex justify-end space-x-3">
+                <a href="{% url 'cflows:workflow_transitions_manager' workflow.id %}" 
+                   class="bg-white border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </a>
+                <button type="submit" 
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                        disabled id="submit-btn">
+                    Create Transitions
+                </button>
+            </div>
+
+        </form>
+
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const patternCards = document.querySelectorAll('.pattern-card');
+    const radioInputs = document.querySelectorAll('input[name="transition_type"]');
+    const submitBtn = document.getElementById('submit-btn');
+    const previewContent = document.getElementById('preview-content');
+    
+    // Pattern selection
+    patternCards.forEach(card => {
+        card.addEventListener('click', function() {
+            const pattern = this.dataset.pattern;
+            
+            // Update visual selection
+            patternCards.forEach(c => c.classList.remove('selected'));
+            this.classList.add('selected');
+            
+            // Update radio input
+            const radioInput = document.querySelector(`input[value="${pattern}"]`);
+            if (radioInput) {
+                radioInput.checked = true;
+            }
+            
+            // Show/hide dynamic fields
+            document.querySelectorAll('.dynamic-fields').forEach(field => {
+                field.style.display = 'none';
+            });
+            
+            if (pattern === 'hub_spoke') {
+                document.getElementById('hub-spoke-config').style.display = 'block';
+            } else if (pattern === 'parallel') {
+                document.getElementById('parallel-config').style.display = 'block';
+            } else if (pattern === 'custom') {
+                document.getElementById('custom-config').style.display = 'block';
+                initializeCustomSelection();
+            }
+            
+            // Enable submit button
+            submitBtn.disabled = false;
+            
+            // Update preview
+            updatePreview(pattern);
+        });
+    });
+    
+    // Update preview function
+    function updatePreview(pattern) {
+        let previewHtml = '';
+        
+        switch (pattern) {
+            case 'sequential':
+                previewHtml = `
+                    <h4 class="font-medium mb-3">Sequential Flow Preview</h4>
+                    <p class="text-sm text-gray-600 mb-3">
+                        Creates transitions: Step 1 → Step 2 → Step 3 → ... (in order)
+                    </p>
+                    <div class="step-preview">
+                        {% for step in workflow.steps.all|dictsort:"order" %}
+                        <div class="step-item">{{ step.name }}</div>
+                        {% endfor %}
+                    </div>
+                `;
+                break;
+            case 'hub_spoke':
+                previewHtml = `
+                    <h4 class="font-medium mb-3">Hub and Spoke Preview</h4>
+                    <p class="text-sm text-gray-600 mb-3">
+                        All steps will be able to transition to and from the central hub step.
+                    </p>
+                    <div class="text-sm text-amber-600 mb-3">
+                        Select a central step above to see specific preview.
+                    </div>
+                `;
+                break;
+            case 'parallel':
+                previewHtml = `
+                    <h4 class="font-medium mb-3">Parallel Branches Preview</h4>
+                    <p class="text-sm text-gray-600 mb-3">
+                        From the source step, items can branch to multiple target steps.
+                    </p>
+                    <div class="text-sm text-blue-600 mb-3">
+                        Select source and target steps above to see specific preview.
+                    </div>
+                `;
+                break;
+            case 'custom':
+                previewHtml = `
+                    <h4 class="font-medium mb-3">Custom Selection Preview</h4>
+                    <p class="text-sm text-gray-600 mb-3">
+                        Select specific step-to-step transitions by choosing from and to steps.
+                    </p>
+                    <div id="custom-preview-transitions">
+                        <p class="text-sm text-gray-500 italic">No transitions selected yet</p>
+                    </div>
+                `;
+                break;
+        }
+        
+        previewContent.innerHTML = previewHtml;
+    }
+    
+    // Custom selection functionality
+    let selectedFromStep = null;
+    let customTransitions = [];
+    
+    function initializeCustomSelection() {
+        selectedFromStep = null;
+        customTransitions = [];
+        updateCustomTransitionsDisplay();
+        
+        // Reset all selections
+        document.querySelectorAll('.step-selector').forEach(selector => {
+            selector.classList.remove('selected');
+        });
+    }
+    
+    function updateCustomTransitionsDisplay() {
+        const container = document.getElementById('selected-transitions');
+        const previewContainer = document.getElementById('custom-preview-transitions');
+        const hiddenInput = document.getElementById('id_custom_transitions');
+        
+        if (customTransitions.length === 0) {
+            container.innerHTML = '<p class="text-sm text-gray-500 italic">No transitions selected yet</p>';
+            if (previewContainer) {
+                previewContainer.innerHTML = '<p class="text-sm text-gray-500 italic">No transitions selected yet</p>';
+            }
+            hiddenInput.value = '';
+            submitBtn.disabled = true;
+        } else {
+            const transitionsHtml = customTransitions.map((transition, index) => `
+                <div class="transition-item">
+                    <span class="flex-1 text-sm">
+                        <strong>${transition.fromStepName}</strong> → <strong>${transition.toStepName}</strong>
+                    </span>
+                    <button type="button" class="text-red-600 hover:text-red-800 text-sm ml-2" 
+                            onclick="removeCustomTransition(${index})">
+                        Remove
+                    </button>
+                </div>
+            `).join('');
+            
+            container.innerHTML = transitionsHtml;
+            
+            if (previewContainer) {
+                const previewHtml = customTransitions.map(transition => `
+                    <div class="text-sm text-gray-700 mb-1">
+                        ${transition.fromStepName} → ${transition.toStepName}
+                    </div>
+                `).join('');
+                previewContainer.innerHTML = previewHtml;
+            }
+            
+            // Update hidden input
+            hiddenInput.value = JSON.stringify(customTransitions.map(t => ({
+                from_step: t.fromStepId,
+                to_step: t.toStepId
+            })));
+            
+            submitBtn.disabled = false;
+        }
+    }
+    
+    window.removeCustomTransition = function(index) {
+        customTransitions.splice(index, 1);
+        updateCustomTransitionsDisplay();
+    }
+    
+    // Handle step selections for custom pattern
+    document.addEventListener('click', function(e) {
+        if (!document.getElementById('custom-config') || 
+            document.getElementById('custom-config').style.display === 'none') {
+            return;
+        }
+        
+        const stepSelector = e.target.closest('.step-selector');
+        if (!stepSelector) return;
+        
+        e.preventDefault();
+        
+        if (stepSelector.classList.contains('from-step')) {
+            // Selecting a from step
+            document.querySelectorAll('.from-step').forEach(el => el.classList.remove('selected'));
+            stepSelector.classList.add('selected');
+            selectedFromStep = {
+                id: stepSelector.dataset.stepId,
+                name: stepSelector.dataset.stepName
+            };
+            
+            // Clear to-step selections
+            document.querySelectorAll('.to-step').forEach(el => el.classList.remove('selected'));
+        } else if (stepSelector.classList.contains('to-step') && selectedFromStep) {
+            // Selecting a to step
+            if (stepSelector.dataset.stepId === selectedFromStep.id) {
+                // Can't transition to the same step
+                return;
+            }
+            
+            // Check if this transition already exists
+            const existsAlready = customTransitions.some(t => 
+                t.fromStepId === selectedFromStep.id && 
+                t.toStepId === stepSelector.dataset.stepId
+            );
+            
+            if (existsAlready) {
+                return; // Don't add duplicates
+            }
+            
+            // Add transition
+            customTransitions.push({
+                fromStepId: selectedFromStep.id,
+                fromStepName: selectedFromStep.name,
+                toStepId: stepSelector.dataset.stepId,
+                toStepName: stepSelector.dataset.stepName
+            });
+            
+            updateCustomTransitionsDisplay();
+            
+            // Visual feedback
+            stepSelector.classList.add('selected');
+            setTimeout(() => {
+                stepSelector.classList.remove('selected');
+            }, 500);
+        }
+    });
+    
+    // Initialize with first pattern if none selected
+    if (!document.querySelector('.pattern-card.selected')) {
+        patternCards[0].click();
+    }
+});
+</script>
+{% endblock %}

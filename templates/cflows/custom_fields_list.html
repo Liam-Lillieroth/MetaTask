@@ -1,0 +1,147 @@
+{% extends "cflows/cflows_base.html" %}
+
+{% block title %}Custom Fields - {{ organization.name }} - CFlows{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Custom Fields</h1>
+            <p class="text-gray-600 mt-2">Manage custom fields for your organization's workflows</p>
+        </div>
+        <a href="{% url 'cflows:create_custom_field' %}" 
+           class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
+            <i class="fas fa-plus mr-2"></i>Create Custom Field
+        </a>
+    </div>
+
+    {% if custom_fields %}
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Field</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Section</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Workflows</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for field in custom_fields %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <div>
+                                            <div class="text-sm font-medium text-gray-900">{{ field.label }}</div>
+                                            <div class="text-sm text-gray-500">{{ field.name }}</div>
+                                            {% if field.is_required %}
+                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 mt-1">
+                                                    Required
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        {{ field.get_field_type_display }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {% if field.section %}
+                                        {{ field.section }}
+                                    {% else %}
+                                        <span class="text-gray-400">No section</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    {% if field.workflows.all %}
+                                        <div class="text-sm text-gray-900">
+                                            {% for workflow in field.workflows.all %}
+                                                <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800 mr-1 mb-1">
+                                                    {{ workflow.name }}
+                                                </span>
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <span class="text-sm text-gray-500">All workflows</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    {% if field.is_active %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                            Active
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                            Inactive
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <div class="flex items-center space-x-2">
+                                        <a href="{% url 'cflows:edit_custom_field' field.id %}" 
+                                           class="text-indigo-600 hover:text-indigo-900">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <form method="post" action="{% url 'cflows:toggle_custom_field' field.id %}" class="inline">
+                                            {% csrf_token %}
+                                            <button type="submit" 
+                                                    class="text-yellow-600 hover:text-yellow-900"
+                                                    title="{% if field.is_active %}Deactivate{% else %}Activate{% endif %}">
+                                                {% if field.is_active %}
+                                                    <i class="fas fa-eye-slash"></i>
+                                                {% else %}
+                                                    <i class="fas fa-eye"></i>
+                                                {% endif %}
+                                            </button>
+                                        </form>
+                                        <form method="post" action="{% url 'cflows:delete_custom_field' field.id %}" class="inline"
+                                              onsubmit="return confirm('Are you sure you want to delete this custom field? This action cannot be undone.')">
+                                            {% csrf_token %}
+                                            <button type="submit" class="text-red-600 hover:text-red-900">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div class="flex items-start">
+                <i class="fas fa-info-circle text-blue-500 mt-1 mr-3"></i>
+                <div>
+                    <h3 class="text-lg font-medium text-blue-900">How Custom Fields Work</h3>
+                    <div class="mt-2 text-blue-800">
+                        <ul class="list-disc list-inside space-y-1">
+                            <li><strong>Workflow Assignment:</strong> Leave workflows empty to show the field for all workflows, or select specific workflows to limit where it appears.</li>
+                            <li><strong>Workflow Steps:</strong> Optionally restrict fields to specific workflow steps for more granular control.</li>
+                            <li><strong>Field Types:</strong> Choose from text, number, date, select, checkbox, and more to match your data needs.</li>
+                            <li><strong>Sections:</strong> Group related fields together using sections for better organization.</li>
+                            <li><strong>Required Fields:</strong> Mark fields as required to ensure important data is always collected.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="text-center py-12">
+            <i class="fas fa-list-alt text-6xl text-gray-400 mb-4"></i>
+            <h3 class="text-xl font-semibold text-gray-900 mb-2">No Custom Fields</h3>
+            <p class="text-gray-500 mb-6">Create custom fields to collect additional data for your work items.</p>
+            <a href="{% url 'cflows:create_custom_field' %}" 
+               class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
+                <i class="fas fa-plus mr-2"></i>Create Your First Custom Field
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

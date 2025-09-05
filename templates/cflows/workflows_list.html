@@ -78,10 +78,20 @@
                 </div>
                 
                 <div class="px-6 py-3 bg-gray-50 border-t border-gray-200 rounded-b-lg">
-                    <a href="{% url 'cflows:workflow_detail' workflow.pk %}" 
-                       class="text-sm font-medium text-indigo-600 hover:text-indigo-500">
-                        View Details →
-                    </a>
+                    <div class="flex items-center justify-between">
+                        <a href="{% url 'cflows:workflow_detail' workflow.pk %}" 
+                           class="text-sm font-medium text-indigo-600 hover:text-indigo-500">
+                            View Details →
+                        </a>
+                        {% if profile.has_staff_panel_access or profile.is_organization_admin %}
+                            <a href="{% url 'cflows:workflow_transitions_manager' workflow.pk %}"
+                               class="inline-flex items-center text-xs font-medium text-gray-600 hover:text-indigo-600 border border-gray-300 hover:border-indigo-300 px-2 py-1 rounded transition-colors"
+                               title="Manage workflow transitions">
+                                <i class="fas fa-route text-xs mr-1"></i>
+                                Transitions
+                            </a>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         {% empty %}

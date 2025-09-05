@@ -5,7 +5,7 @@ from django.http import JsonResponse
 def index(request):
     """Homepage view - redirect logged in users to dashboard"""
     if request.user.is_authenticated:
-        return redirect('/dashboard/')
+        return redirect('dashboard:dashboard')
     
     return render(request, 'homepage/index.html', {
         'title': 'Mediap - Comprehensive Service Platform',

@@ -54,6 +54,9 @@ class Workflow(models.Model):
     auto_assign = models.BooleanField(default=False, help_text="Auto-assign work items to team members")
     requires_approval = models.BooleanField(default=False, help_text="Workflow changes require approval")
     
+    # Field customization settings
+    field_config = models.JSONField(default=dict, blank=True, help_text="Configuration for which standard fields to show/hide/replace")
+    
     created_by = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, related_name='created_workflows')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -64,6 +67,26 @@ class Workflow(models.Model):
     
     def __str__(self):
         return f"{self.name} ({self.organization.name})"
+    
+    def get_active_fields(self):
+        """Get configuration for which fields should be shown/hidden/replaced"""
+        default_config = {
+            'title': {'enabled': True, 'required': True, 'replacement': None},
+            'description': {'enabled': True, 'required': False, 'replacement': None},
+            'priority': {'enabled': True, 'required': False, 'replacement': None},
+            'tags': {'enabled': True, 'required': False, 'replacement': None},
+            'due_date': {'enabled': True, 'required': False, 'replacement': None},
+            'estimated_duration': {'enabled': True, 'required': False, 'replacement': None},
+        }
+        
+        # Merge with custom configuration
+        config = default_config.copy()
+        if self.field_config:
+            for field_name, field_settings in self.field_config.items():
+                if field_name in config:
+                    config[field_name].update(field_settings)
+        
+        return config
 
 
 class WorkflowStep(models.Model):
@@ -101,13 +124,168 @@ class WorkflowTransition(models.Model):
     from_step = models.ForeignKey(WorkflowStep, on_delete=models.CASCADE, related_name='outgoing_transitions')
     to_step = models.ForeignKey(WorkflowStep, on_delete=models.CASCADE, related_name='incoming_transitions')
     
+    # Basic properties
     label = models.CharField(max_length=100, blank=True, help_text="Optional label for this transition (e.g., 'Approve', 'Reject')")
+    description = models.TextField(blank=True, help_text="Detailed description of what this transition does")
     
-    # Conditional logic (for future expansion)
+    # Visual customization
+    COLOR_CHOICES = [
+        ('blue', 'Blue (Default)'),
+        ('green', 'Green (Success)'),
+        ('red', 'Red (Danger/Reject)'),
+        ('yellow', 'Yellow (Warning)'),
+        ('purple', 'Purple (Review)'),
+        ('indigo', 'Indigo (Process)'),
+        ('gray', 'Gray (Neutral)'),
+        ('orange', 'Orange (Alert)'),
+    ]
+    color = models.CharField(max_length=20, choices=COLOR_CHOICES, default='blue', help_text="Button color for this transition")
+    
+    ICON_CHOICES = [
+        ('', 'No Icon'),
+        ('fas fa-check', 'Checkmark (Approve)'),
+        ('fas fa-times', 'X Mark (Reject)'),
+        ('fas fa-arrow-right', 'Arrow Right (Next)'),
+        ('fas fa-undo', 'Undo (Return)'),
+        ('fas fa-eye', 'Eye (Review)'),
+        ('fas fa-edit', 'Edit (Modify)'),
+        ('fas fa-pause', 'Pause (Hold)'),
+        ('fas fa-play', 'Play (Start)'),
+        ('fas fa-stop', 'Stop (End)'),
+        ('fas fa-upload', 'Upload (Submit)'),
+        ('fas fa-download', 'Download (Retrieve)'),
+        ('fas fa-cog', 'Cog (Process)'),
+        ('fas fa-user', 'User (Assign)'),
+        ('fas fa-users', 'Users (Team)'),
+        ('fas fa-flag', 'Flag (Priority)'),
+        ('fas fa-clock', 'Clock (Schedule)'),
+        ('fas fa-star', 'Star (Favorite)'),
+        ('fas fa-thumbs-up', 'Thumbs Up'),
+        ('fas fa-thumbs-down', 'Thumbs Down'),
+    ]
+    icon = models.CharField(max_length=50, choices=ICON_CHOICES, blank=True, help_text="Icon to display on the transition button")
+    
+    # Behavioral options
+    requires_confirmation = models.BooleanField(default=False, help_text="Require user confirmation before executing this transition")
+    confirmation_message = models.CharField(
+        max_length=200, 
+        blank=True, 
+        help_text="Custom confirmation message (if requires_confirmation is True)"
+    )
+    
+    auto_assign_to_step_team = models.BooleanField(
+        default=False, 
+        help_text="Automatically assign work item to the destination step's assigned team"
+    )
+    
+    requires_comment = models.BooleanField(default=False, help_text="Require a comment when using this transition")
+    comment_prompt = models.CharField(
+        max_length=200, 
+        blank=True, 
+        help_text="Custom prompt for required comment"
+    )
+    
+    # Conditional logic and permissions
     condition = models.JSONField(default=dict, blank=True, help_text="Optional conditions for this transition")
+    
+    PERMISSION_CHOICES = [
+        ('any', 'Any User'),
+        ('assignee', 'Current Assignee Only'),
+        ('team', 'Team Members Only'),
+        ('admin', 'Admin/Staff Only'),
+        ('creator', 'Creator Only'),
+        ('custom', 'Custom Conditions'),
+    ]
+    permission_level = models.CharField(
+        max_length=20, 
+        choices=PERMISSION_CHOICES, 
+        default='any',
+        help_text="Who can use this transition"
+    )
+    
+    # Ordering and display
+    order = models.IntegerField(default=0, help_text="Display order for transition buttons")
+    is_active = models.BooleanField(default=True, help_text="Whether this transition is available for use")
+    
+    # Audit fields
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         unique_together = ['from_step', 'to_step']
+        ordering = ['order', 'label']
+    
+    def __str__(self):
+        label_text = f" ({self.label})" if self.label else ""
+        return f"{self.from_step.name} → {self.to_step.name}{label_text}"
+    
+    def get_button_class(self):
+        """Get CSS class for transition button based on color"""
+        color_classes = {
+            'blue': 'bg-blue-600 hover:bg-blue-700 text-white',
+            'green': 'bg-green-600 hover:bg-green-700 text-white',
+            'red': 'bg-red-600 hover:bg-red-700 text-white',
+            'yellow': 'bg-yellow-500 hover:bg-yellow-600 text-white',
+            'purple': 'bg-purple-600 hover:bg-purple-700 text-white',
+            'indigo': 'bg-indigo-600 hover:bg-indigo-700 text-white',
+            'gray': 'bg-gray-600 hover:bg-gray-700 text-white',
+            'orange': 'bg-orange-600 hover:bg-orange-700 text-white',
+        }
+        return color_classes.get(self.color, color_classes['blue'])
+    
+    def get_display_label(self):
+        """Get the display label for the transition button"""
+        return self.label or f"Move to {self.to_step.name}"
+    
+    def can_user_execute(self, user_profile, work_item=None):
+        """Check if a user can execute this transition"""
+        if not self.is_active:
+            return False
+            
+        if self.permission_level == 'any':
+            return True
+        elif self.permission_level == 'assignee':
+            return work_item and work_item.current_assignee == user_profile
+        elif self.permission_level == 'team':
+            if work_item and work_item.current_step.assigned_team:
+                return user_profile in work_item.current_step.assigned_team.members.all()
+            return True
+        elif self.permission_level == 'admin':
+            return user_profile.is_organization_admin or user_profile.has_staff_panel_access
+        elif self.permission_level == 'creator':
+            return work_item and work_item.created_by == user_profile
+        elif self.permission_level == 'custom':
+            # Implement custom condition logic here
+            return self._check_custom_conditions(user_profile, work_item)
+        
+        return False
+    
+    def _check_custom_conditions(self, user_profile, work_item):
+        """Check custom conditions from the condition JSON field"""
+        if not self.condition:
+            return True
+        
+        # Example condition checks - extend as needed
+        conditions = self.condition
+        
+        # Check priority requirements
+        if 'min_priority' in conditions:
+            if not work_item or work_item.priority not in ['high', 'critical']:
+                return False
+        
+        # Check role requirements
+        if 'required_role' in conditions:
+            # Implement role checking logic
+            pass
+        
+        # Check time-based conditions
+        if 'business_hours_only' in conditions:
+            from django.utils import timezone
+            now = timezone.now()
+            if now.weekday() >= 5 or not (9 <= now.hour < 17):  # Weekend or outside 9-5
+                return False
+        
+        return True
     
     def __str__(self):
         label_text = f" ({self.label})" if self.label else ""
@@ -482,7 +660,7 @@ class WorkItemCustomFieldValue(models.Model):
     
     work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='custom_field_values')
     custom_field = models.ForeignKey(CustomField, on_delete=models.CASCADE)
-    workflow_step = models.ForeignKey(WorkflowStep, on_delete=models.CASCADE, help_text="Step where this data was collected")
+    workflow_step = models.ForeignKey(WorkflowStep, on_delete=models.CASCADE, null=True, blank=True, help_text="Step where this data was collected")
     
     # Store value as text - will be converted based on field type
     value = models.TextField(blank=True)
@@ -582,3 +760,34 @@ class StepDataCollection(models.Model):
             except WorkItemCustomFieldValue.DoesNotExist:
                 return False
         return True
+
+
+class CalendarView(models.Model):
+    """Saved calendar filter views for users"""
+    name = models.CharField(max_length=100)
+    user = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='saved_calendar_views')
+    is_default = models.BooleanField(default=False)
+    
+    # Filter settings (stored as JSON)
+    teams = models.JSONField(default=list, blank=True)  # List of team IDs
+    job_types = models.JSONField(default=list, blank=True)  # List of job type IDs
+    workflows = models.JSONField(default=list, blank=True)  # List of workflow IDs
+    status = models.CharField(max_length=20, blank=True)
+    event_type = models.CharField(max_length=20, blank=True)
+    booked_by = models.CharField(max_length=10, blank=True)  # User ID as string
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['user', 'name']
+        ordering = ['name']
+    
+    def __str__(self):
+        return f"{self.name} ({self.user})"
+    
+    def save(self, *args, **kwargs):
+        # If this is being set as default, unset other defaults for this user
+        if self.is_default:
+            CalendarView.objects.filter(user=self.user, is_default=True).update(is_default=False)
+        super().save(*args, **kwargs)

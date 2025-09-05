@@ -1,4 +1,4 @@
-{% extends 'cflows/base.html' %}
+{% extends 'cflows/cflows_base.html' %}
 
 {% block title %}Work Items - CFlows{% endblock %}
 
@@ -11,6 +11,13 @@
                 <h1 class="text-3xl font-bold text-gray-900">Work Items</h1>
                 <p class="text-gray-600 mt-2">Manage and track work items across all workflows</p>
             </div>
+            <div>
+                <a href="{% url 'cflows:create_work_item_select_workflow' %}" 
+                   class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 flex items-center">
+                    <i class="fas fa-plus mr-2"></i>
+                    New Work Item
+                </a>
+            </div>
         </div>
     </div>
 
@@ -21,7 +28,7 @@
                 <!-- Search -->
                 <div class="xl:col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Search</label>
-                    <input type="text" name="search" value="{{ current_filters.search }}" 
+                    <input type="text" name="search" value="{{ current_filters.search|default_if_none:'' }}" 
                            placeholder="Search work items..."
                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
                 </div>
@@ -33,7 +40,7 @@
                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
                         <option value="">All Workflows</option>
                         {% for workflow in workflows %}
-                            <option value="{{ workflow.id }}" {% if current_filters.workflow == workflow.id|stringformat:"s" %}selected{% endif %}>
+                            <option value="{{ workflow.id }}" {% if current_filters.workflow|default_if_none:"" == workflow.id|stringformat:"s" %}selected{% endif %}>
                                 {{ workflow.name }}
                             </option>
                         {% endfor %}
@@ -47,7 +54,7 @@
                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
                         <option value="">All Assignees</option>
                         {% for assignee in assignees %}
-                            <option value="{{ assignee.id }}" {% if current_filters.assignee == assignee.id|stringformat:"s" %}selected{% endif %}>
+                            <option value="{{ assignee.id }}" {% if current_filters.assignee|default_if_none:"" == assignee.id|stringformat:"s" %}selected{% endif %}>
                                 {% if assignee.user %}{{ assignee.user.get_full_name|default:assignee.user.username }}{% else %}Unknown User{% endif %}
                             </option>
                         {% endfor %}

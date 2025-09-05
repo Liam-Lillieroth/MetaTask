@@ -1,0 +1,292 @@
+{% extends "cflows/cflows_base.html" %}
+
+{% block title %}{{ title }} - {{ organization.name }} - CFlows{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="flex items-center mb-6">
+            <a href="{% url 'cflows:custom_fields_list' %}" 
+               class="text-gray-600 hover:text-gray-900 mr-4">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <h1 class="text-3xl font-bold text-gray-900">{{ title }}</h1>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <form method="post" class="space-y-6">
+                {% csrf_token %}
+                
+                <!-- Basic Information -->
+                <div class="border-b border-gray-200 pb-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Basic Information</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="id_name" class="block text-sm font-medium text-gray-700 mb-2">
+                                Field Name <span class="text-red-500">*</span>
+                            </label>
+                            {{ form.name }}
+                            {% if form.name.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>
+                            {% endif %}
+                            <p class="mt-1 text-xs text-gray-500">Internal name for the field (lowercase, no spaces)</p>
+                        </div>
+                        
+                        <div>
+                            <label for="id_label" class="block text-sm font-medium text-gray-700 mb-2">
+                                Display Label <span class="text-red-500">*</span>
+                            </label>
+                            {{ form.label }}
+                            {% if form.label.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.label.errors.0 }}</p>
+                            {% endif %}
+                            <p class="mt-1 text-xs text-gray-500">Label shown to users</p>
+                        </div>
+                        
+                        <div>
+                            <label for="id_field_type" class="block text-sm font-medium text-gray-700 mb-2">
+                                Field Type <span class="text-red-500">*</span>
+                            </label>
+                            {{ form.field_type }}
+                            {% if form.field_type.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.field_type.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        
+                        <div>
+                            <label class="flex items-center">
+                                {{ form.is_required }}
+                                <span class="ml-2 text-sm font-medium text-gray-700">Required Field</span>
+                            </label>
+                            <p class="mt-1 text-xs text-gray-500">Users must fill this field</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Field Configuration -->
+                <div class="border-b border-gray-200 pb-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Field Configuration</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="id_default_value" class="block text-sm font-medium text-gray-700 mb-2">
+                                Default Value
+                            </label>
+                            {{ form.default_value }}
+                            {% if form.default_value.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.default_value.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        
+                        <div>
+                            <label for="id_placeholder" class="block text-sm font-medium text-gray-700 mb-2">
+                                Placeholder Text
+                            </label>
+                            {{ form.placeholder }}
+                            {% if form.placeholder.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.placeholder.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="md:col-span-2">
+                            <label for="id_help_text" class="block text-sm font-medium text-gray-700 mb-2">
+                                Help Text
+                            </label>
+                            {{ form.help_text }}
+                            {% if form.help_text.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.help_text.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Options for Select Fields -->
+                <div id="options-section" class="border-b border-gray-200 pb-6" style="display: none;">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Options</h2>
+                    <div>
+                        <label for="id_options_text" class="block text-sm font-medium text-gray-700 mb-2">
+                            Field Options
+                        </label>
+                        {{ form.options_text }}
+                        {% if form.options_text.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.options_text.errors.0 }}</p>
+                        {% endif %}
+                        <p class="mt-1 text-xs text-gray-500">Enter one option per line</p>
+                    </div>
+                </div>
+
+                <!-- Validation -->
+                <div id="validation-section" class="border-b border-gray-200 pb-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Validation</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div id="length-fields">
+                            <label for="id_min_length" class="block text-sm font-medium text-gray-700 mb-2">
+                                Min Length
+                            </label>
+                            {{ form.min_length }}
+                            {% if form.min_length.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.min_length.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        
+                        <div id="length-fields-max">
+                            <label for="id_max_length" class="block text-sm font-medium text-gray-700 mb-2">
+                                Max Length
+                            </label>
+                            {{ form.max_length }}
+                            {% if form.max_length.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.max_length.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        
+                        <div id="value-fields">
+                            <label for="id_min_value" class="block text-sm font-medium text-gray-700 mb-2">
+                                Min Value
+                            </label>
+                            {{ form.min_value }}
+                            {% if form.min_value.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.min_value.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        
+                        <div id="value-fields-max">
+                            <label for="id_max_value" class="block text-sm font-medium text-gray-700 mb-2">
+                                Max Value
+                            </label>
+                            {{ form.max_value }}
+                            {% if form.max_value.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.max_value.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Organization -->
+                <div class="border-b border-gray-200 pb-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Organization</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="id_section" class="block text-sm font-medium text-gray-700 mb-2">
+                                Section
+                            </label>
+                            {{ form.section }}
+                            {% if form.section.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.section.errors.0 }}</p>
+                            {% endif %}
+                            <p class="mt-1 text-xs text-gray-500">Group related fields together</p>
+                        </div>
+                        
+                        <div>
+                            <label for="id_order" class="block text-sm font-medium text-gray-700 mb-2">
+                                Display Order
+                            </label>
+                            {{ form.order }}
+                            {% if form.order.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.order.errors.0 }}</p>
+                            {% endif %}
+                            <p class="mt-1 text-xs text-gray-500">Lower numbers appear first</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Workflow Context -->
+                <div class="border-b border-gray-200 pb-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Workflow Assignment</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="id_workflows" class="block text-sm font-medium text-gray-700 mb-2">
+                                Workflows
+                            </label>
+                            {{ form.workflows }}
+                            {% if form.workflows.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.workflows.errors.0 }}</p>
+                            {% endif %}
+                            <p class="mt-1 text-xs text-gray-500">Leave empty to show for all workflows</p>
+                        </div>
+                        
+                        <div>
+                            <label for="id_workflow_steps" class="block text-sm font-medium text-gray-700 mb-2">
+                                Workflow Steps
+                            </label>
+                            {{ form.workflow_steps }}
+                            {% if form.workflow_steps.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.workflow_steps.errors.0 }}</p>
+                            {% endif %}
+                            <p class="mt-1 text-xs text-gray-500">Restrict to specific workflow steps</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status -->
+                <div class="pb-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Status</h2>
+                    <div>
+                        <label class="flex items-center">
+                            {{ form.is_active }}
+                            <span class="ml-2 text-sm font-medium text-gray-700">Active</span>
+                        </label>
+                        <p class="mt-1 text-xs text-gray-500">Inactive fields are not shown to users</p>
+                    </div>
+                </div>
+
+                <!-- Submit Buttons -->
+                <div class="flex justify-end space-x-4">
+                    <a href="{% url 'cflows:custom_fields_list' %}" 
+                       class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-200">
+                        Cancel
+                    </a>
+                    <button type="submit" 
+                            class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
+                        {% if custom_field %}Update{% else %}Create{% endif %} Custom Field
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fieldTypeSelect = document.getElementById('id_field_type');
+    const optionsSection = document.getElementById('options-section');
+    const lengthFields = document.getElementById('length-fields');
+    const lengthFieldsMax = document.getElementById('length-fields-max');
+    const valueFields = document.getElementById('value-fields');
+    const valueFieldsMax = document.getElementById('value-fields-max');
+    
+    function toggleFieldVisibility() {
+        const fieldType = fieldTypeSelect.value;
+        
+        // Show/hide options section for select fields
+        if (fieldType === 'select' || fieldType === 'multiselect') {
+            optionsSection.style.display = 'block';
+        } else {
+            optionsSection.style.display = 'none';
+        }
+        
+        // Show/hide length validation for text fields
+        if (fieldType === 'text' || fieldType === 'textarea' || fieldType === 'email' || fieldType === 'url' || fieldType === 'phone') {
+            lengthFields.style.display = 'block';
+            lengthFieldsMax.style.display = 'block';
+        } else {
+            lengthFields.style.display = 'none';
+            lengthFieldsMax.style.display = 'none';
+        }
+        
+        // Show/hide value validation for number fields
+        if (fieldType === 'number' || fieldType === 'decimal') {
+            valueFields.style.display = 'block';
+            valueFieldsMax.style.display = 'block';
+        } else {
+            valueFields.style.display = 'none';
+            valueFieldsMax.style.display = 'none';
+        }
+    }
+    
+    // Initial setup
+    toggleFieldVisibility();
+    
+    // Listen for changes
+    fieldTypeSelect.addEventListener('change', toggleFieldVisibility);
+});
+</script>
+{% endblock %}

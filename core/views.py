@@ -179,7 +179,7 @@ def setup_organization(request):
     try:
         profile = request.user.mediap_profile
         messages.info(request, f'You already belong to {profile.organization.name}')
-        return redirect('homepage:dashboard')
+        return redirect('dashboard:dashboard')
     except UserProfile.DoesNotExist:
         pass
     
@@ -207,6 +207,6 @@ def setup_organization(request):
             )
             
             messages.success(request, f'Created your personal workspace: {organization.name}')
-            return redirect('homepage:dashboard')
+            return redirect('dashboard:dashboard')
     
     return render(request, 'core/setup_organization.html')

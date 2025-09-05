@@ -90,6 +90,20 @@
                             <i class="fas fa-calendar mr-2"></i>
                             Calendar
                         </a>
+                        {% if profile.is_organization_admin or profile.has_staff_panel_access %}
+                        <a href="{% url 'cflows:teams_list' %}" 
+                           class="{% if 'team' in request.resolver_match.url_name %}bg-white bg-opacity-20 text-white{% else %}text-indigo-100 hover:bg-white hover:bg-opacity-10{% endif %} px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center">
+                            <i class="fas fa-users mr-2"></i>
+                            Teams
+                        </a>
+                        {% endif %}
+                        {% if profile.is_organization_admin %}
+                        <a href="{% url 'cflows:custom_fields_list' %}" 
+                           class="{% if 'custom_field' in request.resolver_match.url_name %}bg-white bg-opacity-20 text-white{% else %}text-indigo-100 hover:bg-white hover:bg-opacity-10{% endif %} px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center">
+                            <i class="fas fa-list-alt mr-2"></i>
+                            Custom Fields
+                        </a>
+                        {% endif %}
                     </div>
                 </div>
                 
@@ -123,11 +137,35 @@
                              x-transition:leave-end="transform opacity-0 scale-95"
                              class="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg ring-1 ring-black ring-opacity-5 z-50">
                             <div class="py-2">
-                                <a href="{% url 'cflows:create_workflow' %}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                    <i class="fas fa-sitemap mr-3 text-indigo-600"></i>
-                                    New Workflow
+                                <a href="{% url 'cflows:create_work_item_select_workflow' %}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-tasks mr-3 text-blue-600"></i>
+                                    New Work Item
                                 </a>
-                                <a href="/admin/core/team/add/" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <div class="border-t border-gray-200"></div>
+                                <a href="{% url 'cflows:create_workflow_enhanced' %}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-sitemap mr-3 text-indigo-600"></i>
+                                    New Workflow (Guided)
+                                </a>
+                                <a href="{% url 'cflows:create_workflow' %}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-cogs mr-3 text-indigo-500"></i>
+                                    New Workflow (Advanced)
+                                </a>
+                                <a href="{% url 'cflows:create_custom_field' %}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-list-alt mr-3 text-purple-600"></i>
+                                    New Custom Field
+                                </a>
+                                <div class="border-t border-gray-200"></div>
+                                <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Transitions</div>
+                                <a href="{% url 'cflows:select_workflow_for_transitions' %}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-route mr-3 text-orange-600"></i>
+                                    Manage Transitions
+                                </a>
+                                <a href="{% url 'cflows:select_workflow_for_bulk_transitions' %}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-layer-group mr-3 text-orange-500"></i>
+                                    Bulk Create Transitions
+                                </a>
+                                <div class="border-t border-gray-200"></div>
+                                <a href="{% url 'cflows:create_team' %}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                                     <i class="fas fa-users mr-3 text-green-600"></i>
                                     New Team
                                 </a>

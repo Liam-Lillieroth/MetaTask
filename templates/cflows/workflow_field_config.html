@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.field-config-grid {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 15px;
+    align-items: center;
+    padding: 15px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: white;
+    margin-bottom: 10px;
+}
+
+.field-config-header {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 15px;
+    align-items: center;
+    padding: 15px;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-weight: 600;
+    margin-bottom: 15px;
+}
+
+.field-name {
+    font-weight: 500;
+    color: #374151;
+}
+
+.checkbox-column {
+    text-align: center;
+    min-width: 80px;
+}
+
+.replacement-column {
+    min-width: 200px;
+}
+
+.config-section {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-top: 5px;
+}
+
+.preview-panel {
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 20px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-8">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">{{ title }}</h1>
+                        <p class="mt-1 text-sm text-gray-600">
+                            Configure which standard fields are shown, required, or replaced with custom fields for work items in this workflow.
+                        </p>
+                    </div>
+                    <a href="{% url 'cflows:workflow_detail' workflow.id %}" 
+                       class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                        Back to Workflow
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            
+            <!-- Field Configuration -->
+            <div class="config-section">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Standard Field Configuration</h3>
+                <p class="text-sm text-gray-600 mb-6">
+                    Control which standard fields are shown to users when creating or editing work items in this workflow.
+                </p>
+
+                <!-- Header -->
+                <div class="field-config-header">
+                    <div>Field Name</div>
+                    <div class="checkbox-column">Show Field</div>
+                    <div class="checkbox-column">Required</div>
+                    <div class="replacement-column">Replace With Custom Field</div>
+                </div>
+
+                <!-- Field Rows -->
+                {% for field_name, field_label in form.STANDARD_FIELDS %}
+                <div class="field-config-grid">
+                    <div class="field-name">
+                        <strong>{{ field_label }}</strong>
+                        <div class="help-text">
+                            {% if field_name == 'title' %}Standard work item identifier{% endif %}
+                            {% if field_name == 'description' %}Brief description of the work item{% endif %}
+                            {% if field_name == 'priority' %}Priority level (Low, Normal, High, Critical){% endif %}
+                            {% if field_name == 'tags' %}Categorization tags{% endif %}
+                            {% if field_name == 'due_date' %}When the work item should be completed{% endif %}
+                            {% if field_name == 'estimated_duration' %}Expected time to complete{% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="checkbox-column">
+                        {% for field in form %}
+                            {% if field.name == field_name|add:"_enabled" %}{{ field }}{% endif %}
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="checkbox-column">
+                        {% for field in form %}
+                            {% if field.name == field_name|add:"_required" %}{{ field }}{% endif %}
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="replacement-column">
+                        {% for field in form %}
+                            {% if field.name == field_name|add:"_replacement" %}{{ field }}{% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+
+                <div class="mt-6 p-4 bg-blue-50 rounded-lg">
+                    <h4 class="font-medium text-blue-900 mb-2">Configuration Tips:</h4>
+                    <ul class="text-sm text-blue-800 space-y-1">
+                        <li>• <strong>Show Field:</strong> Uncheck to hide this field from work item forms</li>
+                        <li>• <strong>Required:</strong> Check to make this field mandatory</li>
+                        <li>• <strong>Replace:</strong> Select a custom field to use instead of the standard field</li>
+                        <li>• Custom field replacements will use the custom field's validation and display settings</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Current Configuration Preview -->
+            <div class="config-section">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Current Configuration Preview</h3>
+                <div class="preview-panel">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <h4 class="font-medium text-gray-900 mb-2">Enabled Fields</h4>
+                            <ul class="text-sm space-y-1">
+                                {% for field_name, config in current_config.items %}
+                                {% if config.enabled %}
+                                <li class="flex items-center">
+                                    <span class="inline-flex items-center w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                                    {{ field_name|title }}
+                                    {% if config.required %}
+                                        <span class="ml-2 text-xs bg-red-100 text-red-800 px-1 rounded">Required</span>
+                                    {% endif %}
+                                    {% if config.replacement %}
+                                        <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-1 rounded">Custom</span>
+                                    {% endif %}
+                                </li>
+                                {% endif %}
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-900 mb-2">Disabled Fields</h4>
+                            <ul class="text-sm space-y-1">
+                                {% for field_name, config in current_config.items %}
+                                {% if not config.enabled %}
+                                <li class="flex items-center text-gray-500">
+                                    <span class="inline-flex items-center w-2 h-2 bg-gray-400 rounded-full mr-2"></span>
+                                    {{ field_name|title }}
+                                </li>
+                                {% endif %}
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Form Errors -->
+            {% if form.errors %}
+            <div class="bg-white rounded-lg shadow-sm border border-red-200 mb-6">
+                <div class="px-6 py-4">
+                    <h3 class="text-lg font-semibold text-red-800">Please fix the following errors:</h3>
+                    <div class="mt-2 space-y-1">
+                        {% for field, errors in form.errors.items %}
+                            {% for error in errors %}
+                            <p class="text-sm text-red-600">{{ field }}: {{ error }}</p>
+                            {% endfor %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Actions -->
+            <div class="flex justify-end space-x-3">
+                <a href="{% url 'cflows:workflow_detail' workflow.id %}" 
+                   class="bg-white border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </a>
+                <button type="submit" 
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                    Save Configuration
+                </button>
+            </div>
+
+        </form>
+
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add interactivity for required checkboxes
+    const enabledCheckboxes = document.querySelectorAll('input[name$="_enabled"]');
+    const requiredCheckboxes = document.querySelectorAll('input[name$="_required"]');
+    
+    enabledCheckboxes.forEach(enabledBox => {
+        const fieldName = enabledBox.name.replace('_enabled', '');
+        const requiredBox = document.querySelector(`input[name="${fieldName}_required"]`);
+        const replacementSelect = document.querySelector(`select[name="${fieldName}_replacement"]`);
+        
+        function updateFieldState() {
+            if (!enabledBox.checked) {
+                requiredBox.disabled = true;
+                requiredBox.checked = false;
+                replacementSelect.disabled = true;
+                replacementSelect.value = '';
+            } else {
+                requiredBox.disabled = false;
+                replacementSelect.disabled = false;
+            }
+        }
+        
+        enabledBox.addEventListener('change', updateFieldState);
+        updateFieldState(); // Initial state
+    });
+});
+</script>
+{% endblock %}

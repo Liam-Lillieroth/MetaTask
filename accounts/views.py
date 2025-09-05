@@ -70,7 +70,7 @@ class BusinessRegistrationView(CreateView):
                 profile = request.user.mediap_profile
                 if profile.organization.organization_type == 'business':
                     messages.info(request, f'You already belong to the business organization: {profile.organization.name}')
-                    return redirect('homepage:dashboard')
+                    return redirect('dashboard:dashboard')
                 elif profile.organization.organization_type == 'personal':
                     # Allow personal users to upgrade to business
                     messages.info(request, 'Upgrade your personal workspace to a business organization.')
@@ -131,7 +131,7 @@ class OrganizationCreationView(CreateView):
                     self.request, 
                     f'You already belong to a business organization: "{existing_profile.organization.name}". '
                 )
-                return redirect('homepage:dashboard')
+                return redirect('dashboard:dashboard')
             elif existing_profile.organization.organization_type == 'personal':
                 # Allow upgrading from personal to business
                 messages.info(self.request, 'Upgrading your personal workspace to a business organization.')
@@ -145,7 +145,7 @@ class OrganizationCreationView(CreateView):
                 existing_profile.save()
                 
                 messages.success(self.request, f'Successfully upgraded to business organization: {existing_profile.organization.name}')
-                return redirect('homepage:dashboard')
+                return redirect('dashboard:dashboard')
         except UserProfile.DoesNotExist:
             # User doesn't have a profile yet, create new organization and profile
             pass
@@ -169,7 +169,7 @@ class OrganizationCreationView(CreateView):
             )
             
             messages.success(self.request, f'Successfully created business organization: {organization.name}')
-            return redirect('homepage:dashboard')
+            return redirect('dashboard:dashboard')
             
         except Exception as e:
             messages.error(self.request, f'Error creating organization: {str(e)}')
@@ -198,7 +198,7 @@ class InviteMembersView(FormView):
             profile = request.user.mediap_profile
             if not profile.is_organization_admin:
                 messages.error(request, 'You need to be an organization admin to invite members.')
-                return redirect('homepage:dashboard')
+                return redirect('dashboard:dashboard')
         except UserProfile.DoesNotExist:
             messages.error(request, 'Please set up your organization first.')
             return redirect('core:setup_organization')

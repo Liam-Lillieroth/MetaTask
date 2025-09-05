@@ -15,8 +15,21 @@ urlpatterns = [
     # Workflows
     path('workflows/', views.workflows_list, name='workflow_list'),
     path('workflows/create/', views.create_workflow, name='create_workflow'),
+    path('workflows/create-enhanced/', views.create_workflow_enhanced, name='create_workflow_enhanced'),
     path('workflows/<int:workflow_id>/', views.workflow_detail, name='workflow_detail'),
     path('workflows/<int:workflow_id>/save-as-template/', template_views.save_as_template, name='save_as_template'),
+    path('workflows/<int:workflow_id>/field-config/', views.workflow_field_config, name='workflow_field_config'),
+    
+    # Workflow Transitions Management
+    path('workflows/<int:workflow_id>/transitions/', views.workflow_transitions_manager, name='workflow_transitions_manager'),
+    path('workflows/<int:workflow_id>/transitions/bulk-create/', views.bulk_create_transitions, name='bulk_create_transitions'),
+    path('workflows/<int:workflow_id>/steps/<int:from_step_id>/transitions/create/', views.create_workflow_transition, name='create_workflow_transition'),
+    path('transitions/<int:transition_id>/edit/', views.edit_workflow_transition, name='edit_workflow_transition'),
+    path('transitions/<int:transition_id>/delete/', views.delete_workflow_transition, name='delete_workflow_transition'),
+    
+    # Quick Access Transition Management (from navbar)
+    path('transitions/select-workflow/', views.select_workflow_for_transitions, name='select_workflow_for_transitions'),
+    path('transitions/bulk-create/select-workflow/', views.select_workflow_for_bulk_transitions, name='select_workflow_for_bulk_transitions'),
     
     # Workflow Templates
     path('templates/', template_views.template_list, name='template_list'),
@@ -27,6 +40,7 @@ urlpatterns = [
     # Work Items
     path('work-items/', views.work_items_list, name='work_items_list'),
     path('work-items/<int:work_item_id>/', views.work_item_detail, name='work_item_detail'),
+    path('work-items/create/', views.create_work_item_select_workflow, name='create_work_item_select_workflow'),
     path('workflows/<int:workflow_id>/work-items/create/', views.create_work_item, name='create_work_item'),
     
     # Work Item Transitions
@@ -47,6 +61,19 @@ urlpatterns = [
     # Team Bookings
     path('bookings/', views.team_bookings_list, name='team_bookings_list'),
     
+    # Team Management
+    path('teams/', views.teams_list, name='teams_list'),
+    path('teams/create/', views.create_team, name='create_team'),
+    path('teams/<int:team_id>/', views.team_detail, name='team_detail'),
+    path('teams/<int:team_id>/edit/', views.edit_team, name='edit_team'),
+    
+    # Custom Fields Management
+    path('custom-fields/', views.custom_fields_list, name='custom_fields_list'),
+    path('custom-fields/create/', views.create_custom_field, name='create_custom_field'),
+    path('custom-fields/<int:field_id>/edit/', views.edit_custom_field, name='edit_custom_field'),
+    path('custom-fields/<int:field_id>/delete/', views.delete_custom_field, name='delete_custom_field'),
+    path('custom-fields/<int:field_id>/toggle/', views.toggle_custom_field, name='toggle_custom_field'),
+    
     # Calendar
     path('calendar/', calendar_views.calendar_view, name='calendar'),
     path('calendar/events/', calendar_views.calendar_events, name='calendar_events'),
@@ -55,6 +82,12 @@ urlpatterns = [
     path('calendar/bookings/<int:booking_id>/', calendar_views.booking_detail, name='booking_detail'),
     path('calendar/bookings/<int:booking_id>/update/', calendar_views.update_booking, name='update_booking'),
     path('calendar/bookings/<int:booking_id>/delete/', calendar_views.delete_booking, name='delete_booking'),
+    
+    # Calendar Views Management
+    path('calendar/views/save/', calendar_views.save_calendar_view, name='save_calendar_view'),
+    path('calendar/views/load/<int:view_id>/', calendar_views.load_calendar_view, name='load_calendar_view'),
+    path('calendar/views/delete/<int:view_id>/', calendar_views.delete_calendar_view, name='delete_calendar_view'),
+    path('calendar/views/list/', calendar_views.get_saved_views, name='get_saved_views'),
     
     # API endpoints
     path('api/notifications/', notification_views.real_time_notifications, name='api_notifications'),

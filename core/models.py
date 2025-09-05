@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils.text import slugify
 import uuid
 
 
@@ -267,6 +268,23 @@ class Organization(models.Model):
     
     def __str__(self):
         return self.name
+    
+    def save(self, *args, **kwargs):
+        """Generate slug automatically if not provided"""
+        if not self.slug:
+            base_slug = slugify(self.name)
+            if not base_slug:  # If slugify returns empty (e.g., only special characters)
+                base_slug = 'organization'
+            
+            # Ensure slug is unique
+            slug = base_slug
+            counter = 1
+            while Organization.objects.filter(slug=slug).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            self.slug = slug
+        
+        super().save(*args, **kwargs)
     
     @property
     def is_personal(self):

@@ -33,20 +33,52 @@ def calendar_view(request):
     if not profile:
         return render(request, 'cflows/no_profile.html')
     
-    # Get user's teams for filtering
-    user_teams = profile.teams.filter(is_active=True)
+    # Get filter options for the organization
+    teams = Team.objects.filter(
+        organization=profile.organization,
+        is_active=True
+    ).order_by('name')
     
-    # Get job types for the organization
     job_types = JobType.objects.filter(
         organization=profile.organization,
         is_active=True
-    )
+    ).order_by('name')
     
+    workflows = Workflow.objects.filter(
+        organization=profile.organization,
+        is_active=True
+    ).order_by('name')
+    
+    # Get current filter values
+    current_filters = {
+        'teams': request.GET.getlist('team'),
+        'job_types': request.GET.getlist('job_type'),
+        'workflows': request.GET.getlist('workflow'),
+        'event_type': request.GET.get('event_type', ''),
+        'status': request.GET.get('status', ''),
+        'booked_by': request.GET.get('booked_by', ''),
+    }
+    
+    # Get users for booked_by filter
+    users_with_bookings = UserProfile.objects.filter(
+        organization=profile.organization,
+        user__is_active=True,
+        created_cflows_bookings__isnull=False
+    ).distinct().select_related('user').order_by('user__first_name', 'user__last_name')
+    
+    # Get saved calendar views
+    from .models import CalendarView
+    saved_views = CalendarView.objects.filter(user=profile).order_by('name')
+
     context = {
         'profile': profile,
         'organization': profile.organization,
-        'user_teams': user_teams,
+        'teams': teams,
         'job_types': job_types,
+        'workflows': workflows,
+        'users_with_bookings': users_with_bookings,
+        'current_filters': current_filters,
+        'saved_views': saved_views,
     }
     
     return render(request, 'cflows/calendar.html', context)
@@ -55,17 +87,25 @@ def calendar_view(request):
 @login_required
 @require_organization_access
 def calendar_events(request):
-    """JSON API for calendar events"""
+    """JSON API for calendar events with filtering"""
     profile = get_user_profile(request)
     
     if not profile:
         return JsonResponse({'error': 'No profile found'}, status=403)
-    
+
     user_org = profile.organization
     
     # Parse date range from FullCalendar
     start_param = request.GET.get('start')
     end_param = request.GET.get('end')
+    
+    # Get filter parameters
+    team_filters = request.GET.getlist('team')
+    job_type_filters = request.GET.getlist('job_type')
+    workflow_filters = request.GET.getlist('workflow')
+    event_type_filter = request.GET.get('event_type', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    booked_by_filter = request.GET.get('booked_by', '').strip()
     
     try:
         if start_param:
@@ -79,18 +119,40 @@ def calendar_events(request):
             end_date = timezone.now().date() + timedelta(days=60)
     except ValueError:
         return JsonResponse({'error': 'Invalid date format'}, status=400)
-    
+
     events = []
     
     try:
-        # Get team bookings
-        bookings = TeamBooking.objects.filter(
+        # Get team bookings with filtering
+        bookings_query = TeamBooking.objects.filter(
             team__organization=user_org,
             start_time__date__gte=start_date,
             end_time__date__lte=end_date
         ).select_related('team', 'work_item', 'work_item__workflow', 'booked_by', 'job_type')
         
-        for booking in bookings:
+        # Apply team filter
+        if team_filters:
+            bookings_query = bookings_query.filter(team__id__in=team_filters)
+        
+        # Apply job type filter
+        if job_type_filters:
+            bookings_query = bookings_query.filter(job_type__id__in=job_type_filters)
+        
+        # Apply workflow filter
+        if workflow_filters:
+            bookings_query = bookings_query.filter(work_item__workflow__id__in=workflow_filters)
+        
+        # Apply status filter
+        if status_filter == 'completed':
+            bookings_query = bookings_query.filter(is_completed=True)
+        elif status_filter == 'pending':
+            bookings_query = bookings_query.filter(is_completed=False)
+        
+        # Apply booked by filter
+        if booked_by_filter:
+            bookings_query = bookings_query.filter(booked_by__id=booked_by_filter)
+        
+        for booking in bookings_query:
             # Determine color based on completion status
             if booking.is_completed:
                 bg_color = '#10b981'
@@ -123,15 +185,23 @@ def calendar_events(request):
                 }
             })
         
-        # Get calendar events
-        calendar_events = CalendarEvent.objects.filter(
+        # Get calendar events with filtering
+        calendar_events_query = CalendarEvent.objects.filter(
             organization=user_org,
             start_time__date__gte=start_date,
             end_time__date__lte=end_date,
             is_cancelled=False
         ).select_related('created_by', 'related_team')
         
-        for event in calendar_events:
+        # Apply team filter for calendar events
+        if team_filters:
+            calendar_events_query = calendar_events_query.filter(related_team__id__in=team_filters)
+        
+        # Apply event type filter
+        if event_type_filter:
+            calendar_events_query = calendar_events_query.filter(event_type=event_type_filter)
+        
+        for event in calendar_events_query:
             events.append({
                 'id': f'event-{event.id}',
                 'title': event.title,
@@ -550,3 +620,155 @@ def create_booking_for_work_item(request, work_item_id, step_id):
     except Exception as e:
         messages.error(request, f'Unexpected error: {str(e)}')
         return redirect('cflows:work_items_list')
+
+
+@login_required
+@require_POST
+@require_organization_access
+def save_calendar_view(request):
+    """Save the current calendar filter configuration as a named view"""
+    from .models import CalendarView
+    
+    profile = get_user_profile(request)
+    if not profile:
+        return JsonResponse({'success': False, 'message': 'User profile not found'})
+    
+    try:
+        data = json.loads(request.body)
+        name = data.get('name', '').strip()
+        is_default = data.get('is_default', False)
+        
+        if not name:
+            return JsonResponse({'success': False, 'message': 'View name is required'})
+        
+        # Get current filters from URL query string
+        teams = request.GET.getlist('team')
+        job_types = request.GET.getlist('job_type') 
+        workflows = request.GET.getlist('workflow')
+        status = request.GET.get('status', '')
+        event_type = request.GET.get('event_type', '')
+        booked_by = request.GET.get('booked_by', '')
+        
+        # Create or update the view
+        calendar_view, created = CalendarView.objects.update_or_create(
+            user=profile,
+            name=name,
+            defaults={
+                'teams': [int(t) for t in teams if t.isdigit()],
+                'job_types': [int(jt) for jt in job_types if jt.isdigit()],
+                'workflows': [int(w) for w in workflows if w.isdigit()],
+                'status': status,
+                'event_type': event_type,
+                'booked_by': booked_by,
+                'is_default': is_default
+            }
+        )
+        
+        return JsonResponse({
+            'success': True, 
+            'message': f'View "{name}" {"created" if created else "updated"} successfully',
+            'view_id': calendar_view.id
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'message': 'Invalid JSON data'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'Error saving view: {str(e)}'})
+
+
+@login_required 
+@require_organization_access
+def load_calendar_view(request, view_id):
+    """Load a saved calendar view by redirecting with the appropriate filters"""
+    from .models import CalendarView
+    
+    profile = get_user_profile(request)
+    if not profile:
+        return JsonResponse({'success': False, 'message': 'User profile not found'})
+    
+    try:
+        calendar_view = get_object_or_404(CalendarView, id=view_id, user=profile)
+        
+        # Build query parameters from the saved view
+        params = []
+        
+        for team_id in calendar_view.teams:
+            params.append(f'team={team_id}')
+        
+        for job_type_id in calendar_view.job_types:
+            params.append(f'job_type={job_type_id}')
+            
+        for workflow_id in calendar_view.workflows:
+            params.append(f'workflow={workflow_id}')
+            
+        if calendar_view.status:
+            params.append(f'status={calendar_view.status}')
+            
+        if calendar_view.event_type:
+            params.append(f'event_type={calendar_view.event_type}')
+            
+        if calendar_view.booked_by:
+            params.append(f'booked_by={calendar_view.booked_by}')
+        
+        query_string = '&'.join(params)
+        redirect_url = f'/services/cflows/calendar/{"?" + query_string if query_string else ""}'
+        
+        return redirect(redirect_url)
+        
+    except CalendarView.DoesNotExist:
+        messages.error(request, 'Calendar view not found')
+        return redirect('cflows:calendar')
+    except Exception as e:
+        messages.error(request, f'Error loading view: {str(e)}')
+        return redirect('cflows:calendar')
+
+
+@login_required
+@require_POST  
+@require_organization_access
+def delete_calendar_view(request, view_id):
+    """Delete a saved calendar view"""
+    from .models import CalendarView
+    
+    profile = get_user_profile(request)
+    if not profile:
+        return JsonResponse({'success': False, 'message': 'User profile not found'})
+    
+    try:
+        calendar_view = get_object_or_404(CalendarView, id=view_id, user=profile)
+        view_name = calendar_view.name
+        calendar_view.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'View "{view_name}" deleted successfully'
+        })
+        
+    except CalendarView.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Calendar view not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'Error deleting view: {str(e)}'})
+
+
+@login_required
+@require_organization_access 
+def get_saved_views(request):
+    """Get all saved calendar views for the current user"""
+    from .models import CalendarView
+    
+    profile = get_user_profile(request)
+    if not profile:
+        return JsonResponse({'success': False, 'message': 'User profile not found'})
+    
+    views = CalendarView.objects.filter(user=profile).order_by('name')
+    
+    views_data = []
+    for view in views:
+        views_data.append({
+            'id': view.id,
+            'name': view.name,
+            'is_default': view.is_default,
+            'created_at': view.created_at.strftime('%Y-%m-%d %H:%M')
+        })
+    
+    return JsonResponse({'success': True, 'views': views_data})

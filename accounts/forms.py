@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
-from django.utils.text import slugify
-from .models import CustomUser, Organization, OrganizationMember
+from core.models import Organization
+from .models import CustomUser, OrganizationMember
 
 class RegistrationForm(UserCreationForm):
     email = forms.EmailField(
@@ -83,48 +83,41 @@ class RegistrationForm(UserCreationForm):
 class OrganizationCreationForm(forms.ModelForm):
     class Meta:
         model = Organization
-        fields = ['name', 'team_size', 'company_type', 'purpose']
+        fields = ['name', 'description', 'organization_type']
         widgets = {
             'name': forms.TextInput(attrs={
                 'class': 'block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6',
-                'placeholder': 'Your team/organization name'
+                'placeholder': 'Your organization name'
             }),
-            'team_size': forms.Select(attrs={
-                'class': 'block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6'
+            'description': forms.Textarea(attrs={
+                'class': 'block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6',
+                'placeholder': 'Brief description of your organization (optional)',
+                'rows': 3
             }),
-            'company_type': forms.Select(attrs={
-                'class': 'block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6'
-            }),
-            'purpose': forms.Select(attrs={
+            'organization_type': forms.Select(attrs={
                 'class': 'block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6'
             }),
         }
         labels = {
-            'name': "Organization/Team Name",
-            'team_size': "Size of Team",
-            'company_type': "Company Type",
-            'purpose': "Primary Purpose",
+            'name': "Organization Name",
+            'description': "Description",
+            'organization_type': "Organization Type",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Make fields optional for personal accounts
-        self.fields['team_size'].required = False
-        self.fields['company_type'].required = False
-        self.fields['purpose'].required = False
+        # Make description optional
+        self.fields['description'].required = False
         
-        # Add empty choices
-        self.fields['team_size'].choices = [('', 'Select team size...')] + list(self.fields['team_size'].choices)
-        self.fields['company_type'].choices = [('', 'Select company type...')] + list(self.fields['company_type'].choices)
-        self.fields['purpose'].choices = [('', 'Select primary purpose...')] + list(self.fields['purpose'].choices)
+        # Set default to business for business registration
+        self.fields['organization_type'].initial = 'business'
 
-    def save(self, commit=True):
-        organization = super().save(commit=False)
-        if not organization.slug:
-            organization.slug = slugify(organization.name)
-        if commit:
-            organization.save()
-        return organization
+    def clean_name(self):
+        """Ensure organization name is not empty or just whitespace"""
+        name = self.cleaned_data.get('name', '').strip()
+        if not name:
+            raise forms.ValidationError('Organization name cannot be empty.')
+        return name
 
 
 class InviteMemberForm(forms.Form):

@@ -6,17 +6,19 @@ from django.core.paginator import Paginator
 from django.db.models import Q, Count, Prefetch, Case, When, IntegerField
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
-from django.db import transaction
+from django.db import transaction, models
 from core.models import Organization, UserProfile, Team, JobType, CalendarEvent
 from core.views import require_organization_access, require_business_organization
 from .models import (
     Workflow, WorkflowStep, WorkflowTransition, WorkflowTemplate,
     WorkItem, WorkItemHistory, WorkItemComment, WorkItemAttachment,
-    WorkItemRevision, TeamBooking
+    WorkItemRevision, TeamBooking, CustomField, WorkItemCustomFieldValue
 )
 from .forms import (
     WorkflowForm, WorkflowStepForm, WorkItemForm, WorkItemCommentForm,
-    WorkItemAttachmentForm, WorkflowTransitionForm, TeamBookingForm
+    WorkItemAttachmentForm, WorkflowTransitionForm, TeamBookingForm,
+    CustomFieldForm, TeamForm, WorkflowCreationForm, BulkTransitionForm,
+    WorkflowFieldConfigForm
 )
 import json
 
@@ -242,6 +244,56 @@ def workflow_detail(request, workflow_id):
 
 @login_required
 @require_organization_access
+def workflow_field_config(request, workflow_id):
+    """Configure which fields are shown/hidden/replaced for work items in this workflow"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return redirect('cflows:index')
+    
+    workflow = get_object_or_404(
+        Workflow,
+        id=workflow_id,
+        organization=profile.organization
+    )
+    
+    # Check permissions
+    if not (profile.is_organization_admin or profile.has_staff_panel_access):
+        messages.error(request, "You don't have permission to configure workflow fields.")
+        return redirect('cflows:workflow_detail', workflow_id=workflow_id)
+    
+    if request.method == 'POST':
+        form = WorkflowFieldConfigForm(
+            request.POST,
+            workflow=workflow,
+            organization=profile.organization
+        )
+        if form.is_valid():
+            config = form.save_config()
+            messages.success(request, f"Field configuration saved successfully for {workflow.name}")
+            return redirect('cflows:workflow_detail', workflow_id=workflow_id)
+    else:
+        form = WorkflowFieldConfigForm(
+            workflow=workflow,
+            organization=profile.organization
+        )
+    
+    # Get current configuration for display
+    current_config = workflow.get_active_fields()
+    
+    context = {
+        'profile': profile,
+        'organization': profile.organization,
+        'workflow': workflow,
+        'form': form,
+        'current_config': current_config,
+        'title': f'Configure Fields - {workflow.name}'
+    }
+    
+    return render(request, 'cflows/workflow_field_config.html', context)
+
+
+@login_required
+@require_organization_access
 def work_items_list(request):
     """Enhanced work items list with filtering and search"""
     profile = get_user_profile(request)
@@ -260,26 +312,27 @@ def work_items_list(request):
     
     # Filtering
     workflow_id = request.GET.get('workflow')
-    if workflow_id:
+    if workflow_id and workflow_id.strip():
         work_items = work_items.filter(workflow_id=workflow_id)
     
     assignee_id = request.GET.get('assignee')
-    if assignee_id:
+    if assignee_id and assignee_id.strip():
         work_items = work_items.filter(current_assignee_id=assignee_id)
     
     priority = request.GET.get('priority')
-    if priority:
+    if priority and priority.strip():
         work_items = work_items.filter(priority=priority)
     
     status = request.GET.get('status')
-    if status == 'active':
-        work_items = work_items.filter(is_completed=False)
-    elif status == 'completed':
-        work_items = work_items.filter(is_completed=True)
+    if status and status.strip():
+        if status == 'active':
+            work_items = work_items.filter(is_completed=False)
+        elif status == 'completed':
+            work_items = work_items.filter(is_completed=True)
     
     # Search
     search = request.GET.get('search')
-    if search:
+    if search and search.strip() and search.lower() != 'none':
         work_items = work_items.filter(
             Q(title__icontains=search) | 
             Q(description__icontains=search) |
@@ -334,11 +387,11 @@ def work_items_list(request):
         'workflows': workflows,
         'assignees': assignees,
         'current_filters': {
-            'workflow': workflow_id,
-            'assignee': assignee_id,
-            'priority': priority,
-            'status': status,
-            'search': search,
+            'workflow': workflow_id if workflow_id and workflow_id.strip() else '',
+            'assignee': assignee_id if assignee_id and assignee_id.strip() else '',
+            'priority': priority if priority and priority.strip() else '',
+            'status': status if status and status.strip() else '',
+            'search': search if search and search.strip() and search.lower() != 'none' else '',
             'sort': sort,
         }
     }
@@ -439,6 +492,44 @@ def create_work_item(request, workflow_id):
     }
     
     return render(request, 'cflows/create_work_item.html', context)
+
+
+@login_required
+@require_organization_access
+def create_work_item_select_workflow(request):
+    """Select workflow step for creating a new work item"""
+    profile = get_user_profile(request)
+    if not profile:
+        return render(request, 'cflows/no_profile.html')
+    
+    if request.method == 'POST':
+        workflow_id = request.POST.get('workflow_id')
+        if workflow_id:
+            return redirect('cflows:create_work_item', workflow_id=workflow_id)
+        else:
+            messages.error(request, 'Please select a workflow.')
+    
+    # Get active workflows for the organization
+    workflows = Workflow.objects.filter(
+        organization=profile.organization,
+        is_active=True
+    ).order_by('name')
+    
+    if not workflows.exists():
+        messages.error(request, 'No active workflows found. Create a workflow first.')
+        return redirect('cflows:workflow_list')
+    
+    # If only one workflow, go directly to work item creation
+    if workflows.count() == 1:
+        return redirect('cflows:create_work_item', workflow_id=workflows.first().id)
+    
+    context = {
+        'profile': profile,
+        'organization': profile.organization,
+        'workflows': workflows,
+    }
+    
+    return render(request, 'cflows/create_work_item_select_workflow.html', context)
 
 
 @login_required
@@ -618,3 +709,734 @@ def calendar_view(request):
     }
     
     return render(request, 'cflows/calendar.html', context)
+
+
+# Custom Fields Management Views
+
+@login_required
+@require_business_organization
+def custom_fields_list(request):
+    """List all custom fields for the organization"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return redirect('cflows:index')
+    
+    # Check if user is org admin
+    if not profile.is_organization_admin:
+        messages.error(request, "Only organization admins can manage custom fields.")
+        return redirect('cflows:index')
+    
+    # Get custom fields
+    custom_fields = CustomField.objects.filter(
+        organization=profile.organization
+    ).prefetch_related('workflows', 'workflow_steps').order_by('section', 'order', 'label')
+    
+    context = {
+        'profile': profile,
+        'organization': profile.organization,
+        'custom_fields': custom_fields,
+    }
+    
+    return render(request, 'cflows/custom_fields_list.html', context)
+
+
+@login_required
+@require_business_organization  
+def create_custom_field(request):
+    """Create a new custom field"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return redirect('cflows:index')
+    
+    # Check if user is org admin
+    if not profile.is_organization_admin:
+        messages.error(request, "Only organization admins can manage custom fields.")
+        return redirect('cflows:index')
+    
+    if request.method == 'POST':
+        form = CustomFieldForm(request.POST, organization=profile.organization)
+        if form.is_valid():
+            custom_field = form.save(commit=False)
+            custom_field.organization = profile.organization
+            custom_field.save()
+            form.save_m2m()  # Save many-to-many relationships
+            messages.success(request, f"Custom field '{custom_field.label}' created successfully.")
+            return redirect('cflows:custom_fields_list')
+    else:
+        form = CustomFieldForm(organization=profile.organization)
+    
+    context = {
+        'profile': profile,
+        'organization': profile.organization,
+        'form': form,
+        'title': 'Create Custom Field'
+    }
+    
+    return render(request, 'cflows/custom_field_form.html', context)
+
+
+@login_required
+@require_business_organization
+def edit_custom_field(request, field_id):
+    """Edit an existing custom field"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return redirect('cflows:index')
+    
+    # Check if user is org admin
+    if not profile.is_organization_admin:
+        messages.error(request, "Only organization admins can manage custom fields.")
+        return redirect('cflows:index')
+    
+    custom_field = get_object_or_404(
+        CustomField,
+        id=field_id,
+        organization=profile.organization
+    )
+    
+    if request.method == 'POST':
+        form = CustomFieldForm(request.POST, instance=custom_field, organization=profile.organization)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Custom field '{custom_field.label}' updated successfully.")
+            return redirect('cflows:custom_fields_list')
+    else:
+        form = CustomFieldForm(instance=custom_field, organization=profile.organization)
+    
+    context = {
+        'profile': profile,
+        'organization': profile.organization,
+        'form': form,
+        'custom_field': custom_field,
+        'title': 'Edit Custom Field'
+    }
+    
+    return render(request, 'cflows/custom_field_form.html', context)
+
+
+@login_required
+@require_business_organization
+@require_POST
+def delete_custom_field(request, field_id):
+    """Delete a custom field"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return redirect('cflows:index')
+    
+    # Check if user is org admin
+    if not profile.is_organization_admin:
+        messages.error(request, "Only organization admins can manage custom fields.")
+        return redirect('cflows:index')
+    
+    custom_field = get_object_or_404(
+        CustomField,
+        id=field_id,
+        organization=profile.organization
+    )
+    
+    # Check if field has any values
+    value_count = WorkItemCustomFieldValue.objects.filter(custom_field=custom_field).count()
+    
+    if value_count > 0:
+        messages.warning(
+            request, 
+            f"Custom field '{custom_field.label}' has {value_count} values and cannot be deleted. "
+            "You can deactivate it instead."
+        )
+    else:
+        field_label = custom_field.label
+        custom_field.delete()
+        messages.success(request, f"Custom field '{field_label}' deleted successfully.")
+    
+    return redirect('cflows:custom_fields_list')
+
+
+@login_required
+@require_business_organization
+@require_POST  
+def toggle_custom_field(request, field_id):
+    """Toggle active status of a custom field"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return redirect('cflows:index')
+    
+    # Check if user is org admin
+    if not profile.is_organization_admin:
+        messages.error(request, "Only organization admins can manage custom fields.")
+        return redirect('cflows:index')
+    
+    custom_field = get_object_or_404(
+        CustomField,
+        id=field_id,
+        organization=profile.organization
+    )
+    
+    custom_field.is_active = not custom_field.is_active
+    custom_field.save()
+    
+    status = "activated" if custom_field.is_active else "deactivated"
+    messages.success(request, f"Custom field '{custom_field.label}' {status}.")
+    
+    return redirect('cflows:custom_fields_list')
+
+
+# Team Management Views
+
+@login_required
+@require_business_organization
+def teams_list(request):
+    """List all teams for the organization"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return redirect('cflows:index')
+    
+    # Check if user is org admin or has staff access
+    if not (profile.is_organization_admin or profile.has_staff_panel_access):
+        messages.error(request, "You don't have permission to manage teams.")
+        return redirect('cflows:index')
+    
+    # Get teams with member count
+    teams = Team.objects.filter(
+        organization=profile.organization
+    ).prefetch_related('members__user').annotate(
+        members_count=models.Count('members')
+    ).order_by('name')
+    
+    context = {
+        'profile': profile,
+        'organization': profile.organization,
+        'teams': teams,
+    }
+    
+    return render(request, 'cflows/teams_list.html', context)
+
+
+@login_required
+@require_business_organization
+def create_team(request):
+    """Create a new team"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return redirect('cflows:index')
+    
+    # Check if user is org admin or has staff access
+    if not (profile.is_organization_admin or profile.has_staff_panel_access):
+        messages.error(request, "You don't have permission to create teams.")
+        return redirect('cflows:index')
+    
+    if request.method == 'POST':
+        form = TeamForm(request.POST, organization=profile.organization)
+        if form.is_valid():
+            team = form.save(commit=False)
+            team.organization = profile.organization
+            team.created_by = profile
+            team.save()
+            
+            messages.success(request, f"Team '{team.name}' created successfully!")
+            return redirect('cflows:teams_list')
+    else:
+        form = TeamForm(organization=profile.organization)
+    
+    context = {
+        'profile': profile,
+        'organization': profile.organization,
+        'form': form,
+        'title': 'Create Team'
+    }
+    
+    return render(request, 'cflows/team_form.html', context)
+
+
+@login_required
+@require_business_organization
+def edit_team(request, team_id):
+    """Edit an existing team"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return redirect('cflows:index')
+    
+    # Check if user is org admin or has staff access
+    if not (profile.is_organization_admin or profile.has_staff_panel_access):
+        messages.error(request, "You don't have permission to edit teams.")
+        return redirect('cflows:index')
+    
+    team = get_object_or_404(
+        Team,
+        id=team_id,
+        organization=profile.organization
+    )
+    
+    if request.method == 'POST':
+        form = TeamForm(request.POST, instance=team, organization=profile.organization)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Team '{team.name}' updated successfully!")
+            return redirect('cflows:teams_list')
+    else:
+        form = TeamForm(instance=team, organization=profile.organization)
+    
+    context = {
+        'profile': profile,
+        'organization': profile.organization,
+        'form': form,
+        'team': team,
+        'title': f'Edit Team: {team.name}'
+    }
+    
+    return render(request, 'cflows/team_form.html', context)
+
+
+@login_required
+@require_business_organization
+def team_detail(request, team_id):
+    """Detailed view of a team with member management"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return redirect('cflows:index')
+    
+    team = get_object_or_404(
+        Team,
+        id=team_id,
+        organization=profile.organization
+    )
+    
+    # Get team members
+    team_members = team.members.select_related('user').order_by('user__first_name', 'user__last_name')
+    
+    # Get available users to add to team (org members not already in team)
+    available_users = UserProfile.objects.filter(
+        organization=profile.organization,
+        user__is_active=True
+    ).exclude(
+        id__in=team_members.values_list('id', flat=True)
+    ).select_related('user').order_by('user__first_name', 'user__last_name')
+    
+    # Handle adding/removing team members
+    if request.method == 'POST':
+        if 'add_member' in request.POST:
+            user_id = request.POST.get('user_id')
+            if user_id:
+                try:
+                    user_profile = UserProfile.objects.get(
+                        id=user_id,
+                        organization=profile.organization,
+                        user__is_active=True
+                    )
+                    team.members.add(user_profile)
+                    messages.success(request, f"Added {user_profile.user.get_full_name() or user_profile.user.username} to the team.")
+                except UserProfile.DoesNotExist:
+                    messages.error(request, "User not found.")
+            return redirect('cflows:team_detail', team_id=team.id)
+        
+        elif 'remove_member' in request.POST:
+            user_id = request.POST.get('user_id')
+            if user_id:
+                try:
+                    user_profile = UserProfile.objects.get(
+                        id=user_id,
+                        organization=profile.organization
+                    )
+                    team.members.remove(user_profile)
+                    messages.success(request, f"Removed {user_profile.user.get_full_name() or user_profile.user.username} from the team.")
+                except UserProfile.DoesNotExist:
+                    messages.error(request, "User not found.")
+            return redirect('cflows:team_detail', team_id=team.id)
+    
+    # Get team statistics
+    from .models import TeamBooking
+    stats = {
+        'total_bookings': TeamBooking.objects.filter(team=team).count(),
+        'active_bookings': TeamBooking.objects.filter(team=team, is_completed=False).count(),
+        'completed_bookings': TeamBooking.objects.filter(team=team, is_completed=True).count(),
+        'member_count': team_members.count(),
+    }
+    
+    context = {
+        'profile': profile,
+        'organization': profile.organization,
+        'team': team,
+        'team_members': team_members,
+        'available_users': available_users,
+        'stats': stats,
+        'can_manage': profile.is_organization_admin or profile.has_staff_panel_access,
+    }
+    
+    return render(request, 'cflows/team_detail.html', context)
+
+
+@login_required
+@require_business_organization
+def create_workflow_enhanced(request):
+    """Enhanced workflow creation with step creation"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return redirect('cflows:index')
+    
+    # Check if user is org admin or has staff access
+    if not (profile.is_organization_admin or profile.has_staff_panel_access):
+        messages.error(request, "You don't have permission to create workflows.")
+        return redirect('cflows:index')
+    
+    if request.method == 'POST':
+        form = WorkflowCreationForm(request.POST, organization=profile.organization)
+        if form.is_valid():
+            workflow = form.save(commit=True, created_by=profile)
+            messages.success(request, f"Workflow '{workflow.name}' created successfully with {workflow.steps.count()} steps!")
+            return redirect('cflows:workflow_detail', workflow_id=workflow.id)
+    else:
+        form = WorkflowCreationForm(organization=profile.organization)
+    
+    # Get available teams for step assignment
+    teams = Team.objects.filter(
+        organization=profile.organization,
+        is_active=True
+    ).order_by('name')
+    
+    context = {
+        'profile': profile,
+        'organization': profile.organization,
+        'form': form,
+        'teams': teams,
+        'title': 'Create New Workflow'
+    }
+    
+    return render(request, 'cflows/create_workflow_enhanced.html', context)
+
+
+@login_required
+@require_business_organization
+def workflow_transitions_manager(request, workflow_id):
+    """Visual workflow transition manager"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return redirect('cflows:index')
+    
+    workflow = get_object_or_404(
+        Workflow, 
+        id=workflow_id, 
+        organization=profile.organization
+    )
+    
+    # Check permissions
+    if not (profile.is_organization_admin or profile.has_staff_panel_access):
+        messages.error(request, "You don't have permission to manage workflow transitions.")
+        return redirect('cflows:workflow_detail', workflow_id=workflow_id)
+    
+    steps = workflow.steps.order_by('order')
+    transitions = WorkflowTransition.objects.filter(
+        from_step__workflow=workflow
+    ).select_related('from_step', 'to_step')
+    
+    # Create transition matrix for visualization
+    transition_matrix = {}
+    transition_matrix_list = []
+    for step in steps:
+        matrix_data = {
+            'step': step,
+            'outgoing': transitions.filter(from_step=step),
+            'incoming': transitions.filter(to_step=step)
+        }
+        transition_matrix[step.id] = matrix_data
+        transition_matrix_list.append(matrix_data)
+    
+    context = {
+        'profile': profile,
+        'organization': profile.organization,
+        'workflow': workflow,
+        'steps': steps,
+        'transitions': transitions,
+        'transition_matrix': transition_matrix,
+        'transition_matrix_list': transition_matrix_list,
+        'title': f'Manage Transitions - {workflow.name}'
+    }
+    
+    return render(request, 'cflows/workflow_transitions_manager.html', context)
+
+
+@login_required
+@require_business_organization
+def create_workflow_transition(request, workflow_id, from_step_id):
+    """Create a new workflow transition from a specific step"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return redirect('cflows:index')
+    
+    workflow = get_object_or_404(
+        Workflow, 
+        id=workflow_id, 
+        organization=profile.organization
+    )
+    
+    from_step = get_object_or_404(
+        WorkflowStep,
+        id=from_step_id,
+        workflow=workflow
+    )
+    
+    # Check permissions
+    if not (profile.is_organization_admin or profile.has_staff_panel_access):
+        messages.error(request, "You don't have permission to create workflow transitions.")
+        return redirect('cflows:workflow_detail', workflow_id=workflow_id)
+    
+    if request.method == 'POST':
+        form = WorkflowTransitionForm(
+            request.POST, 
+            workflow=workflow, 
+            from_step=from_step
+        )
+        if form.is_valid():
+            transition = form.save(commit=False)
+            transition.from_step = from_step
+            transition.save()
+            
+            messages.success(request, f"Transition created from '{from_step.name}' to '{transition.to_step.name}'")
+            return redirect('cflows:workflow_transitions_manager', workflow_id=workflow_id)
+    else:
+        form = WorkflowTransitionForm(workflow=workflow, from_step=from_step)
+    
+    context = {
+        'profile': profile,
+        'organization': profile.organization,
+        'workflow': workflow,
+        'from_step': from_step,
+        'form': form,
+        'title': f'Create Transition from {from_step.name}'
+    }
+    
+    return render(request, 'cflows/create_workflow_transition.html', context)
+
+
+@login_required
+@require_business_organization
+def edit_workflow_transition(request, transition_id):
+    """Edit an existing workflow transition"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return redirect('cflows:index')
+    
+    transition = get_object_or_404(WorkflowTransition, id=transition_id)
+    workflow = transition.from_step.workflow
+    
+    # Check organization access
+    if workflow.organization != profile.organization:
+        messages.error(request, "You don't have access to this workflow.")
+        return redirect('cflows:index')
+    
+    # Check permissions
+    if not (profile.is_organization_admin or profile.has_staff_panel_access):
+        messages.error(request, "You don't have permission to edit workflow transitions.")
+        return redirect('cflows:workflow_detail', workflow_id=workflow.id)
+    
+    if request.method == 'POST':
+        form = WorkflowTransitionForm(
+            request.POST, 
+            instance=transition,
+            workflow=workflow, 
+            from_step=transition.from_step
+        )
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Transition updated successfully")
+            return redirect('cflows:workflow_transitions_manager', workflow_id=workflow.id)
+    else:
+        form = WorkflowTransitionForm(
+            instance=transition,
+            workflow=workflow, 
+            from_step=transition.from_step
+        )
+    
+    context = {
+        'profile': profile,
+        'organization': profile.organization,
+        'workflow': workflow,
+        'transition': transition,
+        'form': form,
+        'title': f'Edit Transition: {transition.from_step.name} → {transition.to_step.name}'
+    }
+    
+    return render(request, 'cflows/edit_workflow_transition.html', context)
+
+
+@login_required
+@require_business_organization
+@require_http_methods(["POST"])
+def delete_workflow_transition(request, transition_id):
+    """Delete a workflow transition"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return JsonResponse({'success': False, 'error': 'Authentication required'})
+    
+    transition = get_object_or_404(WorkflowTransition, id=transition_id)
+    workflow = transition.from_step.workflow
+    
+    # Check organization access
+    if workflow.organization != profile.organization:
+        return JsonResponse({'success': False, 'error': 'Access denied'})
+    
+    # Check permissions
+    if not (profile.is_organization_admin or profile.has_staff_panel_access):
+        return JsonResponse({'success': False, 'error': 'Permission denied'})
+    
+    try:
+        from_step_name = transition.from_step.name
+        to_step_name = transition.to_step.name
+        transition.delete()
+        
+        return JsonResponse({
+            'success': True, 
+            'message': f"Transition from '{from_step_name}' to '{to_step_name}' deleted successfully"
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@require_business_organization
+def bulk_create_transitions(request, workflow_id):
+    """Create multiple transitions at once using patterns"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return redirect('cflows:index')
+    
+    workflow = get_object_or_404(
+        Workflow, 
+        id=workflow_id, 
+        organization=profile.organization
+    )
+    
+    # Check permissions
+    if not (profile.is_organization_admin or profile.has_staff_panel_access):
+        messages.error(request, "You don't have permission to create workflow transitions.")
+        return redirect('cflows:workflow_detail', workflow_id=workflow_id)
+    
+    if request.method == 'POST':
+        form = BulkTransitionForm(request.POST, workflow=workflow)
+        if form.is_valid():
+            transitions_created = form.create_transitions()
+            
+            if transitions_created:
+                messages.success(
+                    request, 
+                    f"Successfully created {len(transitions_created)} transitions using {form.cleaned_data['transition_type']} pattern"
+                )
+            else:
+                messages.info(request, "No new transitions were created (they may already exist)")
+            
+            return redirect('cflows:workflow_transitions_manager', workflow_id=workflow_id)
+    else:
+        form = BulkTransitionForm(workflow=workflow)
+    
+    # Get current transition count for display
+    current_transitions = WorkflowTransition.objects.filter(
+        from_step__workflow=workflow
+    ).count()
+    
+    context = {
+        'profile': profile,
+        'organization': profile.organization,
+        'workflow': workflow,
+        'form': form,
+        'current_transitions': current_transitions,
+        'steps_count': workflow.steps.count(),
+        'title': f'Bulk Create Transitions - {workflow.name}'
+    }
+    
+    return render(request, 'cflows/bulk_create_transitions.html', context)
+
+
+@login_required
+@require_business_organization
+def select_workflow_for_transitions(request):
+    """Select a workflow to manage transitions for (navbar quick access)"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return redirect('cflows:index')
+    
+    # Check permissions
+    if not (profile.is_organization_admin or profile.has_staff_panel_access):
+        messages.error(request, "You don't have permission to manage workflow transitions.")
+        return redirect('cflows:index')
+    
+    if request.method == 'POST':
+        workflow_id = request.POST.get('workflow_id')
+        if workflow_id:
+            return redirect('cflows:workflow_transitions_manager', workflow_id=workflow_id)
+        else:
+            messages.error(request, 'Please select a workflow.')
+    
+    # Get active workflows for the organization
+    workflows = Workflow.objects.filter(
+        organization=profile.organization,
+        is_active=True
+    ).annotate(
+        steps_count=Count('steps'),
+        transitions_count=Count('steps__outgoing_transitions', distinct=True)
+    ).order_by('name')
+    
+    if not workflows.exists():
+        messages.error(request, 'No active workflows found. Create a workflow first.')
+        return redirect('cflows:workflow_list')
+    
+    # If only one workflow, go directly to transition management
+    if workflows.count() == 1:
+        return redirect('cflows:workflow_transitions_manager', workflow_id=workflows.first().id)
+    
+    context = {
+        'profile': profile,
+        'organization': profile.organization,
+        'workflows': workflows,
+        'title': 'Select Workflow - Manage Transitions',
+        'action': 'manage transitions'
+    }
+    
+    return render(request, 'cflows/select_workflow_for_action.html', context)
+
+
+@login_required
+@require_business_organization
+def select_workflow_for_bulk_transitions(request):
+    """Select a workflow for bulk transition creation (navbar quick access)"""
+    profile = get_user_profile(request)
+    if not profile or not profile.organization:
+        return redirect('cflows:index')
+    
+    # Check permissions
+    if not (profile.is_organization_admin or profile.has_staff_panel_access):
+        messages.error(request, "You don't have permission to create workflow transitions.")
+        return redirect('cflows:index')
+    
+    if request.method == 'POST':
+        workflow_id = request.POST.get('workflow_id')
+        if workflow_id:
+            return redirect('cflows:bulk_create_transitions', workflow_id=workflow_id)
+        else:
+            messages.error(request, 'Please select a workflow.')
+    
+    # Get active workflows for the organization with steps
+    workflows = Workflow.objects.filter(
+        organization=profile.organization,
+        is_active=True
+    ).annotate(
+        steps_count=Count('steps'),
+        transitions_count=Count('steps__outgoing_transitions', distinct=True)
+    ).filter(
+        steps_count__gt=1  # Only show workflows with multiple steps
+    ).order_by('name')
+    
+    if not workflows.exists():
+        messages.error(request, 'No workflows with multiple steps found. Create workflows with steps first.')
+        return redirect('cflows:workflow_list')
+    
+    # If only one workflow, go directly to bulk transition creation
+    if workflows.count() == 1:
+        return redirect('cflows:bulk_create_transitions', workflow_id=workflows.first().id)
+    
+    context = {
+        'profile': profile,
+        'organization': profile.organization,
+        'workflows': workflows,
+        'title': 'Select Workflow - Bulk Create Transitions',
+        'action': 'create bulk transitions'
+    }
+    
+    return render(request, 'cflows/select_workflow_for_action.html', context)

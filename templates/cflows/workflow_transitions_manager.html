@@ -1,0 +1,414 @@
+{% extends "base.html" %}
+{% load static %}
+{% load cflows_tags %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.workflow-diagram {
+    display: grid;
+    gap: 20px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    min-height: 400px;
+}
+
+.step-node {
+    background: white;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 15px;
+    position: relative;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.step-node:hover {
+    border-color: #6366f1;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(99,102,241,0.15);
+}
+
+.step-node h4 {
+    margin: 0 0 10px 0;
+    color: #1f2937;
+    font-size: 1.1rem;
+}
+
+.step-meta {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-bottom: 15px;
+}
+
+.transitions-list {
+    margin: 10px 0;
+}
+
+.transition-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #f3f4f6;
+    border-radius: 6px;
+    margin-bottom: 5px;
+    font-size: 0.875rem;
+}
+
+.transition-label {
+    font-weight: 500;
+    color: #374151;
+}
+
+.transition-target {
+    color: #6b7280;
+}
+
+.transition-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.btn-xs {
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    border-radius: 4px;
+}
+
+.step-actions {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.matrix-view {
+    display: none;
+    margin-top: 30px;
+}
+
+.matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.matrix-table th,
+.matrix-table td {
+    padding: 10px;
+    text-align: center;
+    border: 1px solid #e5e7eb;
+    font-size: 0.875rem;
+}
+
+.matrix-table th {
+    background: #f9fafb;
+    font-weight: 600;
+    color: #374151;
+}
+
+.matrix-cell-yes {
+    background: #dcfce7;
+    color: #166534;
+    font-weight: 500;
+}
+
+.matrix-cell-no {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.view-toggle {
+    margin-bottom: 20px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #6366f1;
+}
+
+.stat-label {
+    color: #6b7280;
+    font-size: 0.875rem;
+    margin-top: 5px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">{{ title }}</h1>
+                        <p class="mt-1 text-sm text-gray-600">Manage transitions between workflow steps</p>
+                    </div>
+                    <div class="flex space-x-3">
+                        <a href="{% url 'cflows:bulk_create_transitions' workflow.id %}" 
+                           class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                            Bulk Create Transitions
+                        </a>
+                        <a href="{% url 'cflows:workflow_detail' workflow.id %}" 
+                           class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                            Back to Workflow
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{ steps.count }}</div>
+                <div class="stat-label">Total Steps</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ transitions.count }}</div>
+                <div class="stat-label">Total Transitions</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">
+                    {% widthratio transitions.count steps.count 1 %}%
+                </div>
+                <div class="stat-label">Connectivity</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">
+                    {{ steps|length|add:"-1" }}
+                </div>
+                <div class="stat-label">Max Possible Transitions</div>
+            </div>
+        </div>
+
+        <!-- View Toggle -->
+        <div class="view-toggle">
+            <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                <div class="flex space-x-4">
+                    <button onclick="showDiagramView()" 
+                            class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors"
+                            id="diagram-btn">
+                        Diagram View
+                    </button>
+                    <button onclick="showMatrixView()" 
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                            id="matrix-btn">
+                        Matrix View
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Diagram View -->
+        <div id="diagram-view" class="workflow-diagram">
+            {% for data in transition_matrix_list %}
+            <div class="step-node" data-step-id="{{ data.step.id }}">
+                <h4>{{ data.step.name }}</h4>
+                <div class="step-meta">
+                    Order: {{ data.step.order }} | 
+                    Team: {{ data.step.assigned_team.name|default:"Unassigned" }}
+                </div>
+
+                <!-- Outgoing Transitions -->
+                <div class="mb-3">
+                    <h5 class="font-semibold text-sm text-gray-700 mb-2">Outgoing Transitions ({{ data.outgoing.count }})</h5>
+                    {% if data.outgoing %}
+                        <div class="transitions-list">
+                            {% for transition in data.outgoing %}
+                            {% if transition.id %}
+                            <div class="transition-item">
+                                <div>
+                                    <span class="transition-label">{{ transition.label|default:"→" }}</span>
+                                    <span class="transition-target">to {{ transition.to_step.name }}</span>
+                                </div>
+                                <div class="transition-actions">
+                                    <a href="{% url 'cflows:edit_workflow_transition' transition.id %}" 
+                                       class="btn-xs bg-blue-500 hover:bg-blue-600 text-white">Edit</a>
+                                    <button onclick="deleteTransition({{ transition.id }})" 
+                                            class="btn-xs bg-red-500 hover:bg-red-600 text-white">Delete</button>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-sm text-gray-500 italic">No outgoing transitions</p>
+                    {% endif %}
+                </div>
+
+                <!-- Incoming Transitions -->
+                <div class="mb-3">
+                    <h5 class="font-semibold text-sm text-gray-700 mb-2">Incoming Transitions ({{ data.incoming.count }})</h5>
+                    {% if data.incoming %}
+                        <div class="transitions-list">
+                            {% for transition in data.incoming %}
+                            {% if transition.id %}
+                            <div class="transition-item">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        {% if transition.icon %}
+                                            <i class="{{ transition.icon }} text-{{ transition.color }}-500 mr-2"></i>
+                                        {% endif %}
+                                        <span class="transition-label font-medium">{{ transition.get_display_label }}</span>
+                                        <span class="transition-target text-gray-600 ml-2">from {{ transition.from_step.name }}</span>
+                                    </div>
+                                    <div class="flex items-center space-x-1">
+                                        {% if not transition.is_active %}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                                Inactive
+                                            </span>
+                                        {% endif %}
+                                        {% if transition.requires_confirmation %}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                Confirm
+                                            </span>
+                                        {% endif %}
+                                        {% if transition.requires_comment %}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                                Comment
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% if transition.description %}
+                                <div class="text-xs text-gray-500 mt-1">{{ transition.description|truncatewords:10 }}</div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-sm text-gray-500 italic">No incoming transitions</p>
+                    {% endif %}
+                </div>
+
+                <!-- Step Actions -->
+                <div class="step-actions">
+                    <a href="{% url 'cflows:create_workflow_transition' workflow.id data.step.id %}" 
+                       class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm font-medium">
+                        Add Transition
+                    </a>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-span-full text-center py-12">
+                <p class="text-gray-500">No steps found in this workflow.</p>
+                <a href="{% url 'cflows:workflow_detail' workflow.id %}" 
+                   class="text-indigo-600 hover:text-indigo-700 font-medium">
+                    Add steps to get started
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Matrix View -->
+        <div id="matrix-view" class="matrix-view">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">Transition Matrix</h3>
+                    <p class="text-sm text-gray-600 mt-1">Shows which steps can transition to which other steps</p>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="matrix-table">
+                        <thead>
+                            <tr>
+                                <th>From \ To</th>
+                                {% for step in steps %}
+                                <th>{{ step.name|truncatechars:15 }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for from_step in steps %}
+                            <tr>
+                                <th class="text-left">{{ from_step.name|truncatechars:15 }}</th>
+                                {% for to_step in steps %}
+                                {% has_transition transitions from_step to_step as transition_exists %}
+                                <td class="{% if transition_exists %}matrix-cell-yes{% else %}matrix-cell-no{% endif %}">
+                                    {% if transition_exists %}
+                                        ✓
+                                    {% else %}
+                                        ✗
+                                    {% endif %}
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+function showDiagramView() {
+    document.getElementById('diagram-view').style.display = 'grid';
+    document.getElementById('matrix-view').style.display = 'none';
+    
+    document.getElementById('diagram-btn').className = 'px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors';
+    document.getElementById('matrix-btn').className = 'px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors';
+}
+
+function showMatrixView() {
+    document.getElementById('diagram-view').style.display = 'none';
+    document.getElementById('matrix-view').style.display = 'block';
+    
+    document.getElementById('matrix-btn').className = 'px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors';
+    document.getElementById('diagram-btn').className = 'px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors';
+}
+
+function deleteTransition(transitionId) {
+    if (confirm('Are you sure you want to delete this transition?')) {
+        fetch(`/services/cflows/transitions/${transitionId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error deleting transition');
+            console.error(error);
+        });
+    }
+}
+</script>
+
+{% csrf_token %}
+{% endblock %}

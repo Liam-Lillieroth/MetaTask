@@ -1,0 +1,155 @@
+{% extends 'cflows/cflows_base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">{{ title }}</h1>
+                <p class="mt-2 text-sm text-gray-600">
+                    Choose a workflow to {{ action }}.
+                </p>
+            </div>
+            <div class="flex items-center space-x-3">
+                <a href="{% url 'cflows:workflow_list' %}" 
+                   class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-list mr-2"></i>
+                    View All Workflows
+                </a>
+                {% if profile.has_staff_panel_access or profile.is_organization_admin %}
+                    <a href="{% url 'cflows:create_workflow_enhanced' %}" 
+                       class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors">
+                        <i class="fas fa-plus mr-2"></i>
+                        Create Workflow
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Workflow Selection -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">Available Workflows</h2>
+            <p class="mt-1 text-sm text-gray-500">
+                Select a workflow to proceed with {{ action }}.
+            </p>
+        </div>
+
+        {% if workflows %}
+            <div class="divide-y divide-gray-200">
+                {% for workflow in workflows %}
+                    <div class="p-6 hover:bg-gray-50 transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-start space-x-4">
+                                    <div class="flex-shrink-0">
+                                        <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+                                            <i class="fas fa-sitemap text-indigo-600"></i>
+                                        </div>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="text-lg font-medium text-gray-900 truncate">
+                                            {{ workflow.name }}
+                                        </h3>
+                                        {% if workflow.description %}
+                                            <p class="mt-1 text-sm text-gray-600 line-clamp-2">
+                                                {{ workflow.description }}
+                                            </p>
+                                        {% endif %}
+                                        <div class="mt-2 flex items-center space-x-4 text-sm text-gray-500">
+                                            <span class="flex items-center">
+                                                <i class="fas fa-layer-group mr-1"></i>
+                                                {{ workflow.steps_count }} step{{ workflow.steps_count|pluralize }}
+                                            </span>
+                                            <span class="flex items-center">
+                                                <i class="fas fa-route mr-1"></i>
+                                                {{ workflow.transitions_count }} transition{{ workflow.transitions_count|pluralize }}
+                                            </span>
+                                            <span class="flex items-center">
+                                                <i class="fas fa-calendar mr-1"></i>
+                                                Created {{ workflow.created_at|date:"M j, Y" }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="ml-6">
+                                <form method="post" class="inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="workflow_id" value="{{ workflow.id }}">
+                                    <button type="submit" 
+                                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center">
+                                        {% if action == 'manage transitions' %}
+                                            <i class="fas fa-route mr-2"></i>
+                                            Manage Transitions
+                                        {% elif action == 'create bulk transitions' %}
+                                            <i class="fas fa-layer-group mr-2"></i>
+                                            Bulk Create
+                                        {% else %}
+                                            <i class="fas fa-arrow-right mr-2"></i>
+                                            Select
+                                        {% endif %}
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="p-8 text-center">
+                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-sitemap text-gray-400 text-2xl"></i>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No Workflows Available</h3>
+                <p class="text-gray-600 mb-4">
+                    You need to create workflows before you can {{ action }}.
+                </p>
+                {% if profile.has_staff_panel_access or profile.is_organization_admin %}
+                    <a href="{% url 'cflows:create_workflow_enhanced' %}" 
+                       class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg inline-flex items-center">
+                        <i class="fas fa-plus mr-2"></i>
+                        Create Your First Workflow
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Quick Links -->
+    <div class="mt-8 bg-gray-50 rounded-lg p-6">
+        <h3 class="text-sm font-medium text-gray-900 mb-3">Quick Actions</h3>
+        <div class="flex flex-wrap gap-3">
+            <a href="{% url 'cflows:index' %}" 
+               class="inline-flex items-center text-sm text-gray-600 hover:text-indigo-600 transition-colors">
+                <i class="fas fa-tachometer-alt mr-2"></i>
+                Back to Dashboard
+            </a>
+            <a href="{% url 'cflows:workflow_list' %}" 
+               class="inline-flex items-center text-sm text-gray-600 hover:text-indigo-600 transition-colors">
+                <i class="fas fa-sitemap mr-2"></i>
+                View All Workflows
+            </a>
+            <a href="{% url 'cflows:work_items_list' %}" 
+               class="inline-flex items-center text-sm text-gray-600 hover:text-indigo-600 transition-colors">
+                <i class="fas fa-tasks mr-2"></i>
+                View Work Items
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+.line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+</style>
+{% endblock %}

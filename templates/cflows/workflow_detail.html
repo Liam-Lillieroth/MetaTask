@@ -1,4 +1,4 @@
-{% extends 'cflows/base.html' %}
+{% extends 'cflows/cflows_base.html' %}
 
 {% block title %}{{ workflow.name }} - CFlows{% endblock %}
 
@@ -27,6 +27,16 @@
                 </div>
             </div>
             <div class="flex space-x-3">
+                <a href="{% url 'cflows:workflow_field_config' workflow.id %}" 
+                   class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition-colors"
+                   title="Configure which fields are shown for work items">
+                    <i class="fas fa-sliders-h mr-2"></i>Configure Fields
+                </a>
+                <a href="{% url 'cflows:workflow_transitions_manager' workflow.id %}" 
+                   class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors"
+                   title="Manage workflow transitions">
+                    <i class="fas fa-route mr-2"></i>Manage Transitions
+                </a>
                 <button onclick="saveAsTemplate()" 
                         class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
                         title="Save this workflow as a reusable template">

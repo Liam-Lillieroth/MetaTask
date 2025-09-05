@@ -50,13 +50,48 @@
         color: #374151;
         margin-bottom: 0.5rem;
         display: block;
+        font-size: 0.875rem;
     }
     .filter-select {
         width: 100%;
-        padding: 0.5rem;
+        padding: 0.5rem 0.75rem;
         border: 1px solid #d1d5db;
         border-radius: 0.375rem;
         font-size: 0.875rem;
+        background: white;
+        transition: all 0.15s ease-in-out;
+        appearance: none;
+        background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+        background-position: right 0.5rem center;
+        background-repeat: no-repeat;
+        background-size: 1.5em 1.5em;
+        padding-right: 2.5rem;
+    }
+    .filter-select:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    .filter-select[multiple] {
+        background-image: none;
+        padding-right: 0.75rem;
+        height: auto;
+        min-height: 2.5rem;
+    }
+    .filter-select option {
+        padding: 0.5rem;
+        color: #374151;
+    }
+    .filter-select option:checked {
+        background: #3b82f6;
+        color: white;
+    }
+    .saved-views-dropdown {
+        background: white;
+        border: 1px solid #d1d5db;
+        border-radius: 0.5rem;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        min-width: 16rem;
     }
     .legend {
         display: flex;
@@ -200,24 +235,159 @@
 
     <!-- Filters -->
     <div class="calendar-filters">
-        <h3 class="text-lg font-semibold mb-4">Filters & Legend</h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div class="filter-section">
-                <label class="filter-label">Team</label>
-                <select id="teamFilter" class="filter-select" onchange="filterCalendar()">
-                    <option value="">All Teams</option>
-                    {% for team in teams %}
-                        <option value="{{ team.id }}">{{ team.name }}</option>
-                    {% endfor %}
-                </select>
+        <!-- Filter Header with Saved Views -->
+        <div class="flex justify-between items-center mb-4">
+            <div class="flex items-center space-x-4">
+                <h3 class="text-lg font-semibold">Filters</h3>
+                
+                <!-- Saved Views Dropdown -->
+                <div class="relative" x-data="{ open: false }">
+                    <button @click="open = !open" class="flex items-center px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-md">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3l14 0 0 14-14 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9l6 6m0-6l-6 6"></path>
+                        </svg>
+                        Saved Views
+                        <svg class="w-4 h-4 ml-2" :class="{ 'rotate-180': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    
+                    <div x-show="open" @click.away="open = false" x-transition class="absolute left-0 mt-2 saved-views-dropdown z-50">
+                        <div class="py-2">
+                            {% if saved_views %}
+                                {% for view in saved_views %}
+                                <div class="flex items-center justify-between px-4 py-2 hover:bg-gray-50">
+                                    <button onclick="loadSavedView({{ view.id }})" class="flex-1 text-left text-sm">
+                                        {{ view.name }}
+                                        {% if view.is_default %}<span class="text-xs text-blue-600">(Default)</span>{% endif %}
+                                    </button>
+                                    <button onclick="deleteSavedView({{ view.id }}, '{{ view.name }}')" class="text-red-500 hover:text-red-700">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                                {% endfor %}
+                                <div class="border-t pt-2">
+                            {% endif %}
+                                    <button onclick="showSaveViewModal()" class="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50">
+                                        + Save Current View
+                                    </button>
+                            {% if saved_views %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="filter-section">
-                <label class="filter-label">Workflow</label>
-                <select id="workflowFilter" class="filter-select" onchange="filterCalendar()">
-                    <option value="">All Workflows</option>
-                    {% for workflow in workflows %}
-                        <option value="{{ workflow.id }}">{{ workflow.name }}</option>
-                    {% endfor %}
+            
+            <button onclick="clearAllFilters()" class="text-sm text-blue-600 hover:text-blue-800">Clear All</button>
+        </div>
+        
+        <form id="filterForm" method="get" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Teams Filter -->
+                <div class="filter-section">
+                    <label class="filter-label">Teams</label>
+                    <select name="team" multiple class="filter-select" id="teamFilter" onchange="applyFilters()">
+                        {% for team in teams %}
+                            <option value="{{ team.id }}" {% if team.id|stringformat:"s" in current_filters.teams %}selected{% endif %}>
+                                {{ team.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-gray-500">Hold Ctrl/Cmd to select multiple</small>
+                </div>
+                
+                <!-- Job Types Filter -->
+                <div class="filter-section">
+                    <label class="filter-label">Job Types</label>
+                    <select name="job_type" multiple class="filter-select" id="jobTypeFilter" onchange="applyFilters()">
+                        {% for job_type in job_types %}
+                            <option value="{{ job_type.id }}" {% if job_type.id|stringformat:"s" in current_filters.job_types %}selected{% endif %}>
+                                {{ job_type.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-gray-500">Hold Ctrl/Cmd to select multiple</small>
+                </div>
+                
+                <!-- Workflows Filter -->
+                <div class="filter-section">
+                    <label class="filter-label">Workflows</label>
+                    <select name="workflow" multiple class="filter-select" id="workflowFilter" onchange="applyFilters()">
+                        {% for workflow in workflows %}
+                            <option value="{{ workflow.id }}" {% if workflow.id|stringformat:"s" in current_filters.workflows %}selected{% endif %}>
+                                {{ workflow.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-gray-500">Hold Ctrl/Cmd to select multiple</small>
+                </div>
+                
+                <!-- Status Filter -->
+                <div class="filter-section">
+                    <label class="filter-label">Status</label>
+                    <select name="status" class="filter-select" id="statusFilter" onchange="applyFilters()">
+                        <option value="">All Status</option>
+                        <option value="pending" {% if current_filters.status == "pending" %}selected{% endif %}>Pending</option>
+                        <option value="completed" {% if current_filters.status == "completed" %}selected{% endif %}>Completed</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Event Type Filter -->
+                <div class="filter-section">
+                    <label class="filter-label">Event Type</label>
+                    <select name="event_type" class="filter-select" id="eventTypeFilter" onchange="applyFilters()">
+                        <option value="">All Event Types</option>
+                        <option value="meeting" {% if current_filters.event_type == "meeting" %}selected{% endif %}>Meeting</option>
+                        <option value="training" {% if current_filters.event_type == "training" %}selected{% endif %}>Training</option>
+                        <option value="maintenance" {% if current_filters.event_type == "maintenance" %}selected{% endif %}>Maintenance</option>
+                        <option value="other" {% if current_filters.event_type == "other" %}selected{% endif %}>Other</option>
+                    </select>
+                </div>
+                
+                <!-- Booked By Filter -->
+                <div class="filter-section">
+                    <label class="filter-label">Booked By</label>
+                    <select name="booked_by" class="filter-select" id="bookedByFilter" onchange="applyFilters()">
+                        <option value="">All Users</option>
+                        {% for user in users_with_bookings %}
+                            <option value="{{ user.id }}" {% if current_filters.booked_by == user.id|stringformat:"s" %}selected{% endif %}>
+                                {{ user.user.get_full_name|default:user.user.username }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </form>
+        
+        <!-- Legend -->
+        <div class="border-t border-gray-200 pt-4 mt-4">
+            <h4 class="font-medium text-gray-700 mb-3">Legend</h4>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #3b82f6;"></div>
+                    <span>Scheduled Bookings</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #f59e0b;"></div>
+                    <span>In Progress</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #10b981;"></div>
+                    <span>Completed</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #8b5cf6;"></div>
+                    <span>Calendar Events</span>
+                </div>
+            </div>
+        </div>
+    </div>
                 </select>
             </div>
             <div class="filter-section">
@@ -328,6 +498,29 @@
     </div>
 </div>
 
+<!-- Save Calendar View Modal -->
+<div id="saveViewModal" class="modal hidden">
+    <div class="modal-content">
+        <h3 class="text-xl font-semibold mb-4">Save Calendar View</h3>
+        <form id="saveViewForm">
+            <div class="form-group">
+                <label class="form-label">View Name</label>
+                <input type="text" id="viewName" class="form-input" placeholder="Enter view name" required>
+            </div>
+            <div class="form-group">
+                <label class="flex items-center">
+                    <input type="checkbox" id="isDefault" class="mr-2">
+                    <span class="text-sm">Set as default view</span>
+                </label>
+            </div>
+            <div class="flex justify-end gap-3 mt-6">
+                <button type="button" onclick="closeSaveViewModal()" class="btn-secondary">Cancel</button>
+                <button type="submit" class="btn-primary">Save View</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 {% csrf_token %}
 {% endblock %}
 
@@ -340,6 +533,28 @@ let calendar;
 let currentBookingId = null;
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize filters from URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const form = document.getElementById('filterForm');
+    
+    // Set form values from URL parameters
+    urlParams.forEach((value, key) => {
+        const input = form.querySelector(`[name="${key}"]`);
+        if (input) {
+            if (input.type === 'select-multiple') {
+                // Handle multi-select fields
+                const options = input.querySelectorAll('option');
+                options.forEach(option => {
+                    if (urlParams.getAll(key).includes(option.value)) {
+                        option.selected = true;
+                    }
+                });
+            } else {
+                input.value = value;
+            }
+        }
+    });
+    
     const calendarEl = document.getElementById('calendar');
     
     calendar = new FullCalendar.Calendar(calendarEl, {
@@ -351,11 +566,23 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         editable: true,
         droppable: true,
-        events: {
-            url: '{% url "cflows:calendar_events" %}',
-            failure: function() {
-                alert('Error loading calendar events');
-            }
+        events: function(fetchInfo, successCallback, failureCallback) {
+            // Get current URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const eventUrl = new URL('{% url "cflows:calendar_events" %}', window.location.origin);
+            
+            // Add URL parameters to event fetch
+            urlParams.forEach((value, key) => {
+                eventUrl.searchParams.append(key, value);
+            });
+            
+            fetch(eventUrl)
+                .then(response => response.json())
+                .then(data => successCallback(data))
+                .catch(error => {
+                    console.error('Error fetching events:', error);
+                    failureCallback(error);
+                });
         },
         eventClick: function(info) {
             showEventDetails(info.event);
@@ -567,8 +794,42 @@ function deleteBooking() {
     });
 }
 
-function filterCalendar() {
+function applyFilters() {
+    // Get current URL without existing filters
+    const baseUrl = window.location.pathname;
+    const form = document.getElementById('filterForm');
+    const formData = new FormData(form);
+    
+    // Build query string from form data
+    const params = new URLSearchParams();
+    for (let [key, value] of formData.entries()) {
+        if (value && value.trim() !== '') {
+            params.append(key, value);
+        }
+    }
+    
+    // Update URL with filters
+    const newUrl = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
+    window.history.replaceState(null, '', newUrl);
+    
+    // Refresh calendar with new filters
     calendar.refetchEvents();
+}
+
+function clearAllFilters() {
+    // Reset all form fields
+    document.getElementById('filterForm').reset();
+    
+    // Clear URL parameters
+    window.history.replaceState(null, '', window.location.pathname);
+    
+    // Refresh calendar
+    calendar.refetchEvents();
+}
+
+function filterCalendar() {
+    // Legacy function for backward compatibility
+    applyFilters();
 }
 
 // Handle booking form submission
@@ -616,6 +877,88 @@ document.getElementById('bookingForm').addEventListener('submit', function(e) {
     .catch(error => {
         console.error('Error saving booking:', error);
         alert('Error saving booking');
+    });
+});
+
+// Calendar View Management Functions
+function showSaveViewModal() {
+    document.getElementById('viewName').value = '';
+    document.getElementById('isDefault').checked = false;
+    document.getElementById('saveViewModal').classList.remove('hidden');
+}
+
+function closeSaveViewModal() {
+    document.getElementById('saveViewModal').classList.add('hidden');
+}
+
+function loadSavedView(viewId) {
+    window.location.href = `/services/cflows/calendar/views/load/${viewId}/`;
+}
+
+function deleteSavedView(viewId, viewName) {
+    if (confirm(`Are you sure you want to delete the view "${viewName}"?`)) {
+        fetch(`/services/cflows/calendar/views/delete/${viewId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload(); // Reload to update the saved views list
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting view:', error);
+            alert('Error deleting view');
+        });
+    }
+}
+
+// Handle Save View Form Submission
+document.getElementById('saveViewForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const viewName = document.getElementById('viewName').value.trim();
+    const isDefault = document.getElementById('isDefault').checked;
+    
+    if (!viewName) {
+        alert('Please enter a view name');
+        return;
+    }
+    
+    // Get current URL parameters (filters)
+    const params = new URLSearchParams(window.location.search);
+    
+    fetch('/services/cflows/calendar/views/save/?' + params.toString(), {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            name: viewName,
+            is_default: isDefault
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            closeSaveViewModal();
+            location.reload(); // Reload to update the saved views list
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error saving view:', error);
+        alert('Error saving view');
     });
 });
 </script>

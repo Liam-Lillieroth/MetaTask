@@ -1,4 +1,4 @@
-{% extends 'cflows/base.html' %}
+{% extends 'cflows/cflows_base.html' %}
 
 {% block title %}Create Work Item - {{ workflow.name }} - CFlows{% endblock %}
 
@@ -46,19 +46,37 @@
             
             <!-- Basic Information -->
             <div class="space-y-6">
+                {% if form.title %}
                 <div>
                     <label for="{{ form.title.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
-                        Title <span class="text-red-500">*</span>
+                        Title {% if form.title.field.required %}<span class="text-red-500">*</span>{% endif %}
                     </label>
                     {{ form.title }}
                     {% if form.title.errors %}
                         <div class="mt-1 text-sm text-red-600">{{ form.title.errors.0 }}</div>
                     {% endif %}
                 </div>
+                {% endif %}
 
+                {% if form.replacement_title %}
+                <div>
+                    <label for="{{ form.replacement_title.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        {{ form.replacement_title.label }} {% if form.replacement_title.field.required %}<span class="text-red-500">*</span>{% endif %}
+                    </label>
+                    {{ form.replacement_title }}
+                    {% if form.replacement_title.help_text %}
+                        <p class="mt-1 text-sm text-gray-500">{{ form.replacement_title.help_text }}</p>
+                    {% endif %}
+                    {% if form.replacement_title.errors %}
+                        <div class="mt-1 text-sm text-red-600">{{ form.replacement_title.errors.0 }}</div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if form.description %}
                 <div>
                     <label for="{{ form.description.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
-                        Brief Description
+                        Brief Description {% if form.description.field.required %}<span class="text-red-500">*</span>{% endif %}
                     </label>
                     {{ form.description }}
                     <p class="mt-1 text-sm text-gray-500">A short summary of this work item</p>
@@ -66,6 +84,22 @@
                         <div class="mt-1 text-sm text-red-600">{{ form.description.errors.0 }}</div>
                     {% endif %}
                 </div>
+                {% endif %}
+
+                {% if form.replacement_description %}
+                <div>
+                    <label for="{{ form.replacement_description.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        {{ form.replacement_description.label }} {% if form.replacement_description.field.required %}<span class="text-red-500">*</span>{% endif %}
+                    </label>
+                    {{ form.replacement_description }}
+                    {% if form.replacement_description.help_text %}
+                        <p class="mt-1 text-sm text-gray-500">{{ form.replacement_description.help_text }}</p>
+                    {% endif %}
+                    {% if form.replacement_description.errors %}
+                        <div class="mt-1 text-sm text-red-600">{{ form.replacement_description.errors.0 }}</div>
+                    {% endif %}
+                </div>
+                {% endif %}
 
                 <div>
                     <label for="{{ form.rich_content.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
@@ -80,18 +114,36 @@
             </div>
 
             <!-- Metadata -->
+            {% if form.priority or form.replacement_priority or form.current_assignee or form.due_date or form.replacement_due_date or form.estimated_duration or form.replacement_estimated_duration %}
             <div class="border-t border-gray-200 pt-6">
                 <h3 class="text-lg font-medium text-gray-900 mb-4">Item Details</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {% if form.priority %}
                     <div>
                         <label for="{{ form.priority.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
-                            Priority
+                            Priority {% if form.priority.field.required %}<span class="text-red-500">*</span>{% endif %}
                         </label>
                         {{ form.priority }}
                         {% if form.priority.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.priority.errors.0 }}</div>
                         {% endif %}
                     </div>
+                    {% endif %}
+
+                    {% if form.replacement_priority %}
+                    <div>
+                        <label for="{{ form.replacement_priority.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            {{ form.replacement_priority.label }} {% if form.replacement_priority.field.required %}<span class="text-red-500">*</span>{% endif %}
+                        </label>
+                        {{ form.replacement_priority }}
+                        {% if form.replacement_priority.help_text %}
+                            <p class="mt-1 text-sm text-gray-500">{{ form.replacement_priority.help_text }}</p>
+                        {% endif %}
+                        {% if form.replacement_priority.errors %}
+                            <div class="mt-1 text-sm text-red-600">{{ form.replacement_priority.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
 
                     <div>
                         <label for="{{ form.current_assignee.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
@@ -103,19 +155,37 @@
                         {% endif %}
                     </div>
 
+                    {% if form.due_date %}
                     <div>
                         <label for="{{ form.due_date.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
-                            Due Date (Optional)
+                            Due Date {% if form.due_date.field.required %}<span class="text-red-500">*</span>{% else %}(Optional){% endif %}
                         </label>
                         {{ form.due_date }}
                         {% if form.due_date.errors %}
                             <div class="mt-1 text-sm text-red-600">{{ form.due_date.errors.0 }}</div>
                         {% endif %}
                     </div>
+                    {% endif %}
 
+                    {% if form.replacement_due_date %}
+                    <div>
+                        <label for="{{ form.replacement_due_date.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            {{ form.replacement_due_date.label }} {% if form.replacement_due_date.field.required %}<span class="text-red-500">*</span>{% endif %}
+                        </label>
+                        {{ form.replacement_due_date }}
+                        {% if form.replacement_due_date.help_text %}
+                            <p class="mt-1 text-sm text-gray-500">{{ form.replacement_due_date.help_text }}</p>
+                        {% endif %}
+                        {% if form.replacement_due_date.errors %}
+                            <div class="mt-1 text-sm text-red-600">{{ form.replacement_due_date.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if form.estimated_duration %}
                     <div>
                         <label for="{{ form.estimated_duration.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
-                            Estimated Duration (Optional)
+                            Estimated Duration {% if form.estimated_duration.field.required %}<span class="text-red-500">*</span>{% else %}(Optional){% endif %}
                         </label>
                         {{ form.estimated_duration }}
                         <p class="mt-1 text-sm text-gray-500">Format: HH:MM:SS</p>
@@ -123,8 +193,25 @@
                             <div class="mt-1 text-sm text-red-600">{{ form.estimated_duration.errors.0 }}</div>
                         {% endif %}
                     </div>
+                    {% endif %}
+
+                    {% if form.replacement_estimated_duration %}
+                    <div>
+                        <label for="{{ form.replacement_estimated_duration.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            {{ form.replacement_estimated_duration.label }} {% if form.replacement_estimated_duration.field.required %}<span class="text-red-500">*</span>{% endif %}
+                        </label>
+                        {{ form.replacement_estimated_duration }}
+                        {% if form.replacement_estimated_duration.help_text %}
+                            <p class="mt-1 text-sm text-gray-500">{{ form.replacement_estimated_duration.help_text }}</p>
+                        {% endif %}
+                        {% if form.replacement_estimated_duration.errors %}
+                            <div class="mt-1 text-sm text-red-600">{{ form.replacement_estimated_duration.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
             </div>
+            {% endif %}
 
             <!-- Custom Fields -->
             {% if custom_fields %}
@@ -178,10 +265,11 @@
             {% endif %}
 
             <!-- Tags -->
+            {% if form.tags_input %}
             <div class="border-t border-gray-200 pt-6">
                 <div>
                     <label for="{{ form.tags_input.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
-                        Tags (Optional)
+                        Tags {% if form.tags_input.field.required %}<span class="text-red-500">*</span>{% else %}(Optional){% endif %}
                     </label>
                     {{ form.tags_input }}
                     <p class="mt-1 text-sm text-gray-500">{{ form.tags_input.help_text }}</p>
@@ -217,6 +305,7 @@
                     </div>
                 </div>
             </div>
+            {% endif %}
 
             <!-- Actions -->
             <div class="flex justify-end space-x-4 pt-6 border-t border-gray-200">

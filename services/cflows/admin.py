@@ -5,7 +5,7 @@ from core.models import Organization, UserProfile, Team, JobType, CalendarEvent
 from .models import (
     Workflow, WorkflowStep, WorkflowTransition,
     WorkItem, WorkItemHistory, TeamBooking,
-    CustomField, WorkItemCustomFieldValue
+    CustomField, WorkItemCustomFieldValue, CalendarView
 )
 
 
@@ -214,3 +214,26 @@ class WorkItemCustomFieldValueAdmin(admin.ModelAdmin):
     def display_value(self, obj):
         return obj.get_display_value()[:100]
     display_value.short_description = 'Value'
+
+
+@admin.register(CalendarView)
+class CalendarViewAdmin(admin.ModelAdmin):
+    list_display = ['name', 'user', 'is_default', 'created_at']
+    list_filter = ['is_default', 'created_at']
+    search_fields = ['name', 'user__user__first_name', 'user__user__last_name']
+    raw_id_fields = ['user']
+    readonly_fields = ['created_at', 'updated_at']
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'user', 'is_default')
+        }),
+        ('Filter Settings', {
+            'fields': ('teams', 'job_types', 'workflows', 'status', 'event_type', 'booked_by'),
+            'description': 'JSON fields containing filter values'
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )

@@ -34,11 +34,6 @@ def real_time_notifications(request):
     else:
         last_check = timezone.now() - timedelta(hours=1)
     
-    if last_check:
-        last_check = datetime.fromisoformat(last_check.replace('Z', '+00:00'))
-    else:
-        last_check = timezone.now() - timedelta(hours=1)
-    
     notifications = []
     
     # Check for new work item assignments

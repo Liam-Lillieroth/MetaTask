@@ -1,4 +1,5 @@
-{% extends 'cflows/base.html' %}
+{% extends 'cflows/cflows_base.html' %}
+{% load cflows_tags %}
 
 {% block title %}{{ work_item.title }} - CFlows{% endblock %}
 
@@ -122,20 +123,41 @@
                              class="origin-top-right absolute right-0 mt-2 w-80 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
                             <div class="py-1">
                                 {% for transition in available_transitions %}
+                                    {% check_transition_permission transition profile work_item as can_execute %}
+                                    {% if transition.is_active and can_execute %}
                                     <a href="{% url 'cflows:transition_form' work_item.id transition.id %}" 
                                        class="flex items-start px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900">
-                                        <i class="fas fa-arrow-right mt-0.5 mr-3 text-indigo-500"></i>
+                                        {% if transition.icon %}
+                                            <i class="{{ transition.icon }} mt-0.5 mr-3 text-{{ transition.color }}-500"></i>
+                                        {% else %}
+                                            <i class="fas fa-arrow-right mt-0.5 mr-3 text-indigo-500"></i>
+                                        {% endif %}
                                         <div class="flex-1">
                                             <div class="font-medium">
-                                                {{ transition.label|default:transition.to_step.name }}
+                                                {{ transition.get_display_label }}
                                             </div>
                                             <div class="text-xs text-gray-500 mt-1">
-                                                Move to {{ transition.to_step.name }}
+                                                {% if transition.description %}
+                                                    {{ transition.description|truncatewords:15 }}
+                                                {% else %}
+                                                    Move to {{ transition.to_step.name }}
+                                                {% endif %}
+                                                {% if transition.requires_confirmation %}
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 ml-1">
+                                                        Requires Confirmation
+                                                    </span>
+                                                {% endif %}
+                                                {% if transition.requires_comment %}
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 ml-1">
+                                                        Requires Comment
+                                                    </span>
+                                                {% endif %}
                                                 {% if transition.to_step.requires_booking %} • Requires booking{% endif %}
                                                 {% if transition.to_step.is_terminal %} • Completes work item{% endif %}
                                             </div>
                                         </div>
                                     </a>
+                                    {% endif %}
                                 {% endfor %}
                             </div>
                         </div>

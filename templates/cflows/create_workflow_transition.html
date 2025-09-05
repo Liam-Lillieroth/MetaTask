@@ -1,0 +1,504 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-8">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">{{ title }}</h1>
+                        <p class="mt-1 text-sm text-gray-600">
+                            Create a transition from <strong>{{ from_step.name }}</strong> to another step
+                        </p>
+                    </div>
+                    <a href="{% url 'cflows:workflow_transitions_manager' workflow.id %}" 
+                       class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                        Back to Transitions
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflow Context -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+            <div class="px-6 py-4">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Workflow Context</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <div class="text-sm font-medium text-gray-700">Workflow</div>
+                        <div class="text-gray-900">{{ workflow.name }}</div>
+                    </div>
+                    <div>
+                        <div class="text-sm font-medium text-gray-700">From Step</div>
+                        <div class="text-gray-900">{{ from_step.name }}</div>
+                    </div>
+                    <div>
+                        <div class="text-sm font-medium text-gray-700">Step Order</div>
+                        <div class="text-gray-900">{{ from_step.order }}</div>
+                    </div>
+                    <div>
+                        <div class="text-sm font-medium text-gray-700">Assigned Team</div>
+                        <div class="text-gray-900">{{ from_step.assigned_team.name|default:"Unassigned" }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Enhanced Transition Form -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">Create Transition</h3>
+                <p class="text-sm text-gray-600 mt-1">
+                    Configure where work items can move from {{ from_step.name }} and customize the transition behavior
+                </p>
+            </div>
+            
+            <form method="post" class="px-6 py-4">
+                {% csrf_token %}
+                
+                <div class="space-y-8">
+                    <!-- Basic Settings Section -->
+                    <div>
+                        <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-cog text-indigo-600 mr-2"></i>
+                            Basic Settings
+                        </h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Destination Step -->
+                            <div class="md:col-span-2">
+                                <label for="{{ form.to_step.id_for_label }}" 
+                                       class="block text-sm font-medium text-gray-700 mb-2">
+                                    {{ form.to_step.label }} <span class="text-red-500">*</span>
+                                </label>
+                                {{ form.to_step }}
+                                {% if form.to_step.help_text %}
+                                <p class="mt-1 text-sm text-gray-500">{{ form.to_step.help_text }}</p>
+                                {% endif %}
+                                {% if form.to_step.errors %}
+                                <div class="mt-1 text-sm text-red-600">
+                                    {% for error in form.to_step.errors %}
+                                        <p>{{ error }}</p>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Transition Label -->
+                            <div>
+                                <label for="{{ form.label.id_for_label }}" 
+                                       class="block text-sm font-medium text-gray-700 mb-2">
+                                    {{ form.label.label }}
+                                </label>
+                                {{ form.label }}
+                                {% if form.label.help_text %}
+                                <p class="mt-1 text-sm text-gray-500">{{ form.label.help_text }}</p>
+                                {% endif %}
+                                {% if form.label.errors %}
+                                <div class="mt-1 text-sm text-red-600">
+                                    {% for error in form.label.errors %}
+                                        <p>{{ error }}</p>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Display Order -->
+                            <div>
+                                <label for="{{ form.order.id_for_label }}" 
+                                       class="block text-sm font-medium text-gray-700 mb-2">
+                                    {{ form.order.label }}
+                                </label>
+                                {{ form.order }}
+                                {% if form.order.help_text %}
+                                <p class="mt-1 text-sm text-gray-500">{{ form.order.help_text }}</p>
+                                {% endif %}
+                                {% if form.order.errors %}
+                                <div class="mt-1 text-sm text-red-600">
+                                    {% for error in form.order.errors %}
+                                        <p>{{ error }}</p>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Description -->
+                            <div class="md:col-span-2">
+                                <label for="{{ form.description.id_for_label }}" 
+                                       class="block text-sm font-medium text-gray-700 mb-2">
+                                    {{ form.description.label }}
+                                </label>
+                                {{ form.description }}
+                                {% if form.description.help_text %}
+                                <p class="mt-1 text-sm text-gray-500">{{ form.description.help_text }}</p>
+                                {% endif %}
+                                {% if form.description.errors %}
+                                <div class="mt-1 text-sm text-red-600">
+                                    {% for error in form.description.errors %}
+                                        <p>{{ error }}</p>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Visual Customization Section -->
+                    <div>
+                        <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-palette text-purple-600 mr-2"></i>
+                            Visual Customization
+                        </h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Color -->
+                            <div>
+                                <label for="{{ form.color.id_for_label }}" 
+                                       class="block text-sm font-medium text-gray-700 mb-2">
+                                    {{ form.color.label }}
+                                </label>
+                                {{ form.color }}
+                                {% if form.color.help_text %}
+                                <p class="mt-1 text-sm text-gray-500">{{ form.color.help_text }}</p>
+                                {% endif %}
+                                {% if form.color.errors %}
+                                <div class="mt-1 text-sm text-red-600">
+                                    {% for error in form.color.errors %}
+                                        <p>{{ error }}</p>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Icon -->
+                            <div>
+                                <label for="{{ form.icon.id_for_label }}" 
+                                       class="block text-sm font-medium text-gray-700 mb-2">
+                                    {{ form.icon.label }}
+                                </label>
+                                {{ form.icon }}
+                                {% if form.icon.help_text %}
+                                <p class="mt-1 text-sm text-gray-500">{{ form.icon.help_text }}</p>
+                                {% endif %}
+                                {% if form.icon.errors %}
+                                <div class="mt-1 text-sm text-red-600">
+                                    {% for error in form.icon.errors %}
+                                        <p>{{ error }}</p>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Button Preview -->
+                        <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Button Preview</label>
+                            <button type="button" id="button-preview" 
+                                    class="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 hover:bg-blue-700 text-white">
+                                <i class="fas fa-arrow-right mr-2"></i>
+                                <span>Transition Label</span>
+                            </button>
+                            <p class="text-xs text-gray-500 mt-1">Preview updates as you change the color and icon settings</p>
+                        </div>
+                    </div>
+
+                    <!-- Behavior Settings Section -->
+                    <div>
+                        <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-sliders-h text-green-600 mr-2"></i>
+                            Behavior Settings
+                        </h4>
+                        <div class="space-y-4">
+                            <!-- Requires Confirmation -->
+                            <div class="flex items-start space-x-3">
+                                {{ form.requires_confirmation }}
+                                <div class="flex-1">
+                                    <label for="{{ form.requires_confirmation.id_for_label }}" 
+                                           class="text-sm font-medium text-gray-700">
+                                        {{ form.requires_confirmation.label }}
+                                    </label>
+                                    {% if form.requires_confirmation.help_text %}
+                                    <p class="text-xs text-gray-500">{{ form.requires_confirmation.help_text }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Confirmation Message -->
+                            <div id="confirmation-message-field" class="ml-6 hidden">
+                                <label for="{{ form.confirmation_message.id_for_label }}" 
+                                       class="block text-sm font-medium text-gray-700 mb-2">
+                                    {{ form.confirmation_message.label }}
+                                </label>
+                                {{ form.confirmation_message }}
+                                {% if form.confirmation_message.help_text %}
+                                <p class="mt-1 text-sm text-gray-500">{{ form.confirmation_message.help_text }}</p>
+                                {% endif %}
+                                {% if form.confirmation_message.errors %}
+                                <div class="mt-1 text-sm text-red-600">
+                                    {% for error in form.confirmation_message.errors %}
+                                        <p>{{ error }}</p>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Requires Comment -->
+                            <div class="flex items-start space-x-3">
+                                {{ form.requires_comment }}
+                                <div class="flex-1">
+                                    <label for="{{ form.requires_comment.id_for_label }}" 
+                                           class="text-sm font-medium text-gray-700">
+                                        {{ form.requires_comment.label }}
+                                    </label>
+                                    {% if form.requires_comment.help_text %}
+                                    <p class="text-xs text-gray-500">{{ form.requires_comment.help_text }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Comment Prompt -->
+                            <div id="comment-prompt-field" class="ml-6 hidden">
+                                <label for="{{ form.comment_prompt.id_for_label }}" 
+                                       class="block text-sm font-medium text-gray-700 mb-2">
+                                    {{ form.comment_prompt.label }}
+                                </label>
+                                {{ form.comment_prompt }}
+                                {% if form.comment_prompt.help_text %}
+                                <p class="mt-1 text-sm text-gray-500">{{ form.comment_prompt.help_text }}</p>
+                                {% endif %}
+                                {% if form.comment_prompt.errors %}
+                                <div class="mt-1 text-sm text-red-600">
+                                    {% for error in form.comment_prompt.errors %}
+                                        <p>{{ error }}</p>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Auto Assign to Step Team -->
+                            <div class="flex items-start space-x-3">
+                                {{ form.auto_assign_to_step_team }}
+                                <div class="flex-1">
+                                    <label for="{{ form.auto_assign_to_step_team.id_for_label }}" 
+                                           class="text-sm font-medium text-gray-700">
+                                        {{ form.auto_assign_to_step_team.label }}
+                                    </label>
+                                    {% if form.auto_assign_to_step_team.help_text %}
+                                    <p class="text-xs text-gray-500">{{ form.auto_assign_to_step_team.help_text }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Permissions Section -->
+                    <div>
+                        <h4 class="text-md font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-shield-alt text-red-600 mr-2"></i>
+                            Permissions & Access
+                        </h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Permission Level -->
+                            <div>
+                                <label for="{{ form.permission_level.id_for_label }}" 
+                                       class="block text-sm font-medium text-gray-700 mb-2">
+                                    {{ form.permission_level.label }}
+                                </label>
+                                {{ form.permission_level }}
+                                {% if form.permission_level.help_text %}
+                                <p class="mt-1 text-sm text-gray-500">{{ form.permission_level.help_text }}</p>
+                                {% endif %}
+                                {% if form.permission_level.errors %}
+                                <div class="mt-1 text-sm text-red-600">
+                                    {% for error in form.permission_level.errors %}
+                                        <p>{{ error }}</p>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Is Active -->
+                            <div class="flex items-center space-x-3">
+                                {{ form.is_active }}
+                                <div class="flex-1">
+                                    <label for="{{ form.is_active.id_for_label }}" 
+                                           class="text-sm font-medium text-gray-700">
+                                        {{ form.is_active.label }}
+                                    </label>
+                                    {% if form.is_active.help_text %}
+                                    <p class="text-xs text-gray-500">{{ form.is_active.help_text }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Form Errors -->
+                    {% if form.non_field_errors %}
+                    <div class="rounded-md bg-red-50 p-4">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                {% for error in form.non_field_errors %}
+                                <p class="text-sm text-red-800">{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Preview -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h4 class="font-medium text-gray-900 mb-2">Transition Preview</h4>
+                        <div class="flex items-center space-x-3 text-sm">
+                            <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
+                                {{ from_step.name }}
+                            </span>
+                            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                            </svg>
+                            <span class="bg-green-100 text-green-800 px-3 py-1 rounded-full">
+                                <span id="preview-destination">Select destination</span>
+                            </span>
+                            <span class="text-gray-600">
+                                with label: "<span id="preview-label">Default</span>"
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200">
+                    <a href="{% url 'cflows:workflow_transitions_manager' workflow.id %}" 
+                       class="bg-white border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                        Cancel
+                    </a>
+                    <button type="submit" 
+                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                        Create Transition
+                    </button>
+                </div>
+            </form>
+        </div>
+
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Get form elements
+    const toStepSelect = document.getElementById('{{ form.to_step.id_for_label }}');
+    const labelInput = document.getElementById('{{ form.label.id_for_label }}');
+    const colorSelect = document.getElementById('{{ form.color.id_for_label }}');
+    const iconSelect = document.getElementById('{{ form.icon.id_for_label }}');
+    const requiresConfirmationCheckbox = document.getElementById('{{ form.requires_confirmation.id_for_label }}');
+    const requiresCommentCheckbox = document.getElementById('{{ form.requires_comment.id_for_label }}');
+    const buttonPreview = document.getElementById('button-preview');
+    const confirmationMessageField = document.getElementById('confirmation-message-field');
+    const commentPromptField = document.getElementById('comment-prompt-field');
+    
+    // Color mapping for button preview
+    const colorClasses = {
+        'blue': 'bg-blue-600 hover:bg-blue-700 text-white',
+        'green': 'bg-green-600 hover:bg-green-700 text-white',
+        'red': 'bg-red-600 hover:bg-red-700 text-white',
+        'yellow': 'bg-yellow-500 hover:bg-yellow-600 text-white',
+        'purple': 'bg-purple-600 hover:bg-purple-700 text-white',
+        'indigo': 'bg-indigo-600 hover:bg-indigo-700 text-white',
+        'gray': 'bg-gray-600 hover:bg-gray-700 text-white',
+        'orange': 'bg-orange-600 hover:bg-orange-700 text-white',
+    };
+    
+    function updateButtonPreview() {
+        // Update button label
+        const labelValue = labelInput.value.trim();
+        const selectedStep = toStepSelect.options[toStepSelect.selectedIndex];
+        let buttonText = labelValue;
+        
+        if (!buttonText && selectedStep && selectedStep.value) {
+            buttonText = `Move to ${selectedStep.text}`;
+        }
+        if (!buttonText) {
+            buttonText = 'Transition Label';
+        }
+        
+        buttonPreview.querySelector('span').textContent = buttonText;
+        
+        // Update button color
+        const selectedColor = colorSelect.value || 'blue';
+        const colorClass = colorClasses[selectedColor] || colorClasses['blue'];
+        
+        // Remove old color classes
+        Object.values(colorClasses).forEach(cls => {
+            cls.split(' ').forEach(c => buttonPreview.classList.remove(c));
+        });
+        
+        // Add new color classes
+        colorClass.split(' ').forEach(cls => {
+            buttonPreview.classList.add(cls);
+        });
+        
+        // Update button icon
+        const iconElement = buttonPreview.querySelector('i');
+        const selectedIcon = iconSelect.value || 'fas fa-arrow-right';
+        iconElement.className = selectedIcon + ' mr-2';
+        
+        // Hide icon if no icon selected
+        if (!iconSelect.value) {
+            iconElement.style.display = 'none';
+        } else {
+            iconElement.style.display = 'inline';
+        }
+    }
+    
+    function toggleConfirmationField() {
+        if (requiresConfirmationCheckbox.checked) {
+            confirmationMessageField.classList.remove('hidden');
+        } else {
+            confirmationMessageField.classList.add('hidden');
+        }
+    }
+    
+    function toggleCommentField() {
+        if (requiresCommentCheckbox.checked) {
+            commentPromptField.classList.remove('hidden');
+        } else {
+            commentPromptField.classList.add('hidden');
+        }
+    }
+    
+    // Event listeners for preview updates
+    if (toStepSelect) toStepSelect.addEventListener('change', updateButtonPreview);
+    if (labelInput) labelInput.addEventListener('input', updateButtonPreview);
+    if (colorSelect) colorSelect.addEventListener('change', updateButtonPreview);
+    if (iconSelect) iconSelect.addEventListener('change', updateButtonPreview);
+    
+    // Event listeners for conditional fields
+    if (requiresConfirmationCheckbox) {
+        requiresConfirmationCheckbox.addEventListener('change', toggleConfirmationField);
+        toggleConfirmationField(); // Initial state
+    }
+    
+    if (requiresCommentCheckbox) {
+        requiresCommentCheckbox.addEventListener('change', toggleCommentField);
+        toggleCommentField(); // Initial state
+    }
+    
+    // Initial preview update
+    updateButtonPreview();
+});
+</script>
+{% endblock %}

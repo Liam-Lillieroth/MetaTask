@@ -5,7 +5,60 @@ from django.db import models
 from core.models import Organization, UserProfile, Team, JobType
 from .models import (
     Workflow, WorkflowStep, WorkflowTransition, WorkflowTemplate,
-    WorkItem, WorkItemComment, WorkItemAttachment, TeamBooking
+    WorkItem, WorkItemComment, WorkItemAttachment, TeamBooking,
+    CustomField
+)
+import json
+
+
+class WorkflowForm(forms.ModelForm):
+    """Form for creating and editing workflows"""
+    
+    class Meta:
+        model = Workflow
+        fields = [
+            'name', 'description', 'template', 'is_shared', 
+            'auto_assign', 'requires_approval'
+        ]
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+                'placeholder': 'Enter workflow name'
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+                'placeholder': 'Describe this workflow...',
+                'rows': 3
+            }),
+            'template': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500'
+            }),
+            'is_shared': forms.CheckboxInput(attrs={
+                'class': 'rounded text-purple-600 focus:ring-purple-500'
+            }),
+            'auto_assign': forms.CheckboxInput(attrs={
+                'class': 'rounded text-purple-600 focus:ring-purple-500'
+            }),
+            'requires_approval': forms.CheckboxInput(attrs={
+                'class': 'rounded text-purple-600 focus:ring-purple-500'
+            }),
+        }
+
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.organization = organization
+        
+        if organization:
+            # Filter templates available to this organization
+            self.fields['template'].queryset = WorkflowTemplate.objects.filter(
+                models.Q(is_public=True) | models.Q(created_by_org=organization)
+            )
+from django.db import models
+from core.models import Organization, UserProfile, Team, JobType
+from .models import (
+    Workflow, WorkflowStep, WorkflowTransition, WorkflowTemplate,
+    WorkItem, WorkItemComment, WorkItemAttachment, TeamBooking,
+    CustomField
 )
 import json
 
@@ -101,6 +154,98 @@ class WorkflowStepForm(forms.ModelForm):
             )
 
 
+class WorkflowFieldConfigForm(forms.Form):
+    """Form for configuring which standard fields to show/hide/replace in work items"""
+    
+    # Standard fields that can be configured
+    STANDARD_FIELDS = [
+        ('title', 'Title'),
+        ('description', 'Description'),
+        ('priority', 'Priority'),
+        ('tags', 'Tags'),
+        ('due_date', 'Due Date'),
+        ('estimated_duration', 'Estimated Duration'),
+    ]
+    
+    def __init__(self, *args, workflow=None, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.workflow = workflow
+        self.organization = organization
+        
+        # Get available custom fields for replacement options
+        custom_fields = []
+        if organization:
+            custom_fields = CustomField.objects.filter(organization=organization)
+        
+        # Generate fields for each standard field
+        for field_name, field_label in self.STANDARD_FIELDS:
+            # Enable/disable checkbox
+            self.fields[f'{field_name}_enabled'] = forms.BooleanField(
+                required=False,
+                label=f'Show {field_label}',
+                widget=forms.CheckboxInput(attrs={
+                    'class': 'rounded text-indigo-600 focus:ring-indigo-500'
+                }),
+                initial=True
+            )
+            
+            # Required checkbox
+            self.fields[f'{field_name}_required'] = forms.BooleanField(
+                required=False,
+                label=f'{field_label} Required',
+                widget=forms.CheckboxInput(attrs={
+                    'class': 'rounded text-red-600 focus:ring-red-500'
+                }),
+                initial=(field_name == 'title')  # Title is required by default
+            )
+            
+            # Replacement dropdown
+            replacement_choices = [('', 'Use standard field')] + [
+                (cf.id, f'Replace with: {cf.name}') for cf in custom_fields
+            ]
+            self.fields[f'{field_name}_replacement'] = forms.ChoiceField(
+                choices=replacement_choices,
+                required=False,
+                label=f'Replace {field_label}',
+                widget=forms.Select(attrs={
+                    'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                })
+            )
+        
+        # Load existing configuration
+        if workflow and workflow.field_config:
+            self._load_existing_config()
+    
+    def _load_existing_config(self):
+        """Load existing field configuration into form"""
+        config = self.workflow.get_active_fields()
+        
+        for field_name, _ in self.STANDARD_FIELDS:
+            if field_name in config:
+                field_config = config[field_name]
+                self.fields[f'{field_name}_enabled'].initial = field_config.get('enabled', True)
+                self.fields[f'{field_name}_required'].initial = field_config.get('required', False)
+                self.fields[f'{field_name}_replacement'].initial = field_config.get('replacement') or ''
+    
+    def save_config(self):
+        """Save the field configuration to the workflow"""
+        if not self.workflow:
+            return
+        
+        config = {}
+        for field_name, _ in self.STANDARD_FIELDS:
+            config[field_name] = {
+                'enabled': self.cleaned_data.get(f'{field_name}_enabled', True),
+                'required': self.cleaned_data.get(f'{field_name}_required', False),
+                'replacement': self.cleaned_data.get(f'{field_name}_replacement') or None,
+            }
+        
+        self.workflow.field_config = config
+        self.workflow.save(update_fields=['field_config'])
+        
+        return config
+
+
 class WorkItemForm(forms.ModelForm):
     """Form for creating and editing work items"""
     
@@ -154,6 +299,16 @@ class WorkItemForm(forms.ModelForm):
 
     def __init__(self, *args, organization=None, workflow=None, **kwargs):
         super().__init__(*args, **kwargs)
+        
+        # Store workflow reference for field replacement logic
+        self.workflow = workflow
+        self.organization = organization
+        
+        # Apply workflow field configuration
+        if workflow:
+            field_config = workflow.get_active_fields()
+            self._apply_field_configuration(field_config)
+        
         if organization:
             # Filter assignees to organization members
             self.fields['current_assignee'].queryset = UserProfile.objects.filter(
@@ -162,7 +317,8 @@ class WorkItemForm(forms.ModelForm):
         
         # Handle tags display
         if self.instance and self.instance.pk:
-            self.fields['tags_input'].initial = ', '.join(self.instance.tags)
+            if 'tags_input' in self.fields:  # Only if tags are enabled
+                self.fields['tags_input'].initial = ', '.join(self.instance.tags)
         
         # Add custom fields for this organization
         if organization:
@@ -207,6 +363,75 @@ class WorkItemForm(forms.ModelForm):
                     except WorkItemCustomFieldValue.DoesNotExist:
                         pass
 
+    def _apply_field_configuration(self, field_config):
+        """Apply workflow field configuration to the form"""
+        # Map of form field names to config keys
+        field_mapping = {
+            'title': 'title',
+            'description': 'description', 
+            'priority': 'priority',
+            'due_date': 'due_date',
+            'estimated_duration': 'estimated_duration'
+        }
+        
+        # Handle tags separately since it's a custom field
+        if not field_config.get('tags', {}).get('enabled', True):
+            if 'tags_input' in self.fields:
+                del self.fields['tags_input']
+        elif field_config.get('tags', {}).get('required', False):
+            if 'tags_input' in self.fields:
+                self.fields['tags_input'].required = True
+                # Update the widget to show required indicator
+                current_attrs = self.fields['tags_input'].widget.attrs.copy()
+                current_attrs['required'] = True
+                self.fields['tags_input'].widget.attrs = current_attrs
+        
+        # Apply configuration to standard fields
+        for form_field, config_key in field_mapping.items():
+            field_settings = field_config.get(config_key, {})
+            
+            # Remove field if disabled
+            if not field_settings.get('enabled', True):
+                if form_field in self.fields:
+                    del self.fields[form_field]
+                continue
+            
+            # Make field required if configured
+            if field_settings.get('required', False):
+                if form_field in self.fields:
+                    self.fields[form_field].required = True
+                    # Update the widget to show required indicator
+                    current_attrs = self.fields[form_field].widget.attrs.copy()
+                    current_attrs['required'] = True
+                    self.fields[form_field].widget.attrs = current_attrs
+            
+            # Handle field replacement with custom fields
+            replacement_id = field_settings.get('replacement')
+            if replacement_id:
+                try:
+                    from .models import CustomField
+                    replacement_field = CustomField.objects.get(id=replacement_id, organization=self.workflow.organization)
+                    
+                    # Remove the standard field
+                    if form_field in self.fields:
+                        del self.fields[form_field]
+                    
+                    # Add the replacement custom field
+                    replacement_field_name = f'replacement_{form_field}'
+                    self.fields[replacement_field_name] = replacement_field.get_form_field()
+                    
+                    # Store mapping for save logic
+                    if not hasattr(self, '_field_replacements'):
+                        self._field_replacements = {}
+                    self._field_replacements[form_field] = {
+                        'custom_field_id': replacement_id,
+                        'field_name': replacement_field_name
+                    }
+                    
+                except CustomField.DoesNotExist:
+                    # If replacement field doesn't exist, just continue with standard field
+                    pass
+
     def clean_tags_input(self):
         tags_input = self.cleaned_data.get('tags_input', '')
         if tags_input:
@@ -220,13 +445,28 @@ class WorkItemForm(forms.ModelForm):
 
     def save(self, commit=True):
         instance = super().save(commit=False)
+        
         # Handle tags from tags_input
-        tags_data = self.clean_tags_input()
-        instance.tags = tags_data
+        if 'tags_input' in self.cleaned_data:
+            tags_data = self.clean_tags_input()
+            instance.tags = tags_data
+        
+        # Handle field replacements
+        if hasattr(self, '_field_replacements'):
+            for standard_field, replacement_info in self._field_replacements.items():
+                field_name = replacement_info['field_name']
+                if field_name in self.cleaned_data:
+                    # For now, we'll store replacement values in the work item's data field
+                    if not instance.data:
+                        instance.data = {}
+                    instance.data[f'replacement_{standard_field}'] = {
+                        'custom_field_id': replacement_info['custom_field_id'],
+                        'value': str(self.cleaned_data[field_name])
+                    }
         
         if commit:
             instance.save()
-            # Save custom field values
+            # Save custom field values and replacement field values
             self.save_custom_fields(instance)
         
         return instance
@@ -253,6 +493,31 @@ class WorkItemForm(forms.ModelForm):
                     
                 except (ValueError, CustomField.DoesNotExist):
                     continue
+            
+            elif field_name.startswith('replacement_'):
+                # Handle replacement fields that should be saved as custom field values
+                if hasattr(self, '_field_replacements'):
+                    # Find the replacement mapping
+                    standard_field = field_name.replace('replacement_', '')
+                    if standard_field in self._field_replacements:
+                        replacement_info = self._field_replacements[standard_field]
+                        custom_field_id = replacement_info['custom_field_id']
+                        
+                        try:
+                            custom_field = CustomField.objects.get(id=custom_field_id)
+                            
+                            # Get or create the custom field value
+                            custom_value, created = WorkItemCustomFieldValue.objects.get_or_create(
+                                work_item=work_item,
+                                custom_field=custom_field
+                            )
+                            
+                            # Set the value based on field type
+                            custom_value.set_value(value)
+                            custom_value.save()
+                            
+                        except CustomField.DoesNotExist:
+                            continue
 
 
 class WorkItemCommentForm(forms.ModelForm):
@@ -299,29 +564,300 @@ class WorkItemAttachmentForm(forms.ModelForm):
 
 
 class WorkflowTransitionForm(forms.ModelForm):
-    """Form for creating transitions between workflow steps"""
+    """Enhanced form for creating and customizing workflow transitions"""
     
     class Meta:
         model = WorkflowTransition
-        fields = ['to_step', 'label']
+        fields = [
+            'to_step', 'label', 'description', 'color', 'icon',
+            'requires_confirmation', 'confirmation_message', 'requires_comment', 'comment_prompt',
+            'auto_assign_to_step_team', 'permission_level', 'order', 'is_active'
+        ]
         widgets = {
             'to_step': forms.Select(attrs={
-                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500'
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500'
             }),
             'label': forms.TextInput(attrs={
-                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
-                'placeholder': 'Transition label (e.g., "Approve", "Reject")'
-            })
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                'placeholder': 'e.g., "Approve", "Reject", "Send for Review"'
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                'rows': 3,
+                'placeholder': 'Detailed description of what this transition does...'
+            }),
+            'color': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500'
+            }),
+            'icon': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500'
+            }),
+            'requires_confirmation': forms.CheckboxInput(attrs={
+                'class': 'rounded text-indigo-600 focus:ring-indigo-500'
+            }),
+            'confirmation_message': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                'placeholder': 'Are you sure you want to approve this item?'
+            }),
+            'requires_comment': forms.CheckboxInput(attrs={
+                'class': 'rounded text-indigo-600 focus:ring-indigo-500'
+            }),
+            'comment_prompt': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                'placeholder': 'Please provide a reason for this decision'
+            }),
+            'auto_assign_to_step_team': forms.CheckboxInput(attrs={
+                'class': 'rounded text-indigo-600 focus:ring-indigo-500'
+            }),
+            'permission_level': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500'
+            }),
+            'order': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                'min': '0',
+                'step': '1'
+            }),
+            'is_active': forms.CheckboxInput(attrs={
+                'class': 'rounded text-indigo-600 focus:ring-indigo-500'
+            }),
+        }
+        help_texts = {
+            'label': 'Display name for the transition button (e.g., "Approve", "Reject")',
+            'description': 'Detailed explanation of what happens when this transition is used',
+            'color': 'Visual color theme for the transition button',
+            'icon': 'Optional icon to display alongside the transition label',
+            'requires_confirmation': 'Ask user to confirm before executing this transition',
+            'confirmation_message': 'Custom message for confirmation dialog (if confirmation required)',
+            'requires_comment': 'Force user to add a comment when using this transition',
+            'comment_prompt': 'Custom prompt text for the required comment field',
+            'auto_assign_to_step_team': 'Automatically assign work item to destination step\'s team',
+            'permission_level': 'Control who can use this transition',
+            'order': 'Display order for transition buttons (lower numbers appear first)',
+            'is_active': 'Whether this transition is currently available for use',
         }
 
     def __init__(self, *args, workflow=None, from_step=None, **kwargs):
         super().__init__(*args, **kwargs)
         if workflow:
             # Only show steps from the same workflow, excluding the from_step
-            steps = WorkflowStep.objects.filter(workflow=workflow)
+            steps = WorkflowStep.objects.filter(workflow=workflow).order_by('order')
             if from_step:
                 steps = steps.exclude(id=from_step.id)
             self.fields['to_step'].queryset = steps
+            
+            # Improve field labels and help text
+            self.fields['to_step'].label = 'Destination Step'
+            self.fields['to_step'].help_text = 'Select the step this transition leads to'
+        
+        if from_step:
+            self.from_step = from_step
+        
+        # Add conditional field display logic
+        self.fields['confirmation_message'].widget.attrs['data-depends'] = 'id_requires_confirmation'
+        self.fields['comment_prompt'].widget.attrs['data-depends'] = 'id_requires_comment'
+
+    def clean(self):
+        cleaned_data = super().clean()
+        to_step = cleaned_data.get('to_step')
+        requires_confirmation = cleaned_data.get('requires_confirmation')
+        confirmation_message = cleaned_data.get('confirmation_message')
+        requires_comment = cleaned_data.get('requires_comment')
+        comment_prompt = cleaned_data.get('comment_prompt')
+        
+        # Validate transition uniqueness
+        if hasattr(self, 'from_step') and to_step:
+            existing = WorkflowTransition.objects.filter(
+                from_step=self.from_step,
+                to_step=to_step
+            )
+            if self.instance and self.instance.pk:
+                existing = existing.exclude(pk=self.instance.pk)
+            
+            if existing.exists():
+                raise ValidationError('A transition from this step to the selected step already exists.')
+        
+        # Validate confirmation message
+        if requires_confirmation and not confirmation_message:
+            self.add_error('confirmation_message', 'Confirmation message is required when confirmation is enabled.')
+        
+        # Validate comment prompt
+        if requires_comment and not comment_prompt:
+            self.add_error('comment_prompt', 'Comment prompt is required when comments are required.')
+        
+        return cleaned_data
+
+
+class BulkTransitionForm(forms.Form):
+    """Form for creating multiple transitions at once"""
+    
+    TRANSITION_TYPES = [
+        ('sequential', 'Sequential Flow (Step 1 → Step 2 → Step 3...)'),
+        ('hub_spoke', 'Hub and Spoke (All steps ↔ Central step)'),
+        ('parallel', 'Parallel Branches (One step → Multiple steps)'),
+        ('custom', 'Custom Selection'),
+    ]
+    
+    transition_type = forms.ChoiceField(
+        choices=TRANSITION_TYPES,
+        widget=forms.RadioSelect(attrs={
+            'class': 'text-indigo-600 focus:ring-indigo-500'
+        }),
+        help_text='Choose a pattern for creating multiple transitions'
+    )
+    
+    central_step = forms.ModelChoiceField(
+        queryset=WorkflowStep.objects.none(),
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500'
+        }),
+        help_text='For hub and spoke pattern, select the central step'
+    )
+    
+    source_step = forms.ModelChoiceField(
+        queryset=WorkflowStep.objects.none(),
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500'
+        }),
+        help_text='For parallel branches, select the source step'
+    )
+    
+    target_steps = forms.ModelMultipleChoiceField(
+        queryset=WorkflowStep.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple(attrs={
+            'class': 'text-indigo-600 focus:ring-indigo-500'
+        }),
+        help_text='For parallel branches, select target steps'
+    )
+    
+    # Custom selection fields
+    custom_transitions = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(),
+        help_text='JSON data for custom transitions'
+    )
+    
+    def __init__(self, *args, workflow=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if workflow:
+            steps = WorkflowStep.objects.filter(workflow=workflow).order_by('order')
+            self.fields['central_step'].queryset = steps
+            self.fields['source_step'].queryset = steps
+            self.fields['target_steps'].queryset = steps
+            self.workflow = workflow
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        transition_type = cleaned_data.get('transition_type')
+        
+        if transition_type == 'hub_spoke' and not cleaned_data.get('central_step'):
+            raise ValidationError('Central step is required for hub and spoke pattern.')
+        
+        if transition_type == 'parallel':
+            if not cleaned_data.get('source_step'):
+                raise ValidationError('Source step is required for parallel branches.')
+            if not cleaned_data.get('target_steps'):
+                raise ValidationError('At least one target step is required for parallel branches.')
+        
+        if transition_type == 'custom':
+            custom_transitions = cleaned_data.get('custom_transitions')
+            if not custom_transitions:
+                raise ValidationError('At least one custom transition must be selected.')
+            
+            try:
+                import json
+                transitions_data = json.loads(custom_transitions)
+                if not transitions_data or len(transitions_data) == 0:
+                    raise ValidationError('At least one custom transition must be selected.')
+            except (json.JSONDecodeError, ValueError):
+                raise ValidationError('Invalid custom transitions data.')
+        
+        return cleaned_data
+    
+    def create_transitions(self):
+        """Create transitions based on the selected pattern"""
+        transition_type = self.cleaned_data['transition_type']
+        transitions_created = []
+        
+        if transition_type == 'sequential':
+            # Create sequential transitions (Step 1 → Step 2 → Step 3...)
+            steps = list(self.workflow.steps.order_by('order'))
+            for i in range(len(steps) - 1):
+                transition, created = WorkflowTransition.objects.get_or_create(
+                    from_step=steps[i],
+                    to_step=steps[i + 1],
+                    defaults={'label': f'Next ({steps[i + 1].name})'}
+                )
+                if created:
+                    transitions_created.append(transition)
+        
+        elif transition_type == 'hub_spoke':
+            # Create hub and spoke pattern (All steps ↔ Central step)
+            central_step = self.cleaned_data['central_step']
+            other_steps = self.workflow.steps.exclude(id=central_step.id)
+            
+            for step in other_steps:
+                # To central step
+                transition1, created1 = WorkflowTransition.objects.get_or_create(
+                    from_step=step,
+                    to_step=central_step,
+                    defaults={'label': f'To {central_step.name}'}
+                )
+                if created1:
+                    transitions_created.append(transition1)
+                
+                # From central step
+                transition2, created2 = WorkflowTransition.objects.get_or_create(
+                    from_step=central_step,
+                    to_step=step,
+                    defaults={'label': f'To {step.name}'}
+                )
+                if created2:
+                    transitions_created.append(transition2)
+        
+        elif transition_type == 'parallel':
+            # Create parallel branches (One step → Multiple steps)
+            source_step = self.cleaned_data['source_step']
+            target_steps = self.cleaned_data['target_steps']
+            
+            for target_step in target_steps:
+                transition, created = WorkflowTransition.objects.get_or_create(
+                    from_step=source_step,
+                    to_step=target_step,
+                    defaults={'label': f'To {target_step.name}'}
+                )
+                if created:
+                    transitions_created.append(transition)
+        
+        elif transition_type == 'custom':
+            # Create custom selected transitions
+            import json
+            try:
+                transitions_data = json.loads(self.cleaned_data['custom_transitions'])
+                for transition_data in transitions_data:
+                    from_step_id = transition_data.get('from_step')
+                    to_step_id = transition_data.get('to_step')
+                    
+                    if from_step_id and to_step_id:
+                        try:
+                            from_step = WorkflowStep.objects.get(id=from_step_id, workflow=self.workflow)
+                            to_step = WorkflowStep.objects.get(id=to_step_id, workflow=self.workflow)
+                            
+                            transition, created = WorkflowTransition.objects.get_or_create(
+                                from_step=from_step,
+                                to_step=to_step,
+                                defaults={'label': f'{from_step.name} → {to_step.name}'}
+                            )
+                            if created:
+                                transitions_created.append(transition)
+                        except WorkflowStep.DoesNotExist:
+                            continue  # Skip invalid step IDs
+            except (json.JSONDecodeError, ValueError):
+                pass  # Already handled in clean method
+        
+        return transitions_created
 
 
 class TeamBookingForm(forms.ModelForm):
@@ -377,3 +913,310 @@ class TeamBookingForm(forms.ModelForm):
                 raise ValidationError("End time must be after start time.")
 
         return cleaned_data
+
+
+class CustomFieldForm(forms.ModelForm):
+    """Form for creating and editing custom fields"""
+    
+    # JSON field for options - displayed as textarea for easier editing
+    options_text = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+            'rows': '3',
+            'placeholder': 'Enter options, one per line (for select/multiselect fields)'
+        }),
+        required=False,
+        help_text="Enter options one per line for select/multiselect fields"
+    )
+    
+    class Meta:
+        model = CustomField
+        fields = [
+            'name', 'label', 'field_type', 'is_required', 'default_value',
+            'help_text', 'placeholder', 'min_length', 'max_length',
+            'min_value', 'max_value', 'section', 'order', 'workflows',
+            'workflow_steps', 'is_active'
+        ]
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+                'placeholder': 'field_name (no spaces, lowercase)'
+            }),
+            'label': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+                'placeholder': 'Display label for users'
+            }),
+            'field_type': forms.Select(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500'
+            }),
+            'default_value': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+                'placeholder': 'Default value (optional)'
+            }),
+            'help_text': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+                'placeholder': 'Help text shown to users'
+            }),
+            'placeholder': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+                'placeholder': 'Placeholder text for input fields'
+            }),
+            'min_length': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+                'min': '0'
+            }),
+            'max_length': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+                'min': '1'
+            }),
+            'min_value': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+                'step': '0.01'
+            }),
+            'max_value': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+                'step': '0.01'
+            }),
+            'section': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+                'placeholder': 'Section name to group fields'
+            }),
+            'order': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+                'min': '0'
+            }),
+            'workflows': forms.SelectMultiple(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+                'size': '6'
+            }),
+            'workflow_steps': forms.SelectMultiple(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+                'size': '6'
+            }),
+        }
+
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Filter workflows and workflow steps to current organization
+        if organization:
+            self.fields['workflows'].queryset = Workflow.objects.filter(
+                organization=organization, is_active=True
+            ).order_by('name')
+            self.fields['workflow_steps'].queryset = WorkflowStep.objects.filter(
+                workflow__organization=organization
+            ).select_related('workflow').order_by('workflow__name', 'order')
+        
+        # Populate options_text field if editing existing field
+        if self.instance and self.instance.pk and self.instance.options:
+            self.fields['options_text'].initial = '\n'.join(self.instance.options)
+        
+        # Add helpful labels for workflow steps
+        workflow_step_choices = []
+        for step in self.fields['workflow_steps'].queryset:
+            workflow_step_choices.append((step.id, f"{step.workflow.name} → {step.name}"))
+        self.fields['workflow_steps'].choices = workflow_step_choices
+
+    def clean_name(self):
+        """Ensure field name is valid for use as form field"""
+        name = self.cleaned_data['name']
+        if not name.replace('_', '').isalnum():
+            raise ValidationError("Field name can only contain letters, numbers, and underscores")
+        if name.startswith('_') or name.endswith('_'):
+            raise ValidationError("Field name cannot start or end with underscore")
+        return name.lower()
+
+    def clean_options_text(self):
+        """Convert options text to JSON array"""
+        options_text = self.cleaned_data.get('options_text', '').strip()
+        if not options_text:
+            return []
+        
+        # Split by lines and clean up
+        options = [line.strip() for line in options_text.split('\n') if line.strip()]
+        return options
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        
+        # Set the options field from options_text
+        instance.options = self.cleaned_data.get('options_text', [])
+        
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
+
+
+class TeamForm(forms.ModelForm):
+    """Form for creating and editing teams"""
+    
+    class Meta:
+        model = Team
+        fields = [
+            'name', 'description', 'default_capacity', 'color', 'is_active'
+        ]
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                'placeholder': 'Enter team name'
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                'placeholder': 'Describe this team\'s purpose and responsibilities...',
+                'rows': 3
+            }),
+            'default_capacity': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                'min': '1',
+                'max': '50'
+            }),
+            'color': forms.TextInput(attrs={
+                'type': 'color',
+                'class': 'w-16 h-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500'
+            }),
+            'is_active': forms.CheckboxInput(attrs={
+                'class': 'rounded text-indigo-600 focus:ring-indigo-500'
+            }),
+        }
+        help_texts = {
+            'default_capacity': 'Default number of team members available for scheduling',
+            'color': 'Team color for visual identification in calendars and reports',
+        }
+
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.organization = organization
+        
+        # Set initial values
+        if not self.instance.pk:
+            self.fields['default_capacity'].initial = 3
+            self.fields['is_active'].initial = True
+
+    def clean_name(self):
+        name = self.cleaned_data.get('name')
+        if not name:
+            raise ValidationError('Team name is required.')
+        
+        # Check for duplicate names within the organization
+        if self.organization:
+            existing = Team.objects.filter(
+                organization=self.organization,
+                name__iexact=name
+            )
+            if self.instance.pk:
+                existing = existing.exclude(pk=self.instance.pk)
+            
+            if existing.exists():
+                raise ValidationError('A team with this name already exists in your organization.')
+        
+        return name
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        
+        # Set organization if provided
+        if self.organization:
+            instance.organization = self.organization
+        
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
+
+
+class WorkflowCreationForm(forms.ModelForm):
+    """Enhanced workflow creation form with step creation"""
+    
+    # Step creation fields
+    step_names = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500',
+            'rows': 4,
+            'placeholder': 'Enter step names, one per line:\nStep 1: Initial Review\nStep 2: Processing\nStep 3: Final Approval'
+        }),
+        help_text='Enter workflow step names, one per line. Each step will be created in order.',
+        required=False
+    )
+    
+    class Meta:
+        model = Workflow
+        fields = ['name', 'description', 'auto_assign', 'requires_approval']
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                'placeholder': 'Enter workflow name'
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                'placeholder': 'Describe this workflow\'s purpose and process...',
+                'rows': 3
+            }),
+            'auto_assign': forms.CheckboxInput(attrs={
+                'class': 'rounded text-indigo-600 focus:ring-indigo-500'
+            }),
+            'requires_approval': forms.CheckboxInput(attrs={
+                'class': 'rounded text-indigo-600 focus:ring-indigo-500'
+            }),
+        }
+
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.organization = organization
+
+    def clean_step_names(self):
+        step_names = self.cleaned_data.get('step_names', '').strip()
+        if not step_names:
+            return []
+        
+        # Parse step names
+        steps = []
+        for line in step_names.split('\n'):
+            line = line.strip()
+            if line:
+                # Remove step numbers if present (e.g., "Step 1: Review" -> "Review")
+                if ':' in line:
+                    parts = line.split(':', 1)
+                    if len(parts) > 1:
+                        line = parts[1].strip()
+                steps.append(line)
+        
+        if len(steps) > 20:
+            raise ValidationError('Maximum 20 steps allowed per workflow.')
+        
+        return steps
+
+    def save(self, commit=True, created_by=None):
+        instance = super().save(commit=False)
+        
+        # Set organization and creator
+        if self.organization:
+            instance.organization = self.organization
+        if created_by:
+            instance.created_by = created_by
+        
+        if commit:
+            instance.save()
+            
+            # Create workflow steps
+            step_names = self.cleaned_data.get('step_names', [])
+            for i, step_name in enumerate(step_names, 1):
+                WorkflowStep.objects.create(
+                    workflow=instance,
+                    name=step_name,
+                    order=i,
+                    is_terminal=(i == len(step_names))  # Mark last step as terminal
+                )
+            
+            # Create basic transitions between sequential steps
+            steps = list(instance.steps.order_by('order'))
+            for i in range(len(steps) - 1):
+                WorkflowTransition.objects.create(
+                    from_step=steps[i],
+                    to_step=steps[i + 1],
+                    label=f'Proceed to {steps[i + 1].name}'
+                )
+            
+            self.save_m2m()
+        
+        return instance
