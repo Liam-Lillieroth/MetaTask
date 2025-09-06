@@ -168,7 +168,7 @@ class UserRole(models.Model):
     
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='roles')
     role = models.CharField(max_length=50, choices=ROLE_CHOICES)
-    service = models.CharField(max_length=100, blank=True, help_text="Service this role applies to (e.g., 'cflows', 'job_planning')")
+    service = models.CharField(max_length=100, blank=True, help_text="Service this role applies to (e.g., 'cflows', 'scheduling')")
     granted_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, related_name='granted_roles')
     granted_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)

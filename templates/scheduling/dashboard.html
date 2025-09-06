@@ -1,0 +1,317 @@
+{% extends 'scheduling/scheduling_base.html' %}
+
+{% block title %}Scheduling Dashboard - {{ profile.organization.name }}{% endblock %}
+
+{% block scheduling_content %}
+<div class="space-y-8">
+    <!-- Page Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Scheduling Dashboard</h1>
+            <p class="mt-2 text-lg text-gray-600">Manage resources, bookings, and capacity for {{ profile.organization.name }}</p>
+        </div>
+        
+        <!-- Quick Actions Button -->
+        <div class="flex space-x-3">
+            <a href="{% url 'scheduling:resource_list' %}" 
+               class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200">
+                <i class="fas fa-plus-circle mr-2"></i>
+                Add Resource
+            </a>
+            <a href="{% url 'scheduling:booking_list' %}" 
+               class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200">
+                <i class="fas fa-calendar-plus mr-2"></i>
+                New Booking
+            </a>
+        </div>
+    </div>
+    
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Today's Bookings</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ stats.total_bookings_today|default:0 }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 8.172V5L8 4z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Active Resources</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ stats.total_resources|default:0 }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-10 h-10 bg-yellow-500 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Pending Requests</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ stats.pending_requests_count|default:0 }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Active Bookings</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ stats.active_bookings|default:0 }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Quick Actions</h3>
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <a href="{% url 'scheduling:resource_list' %}" 
+                   class="flex items-center p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-all duration-200 group">
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-200">
+                            <i class="fas fa-plus-circle text-green-600 text-lg"></i>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-900">Manage Resources</p>
+                        <p class="text-xs text-gray-500">Add and configure resources</p>
+                    </div>
+                </a>
+                
+                <a href="{% url 'scheduling:booking_list' %}" 
+                   class="flex items-center p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-all duration-200 group">
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200">
+                            <i class="fas fa-calendar-plus text-blue-600 text-lg"></i>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-900">Manage Bookings</p>
+                        <p class="text-xs text-gray-500">Create and track bookings</p>
+                    </div>
+                </a>
+                
+                <a href="{% url 'scheduling:calendar' %}" 
+                   class="flex items-center p-4 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-all duration-200 group">
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center group-hover:bg-purple-200">
+                            <i class="fas fa-calendar-alt text-purple-600 text-lg"></i>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-900">View Calendar</p>
+                        <p class="text-xs text-gray-500">See all scheduled events</p>
+                    </div>
+                </a>
+                
+                <a href="{% url 'scheduling:resource_list' %}" 
+                   class="flex items-center p-4 border border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition-all duration-200 group">
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200">
+                            <i class="fas fa-chart-bar text-orange-600 text-lg"></i>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-900">View Reports</p>
+                        <p class="text-xs text-gray-500">Resource utilization stats</p>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Available Resources -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-medium text-gray-900">Available Resources</h3>
+                    <a href="{% url 'scheduling:resource_list' %}" 
+                       class="text-sm text-green-600 hover:text-green-500 font-medium">View All →</a>
+                </div>
+            </div>
+            <div class="p-6">
+                {% if resources %}
+                    <div class="space-y-4">
+                        {% for resource in resources %}
+                        <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-200">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0">
+                                    <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                                        <i class="fas fa-{% if resource.resource_type == 'room' %}door-open{% elif resource.resource_type == 'equipment' %}tools{% elif resource.resource_type == 'vehicle' %}car{% else %}cube{% endif %} text-green-600"></i>
+                                    </div>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-900">{{ resource.name }}</p>
+                                    <p class="text-xs text-gray-500">{{ resource.resource_type|title }} • {{ resource.capacity }} capacity</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    Available
+                                </span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-12">
+                        <div class="mx-auto h-24 w-24 text-gray-400">
+                            <i class="fas fa-plus-circle text-6xl"></i>
+                        </div>
+                        <h3 class="mt-4 text-lg font-medium text-gray-900">No resources available</h3>
+                        <p class="mt-2 text-sm text-gray-500">Get started by adding your first resource.</p>
+                        <div class="mt-6">
+                            <a href="{% url 'scheduling:resource_list' %}" 
+                               class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
+                                <i class="fas fa-plus mr-2"></i>
+                                Add Resource
+                            </a>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Recent Bookings -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-medium text-gray-900">Recent Bookings</h3>
+                    <a href="{% url 'scheduling:booking_list' %}" 
+                       class="text-sm text-green-600 hover:text-green-500 font-medium">View All →</a>
+                </div>
+            </div>
+            <div class="p-6">
+                {% if today_bookings %}
+                    <div class="space-y-4">
+                        {% for booking in today_bookings %}
+                        <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0">
+                                    <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                        <i class="fas fa-calendar-day text-blue-600"></i>
+                                    </div>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-900">{{ booking.resource.name }}</p>
+                                    <p class="text-xs text-gray-500">{{ booking.requested_start|date:"M j, Y g:i A" }}</p>
+                                    <p class="text-xs text-gray-400">by {{ booking.requested_by.user.get_full_name|default:booking.requested_by.user.username }}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="status-badge status-{{ booking.status }}">
+                                    {{ booking.get_status_display }}
+                                </span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-12">
+                        <div class="mx-auto h-24 w-24 text-gray-400">
+                            <i class="fas fa-calendar-alt text-6xl"></i>
+                        </div>
+                        <h3 class="mt-4 text-lg font-medium text-gray-900">No recent bookings</h3>
+                        <p class="mt-2 text-sm text-gray-500">Bookings will appear here once created.</p>
+                        <div class="mt-6">
+                            <a href="{% url 'scheduling:booking_list' %}" 
+                               class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:blue-700">
+                                <i class="fas fa-plus mr-2"></i>
+                                Create Booking
+                            </a>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Pending Requests (only show if there are any) -->
+    {% if pending_requests %}
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <h3 class="text-lg font-medium text-gray-900">Pending Approval Requests</h3>
+                    <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                        {{ pending_requests.count }} pending
+                    </span>
+                </div>
+                <a href="{% url 'scheduling:booking_list' %}" 
+                   class="text-sm text-yellow-600 hover:text-yellow-500 font-medium">View All →</a>
+            </div>
+        </div>
+        <div class="p-6">
+            <div class="space-y-4">
+                {% for request in pending_requests %}
+                <div class="flex items-center justify-between p-4 border border-yellow-200 rounded-lg bg-yellow-50">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <div class="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-clock text-yellow-600"></i>
+                            </div>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-900">{{ request.resource.name }}</p>
+                            <p class="text-xs text-gray-600">
+                                {{ request.requested_start|date:"M j, Y g:i A" }} - {{ request.requested_end|date:"g:i A" }}
+                            </p>
+                            <p class="text-xs text-gray-500">Requested by {{ request.requested_by.user.get_full_name|default:request.requested_by.user.username }}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <form method="post" action="{% url 'scheduling:booking_action' request.id 'confirm' %}" class="inline">
+                            {% csrf_token %}
+                            <button type="submit" 
+                                    class="inline-flex items-center px-3 py-2 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                                    onclick="return confirm('Confirm this booking?')">
+                                <i class="fas fa-check mr-1"></i>
+                                Confirm
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

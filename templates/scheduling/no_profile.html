@@ -1,0 +1,48 @@
+{% extends "scheduling/scheduling_base_fixed.html" %}
+
+{% block scheduling_content %}
+<div class="max-w-2xl mx-auto py-12">
+    <div class="bg-white rounded-lg border border-gray-200 p-8 text-center">
+        <div class="mx-auto mb-6">
+            <i class="fas fa-user-circle text-6xl text-gray-400"></i>
+        </div>
+        
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">Profile Required</h2>
+        <p class="text-gray-600 mb-6 max-w-md mx-auto">
+            You need a user profile to access the scheduling service. 
+            Please contact your administrator to set up your profile.
+        </p>
+        
+        <div class="flex flex-col sm:flex-row gap-4 justify-center">
+            <a href="{% url 'core:dashboard' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left mr-2"></i>Return to Dashboard
+            </a>
+            <a href="mailto:admin@example.com" class="btn btn-primary">
+                <i class="fas fa-envelope mr-2"></i>Contact Administrator
+            </a>
+        </div>
+        
+        <div class="mt-8 pt-6 border-t border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3">What you'll get with a profile:</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left max-w-lg mx-auto">
+                <div class="flex items-start space-x-3">
+                    <i class="fas fa-check text-green-500 mt-1"></i>
+                    <span class="text-sm text-gray-600">Resource booking access</span>
+                </div>
+                <div class="flex items-start space-x-3">
+                    <i class="fas fa-check text-green-500 mt-1"></i>
+                    <span class="text-sm text-gray-600">Project management</span>
+                </div>
+                <div class="flex items-start space-x-3">
+                    <i class="fas fa-check text-green-500 mt-1"></i>
+                    <span class="text-sm text-gray-600">Calendar integration</span>
+                </div>
+                <div class="flex items-start space-x-3">
+                    <i class="fas fa-check text-green-500 mt-1"></i>
+                    <span class="text-sm text-gray-600">Team collaboration</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

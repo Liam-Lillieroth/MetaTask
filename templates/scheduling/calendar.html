@@ -1,0 +1,624 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Calendar - {{ profile.organization.name }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/main.min.css" rel="stylesheet">
+<style>
+.fc-event {
+    cursor: pointer;
+}
+.resource-filter {
+    max-height: 200px;
+    overflow-y: auto;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1>Scheduling Calendar</h1>
+            <p class="text-muted">View and manage all bookings across your resources</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Filters Sidebar -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Filters</h5>
+                </div>
+                <div class="card-body">
+                    <h6>Resources</h6>
+                    <div class="resource-filter">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="all-resources" checked>
+                            <label class="form-check-label" for="all-resources">
+                                <strong>All Resources</strong>
+                            </label>
+                        </div>
+                        <hr>
+                        {% for resource in resources %}
+                        <div class="form-check">
+                            <input class="form-check-input resource-checkbox" type="checkbox" 
+                                   value="{{ resource.id }}" id="resource-{{ resource.id }}" checked>
+                            <label class="form-check-label" for="resource-{{ resource.id }}">
+                                {{ resource.name }}
+                                <small class="text-muted d-block">{{ resource.get_resource_type_display }}</small>
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Legend</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="bg-primary rounded me-2" style="width: 20px; height: 20px;"></div>
+                        <span>Confirmed</span>
+                    </div>
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="bg-success rounded me-2" style="width: 20px; height: 20px;"></div>
+                        <span>In Progress</span>
+                    </div>
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="bg-secondary rounded me-2" style="width: 20px; height: 20px;"></div>
+                        <span>Completed</span>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <div class="bg-warning rounded me-2" style="width: 20px; height: 20px;"></div>
+                        <span>Pending</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calendar -->
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-body">
+                    <div id="calendar"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Detail Modal -->
+<div class="modal fade" id="eventModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventModalTitle">Booking Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="eventModalBody">
+                <!-- Content loaded via JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="#" id="eventModalLink" class="btn btn-primary">View Details</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/main.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var calendarEl = document.getElementById('calendar');
+    var eventModal = new bootstrap.Modal(document.getElementById('eventModal'));
+    
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        height: 'auto',
+        events: {
+            url: '{% url "scheduling:api_calendar_events" %}',
+            method: 'GET',
+            extraParams: function() {
+                // Get selected resources
+                var selectedResources = [];
+                document.querySelectorAll('.resource-checkbox:checked').forEach(function(checkbox) {
+                    selectedResources.push(checkbox.value);
+                });
+                return {
+                    'resources[]': selectedResources
+                };
+            }
+        },
+        eventClick: function(info) {
+            var event = info.event;
+            var props = event.extendedProps;
+            
+            document.getElementById('eventModalTitle').textContent = event.title;
+            document.getElementById('eventModalLink').href = `/scheduling/bookings/${event.id}/`;
+            
+            var modalBody = document.getElementById('eventModalBody');
+            modalBody.innerHTML = 
+                '<div class="row">' +
+                    '<div class="col-md-6">' +
+                        '<h6>Basic Information</h6>' +
+                        '<p><strong>Title:</strong> ' + event.title + '</p>' +
+                        '<p><strong>Resource:</strong> ' + props.resource + '</p>' +
+                        '<p><strong>Status:</strong> <span class="badge bg-primary">' + props.status + '</span></p>' +
+                        (props.description ? '<p><strong>Description:</strong> ' + props.description + '</p>' : '') +
+                    '</div>' +
+                    '<div class="col-md-6">' +
+                        '<h6>Timing</h6>' +
+                        '<p><strong>Start:</strong> ' + event.start.toLocaleString() + '</p>' +
+                        '<p><strong>End:</strong> ' + event.end.toLocaleString() + '</p>' +
+                        (props.requestedBy ? '<p><strong>Requested By:</strong> ' + props.requestedBy + '</p>' : '') +
+                        '<p><strong>Source:</strong> ' + props.sourceService + '</p>' +
+                    '</div>' +
+                '</div>';
+            
+            eventModal.show();
+        }
+    });
+
+    calendar.render();
+
+    // Resource filter functionality
+    document.getElementById('all-resources').addEventListener('change', function() {
+        var checkboxes = document.querySelectorAll('.resource-checkbox');
+        var thisChecked = this.checked;
+        checkboxes.forEach(function(checkbox) {
+            checkbox.checked = thisChecked;
+        });
+        calendar.refetchEvents();
+    });
+
+    document.querySelectorAll('.resource-checkbox').forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            // Update "All Resources" checkbox
+            var allCheckbox = document.getElementById('all-resources');
+            var checkedBoxes = document.querySelectorAll('.resource-checkbox:checked').length;
+            var totalBoxes = document.querySelectorAll('.resource-checkbox').length;
+            
+            allCheckbox.checked = checkedBoxes === totalBoxes;
+            allCheckbox.indeterminate = checkedBoxes > 0 && checkedBoxes < totalBoxes;
+            
+            calendar.refetchEvents();
+        });
+    });
+});
+</script>
+{% endblock %}
+        <div class="flex items-center space-x-2">
+            <label for="project-filter" class="text-sm font-medium text-gray-700">Project:</label>
+            <select id="project-filter" class="block w-48 pl-3 pr-10 py-2 text-sm border-gray-300 focus:ring-green-500 focus:border-green-500 rounded-lg">
+                <option value="">All Projects</option>
+                <!-- Projects will be loaded here -->
+            </select>
+        </div>
+        
+        <div class="flex items-center space-x-2">
+            <label for="resource-filter" class="text-sm font-medium text-gray-700">Resource:</label>
+            <select id="resource-filter" class="block w-48 pl-3 pr-10 py-2 text-sm border-gray-300 focus:ring-green-500 focus:border-green-500 rounded-lg">
+                <option value="">All Resources</option>
+                <!-- Resources will be loaded here -->
+            </select>
+        </div>
+        
+        <div class="flex items-center space-x-2">
+            <label for="status-filter" class="text-sm font-medium text-gray-700">Status:</label>
+            <select id="status-filter" class="block w-40 pl-3 pr-10 py-2 text-sm border-gray-300 focus:ring-green-500 focus:border-green-500 rounded-lg">
+                <option value="">All Statuses</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="in_progress">In Progress</option>
+                                <option value="completed">Completed</option>
+            </select>
+        </div>
+        
+        <!-- Clear Filters Button -->
+        <button id="clear-filters" class="inline-flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-50">
+            <i class="fas fa-times mr-1"></i> Clear
+        </button>
+    </div>
+</div>
+
+<!-- Calendar Container -->
+<div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+    <div id="calendar" class="scheduling-calendar"></div>
+</div>
+
+<!-- Event Modal -->
+<div id="event-modal" 
+     class="fixed inset-0 z-50 hidden" 
+     x-data="{ open: false }"
+     x-show="open"
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0"
+     x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-200"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0">
+    
+    <!-- Backdrop -->
+    <div class="absolute inset-0 bg-gray-600 bg-opacity-75" @click="closeModal()"></div>
+    
+    <!-- Modal Content -->
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="relative bg-white rounded-xl shadow-lg max-w-lg w-full"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+             x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+            
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between p-6 border-b border-gray-200">
+                <h3 id="modal-title" class="text-lg font-semibold text-gray-900">New Event</h3>
+                <button id="close-modal" 
+                        class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
+                        @click="closeModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <!-- Modal Body -->
+            <form id="event-form" class="p-6 space-y-4">
+                <div>
+                    <label for="event-title" class="block text-sm font-medium text-gray-700 mb-2">Event Title</label>
+                    <input type="text" id="event-title" name="title" required 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                </div>
+                
+                <div>
+                    <label for="event-project" class="block text-sm font-medium text-gray-700 mb-2">Project</label>
+                    <select id="event-project" name="project" required 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                        <option value="">Select a project</option>
+                        <!-- Projects will be loaded here -->
+                    </select>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="event-start" class="block text-sm font-medium text-gray-700 mb-2">Start Date & Time</label>
+                        <input type="datetime-local" id="event-start" name="start" required 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    
+                    <div>
+                        <label for="event-end" class="block text-sm font-medium text-gray-700 mb-2">End Date & Time</label>
+                        <input type="datetime-local" id="event-end" name="end" required 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                </div>
+                
+                <div>
+                    <label for="event-description" class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                    <textarea id="event-description" name="description" rows="3" 
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
+                              placeholder="Optional event details..."></textarea>
+                </div>
+                
+                <!-- Modal Footer -->
+                <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                    <button type="button" id="cancel-event" 
+                            class="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium rounded-lg hover:bg-gray-50"
+                            @click="closeModal()">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">
+                        <i class="fas fa-save mr-2"></i>Save Event
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/main.min.js'></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const calendarEl = document.getElementById('calendar');
+    const eventModal = document.getElementById('event-modal');
+    const eventForm = document.getElementById('event-form');
+    
+    // Modal management functions
+    window.showEventModal = function(title = 'New Event', eventData = {}) {
+        document.getElementById('modal-title').textContent = title;
+        if (eventData.start) {
+            document.getElementById('event-start').value = formatDateForInput(eventData.start);
+        }
+        if (eventData.end) {
+            document.getElementById('event-end').value = formatDateForInput(eventData.end);
+        }
+        eventModal.classList.remove('hidden');
+    };
+    
+    window.closeModal = function() {
+        eventModal.classList.add('hidden');
+        eventForm.reset();
+    };
+    
+    function formatDateForInput(date) {
+        const d = new Date(date);
+        return d.toISOString().slice(0, 16);
+    }
+    
+    // Initialize FullCalendar
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+        },
+        buttonText: {
+            today: 'Today',
+            month: 'Month',
+            week: 'Week',
+            day: 'Day',
+            list: 'List'
+        },
+        height: 'auto',
+        editable: true,
+        selectable: true,
+        selectMirror: true,
+        dayMaxEvents: true,
+        weekends: true,
+        eventColor: '#059669',
+        eventBorderColor: '#047857',
+        eventTextColor: '#ffffff',
+        
+        // Custom styling
+        eventClassNames: 'rounded-lg shadow-sm',
+        
+        // Event sources (to be loaded from backend)
+        events: function(fetchInfo, successCallback, failureCallback) {
+            // TODO: Load events from Django backend
+            // For now, return empty array
+            successCallback([]);
+        },
+        
+        // Handle date selection for new events
+        select: function(info) {
+            showEventModal('New Event', {
+                start: info.start,
+                end: info.end
+            });
+            calendar.unselect();
+        },
+        
+        // Handle event clicks
+        eventClick: function(info) {
+            showEventModal('Edit Event', {
+                id: info.event.id,
+                title: info.event.title,
+                start: info.event.start,
+                end: info.event.end,
+                description: info.event.extendedProps.description
+            });
+        },
+        
+        // Handle event drag and resize
+        eventChange: function(info) {
+            // TODO: Update event in backend
+            console.log('Event changed:', info.event);
+        }
+    });
+    
+    calendar.render();
+    
+    // Event handlers
+    document.getElementById('add-event').addEventListener('click', function() {
+        showEventModal('New Event');
+    });
+    
+    document.getElementById('close-modal').addEventListener('click', closeModal);
+    document.getElementById('cancel-event').addEventListener('click', closeModal);
+    
+    // View toggle
+    document.getElementById('toggle-view').addEventListener('click', function() {
+        const currentView = calendar.view.type;
+        if (currentView === 'dayGridMonth') {
+            calendar.changeView('timeGridWeek');
+            this.innerHTML = '<i class="fas fa-calendar mr-2"></i>Week View';
+        } else {
+            calendar.changeView('dayGridMonth');
+            this.innerHTML = '<i class="fas fa-th mr-2"></i>Month View';
+        }
+    });
+    
+    // Form submission
+    eventForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(eventForm);
+        const eventData = {
+            title: formData.get('title'),
+            project: formData.get('project'),
+            start: formData.get('start'),
+            end: formData.get('end'),
+            description: formData.get('description')
+        };
+        
+        // TODO: Send to Django backend
+        console.log('Creating event:', eventData);
+        
+        // For demo purposes, add to calendar
+        calendar.addEvent({
+            title: eventData.title,
+            start: eventData.start,
+            end: eventData.end,
+            backgroundColor: '#059669',
+            borderColor: '#047857',
+            textColor: '#ffffff'
+        });
+        
+        closeModal();
+    });
+    
+    // Filter handlers
+    document.getElementById('clear-filters').addEventListener('click', function() {
+        document.getElementById('project-filter').value = '';
+        document.getElementById('resource-filter').value = '';
+        document.getElementById('status-filter').value = '';
+        // TODO: Refresh calendar with cleared filters
+        calendar.refetchEvents();
+    });
+    
+    // Load initial data
+    loadProjects();
+    loadResources();
+    
+    function loadProjects() {
+        // TODO: Load from Django backend
+        const projectFilter = document.getElementById('project-filter');
+        const eventProject = document.getElementById('event-project');
+        
+        // Sample data - replace with actual Django data
+        const projects = [];
+        
+        projects.forEach(project => {
+            const option1 = new Option(project.name, project.id);
+            const option2 = new Option(project.name, project.id);
+            projectFilter.add(option1);
+            eventProject.add(option2);
+        });
+    }
+    
+    function loadResources() {
+        // TODO: Load from Django backend
+        const resourceFilter = document.getElementById('resource-filter');
+        
+        // Sample data - replace with actual Django data
+        const resources = [];
+        
+        resources.forEach(resource => {
+            const option = new Option(resource.name, resource.id);
+            resourceFilter.add(option);
+        });
+    }
+});
+</script>
+{% endblock %}
+                end: info.end
+            });
+        },
+        
+        eventClick: function(info) {
+            // Handle event click - open modal for editing
+            showEventModal('Edit Event', {
+                title: info.event.title,
+                start: info.event.start,
+                end: info.event.end,
+                description: info.event.extendedProps.description
+            });
+        }
+    });
+    
+    calendar.render();
+    
+    // Modal functions
+    function showEventModal(title, eventData = {}) {
+        document.getElementById('modal-title').textContent = title;
+        
+        // Populate form with event data
+        if (eventData.title) document.getElementById('event-title').value = eventData.title;
+        if (eventData.start) document.getElementById('event-start').value = formatDateForInput(eventData.start);
+        if (eventData.end) document.getElementById('event-end').value = formatDateForInput(eventData.end);
+        if (eventData.description) document.getElementById('event-description').value = eventData.description;
+        
+        eventModal.classList.remove('hidden');
+    }
+    
+    function hideEventModal() {
+        eventModal.classList.add('hidden');
+        eventForm.reset();
+    }
+    
+    function formatDateForInput(date) {
+        const d = new Date(date);
+        return d.getFullYear() + '-' +
+               String(d.getMonth() + 1).padStart(2, '0') + '-' +
+               String(d.getDate()).padStart(2, '0') + 'T' +
+               String(d.getHours()).padStart(2, '0') + ':' +
+               String(d.getMinutes()).padStart(2, '0');
+    }
+    
+    // Event listeners
+    document.getElementById('add-event').addEventListener('click', () => {
+        showEventModal('New Event');
+    });
+    
+    document.getElementById('close-modal').addEventListener('click', hideEventModal);
+    document.getElementById('cancel-event').addEventListener('click', hideEventModal);
+    
+    document.getElementById('toggle-view').addEventListener('click', function() {
+        const currentView = calendar.view.type;
+        if (currentView === 'dayGridMonth') {
+            calendar.changeView('timeGridWeek');
+            this.innerHTML = '<i class="fas fa-calendar mr-2"></i>Week View';
+        } else if (currentView === 'timeGridWeek') {
+            calendar.changeView('timeGridDay');
+            this.innerHTML = '<i class="fas fa-calendar-day mr-2"></i>Day View';
+        } else {
+            calendar.changeView('dayGridMonth');
+            this.innerHTML = '<i class="fas fa-th mr-2"></i>Month View';
+        }
+    });
+    
+    // Handle form submission
+    eventForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Get form data
+        const formData = new FormData(eventForm);
+        const eventData = Object.fromEntries(formData.entries());
+        
+        // Here you would typically send the data to your backend
+        console.log('Event data:', eventData);
+        
+        // For now, just add to calendar
+        calendar.addEvent({
+            title: eventData.title,
+            start: eventData.start,
+            end: eventData.end,
+            description: eventData.description,
+            backgroundColor: '#667eea'
+        });
+        
+        hideEventModal();
+    });
+    
+    // Filter handlers
+    document.getElementById('project-filter').addEventListener('change', function() {
+        // Implement project filtering
+        console.log('Filter by project:', this.value);
+    });
+    
+    document.getElementById('resource-filter').addEventListener('change', function() {
+        // Implement resource filtering
+        console.log('Filter by resource:', this.value);
+    });
+    
+    document.getElementById('status-filter').addEventListener('change', function() {
+        // Implement status filtering
+        console.log('Filter by status:', this.value);
+    });
+});
+</script>

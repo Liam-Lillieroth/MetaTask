@@ -1,0 +1,262 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ resource.name }} - Resources{% endblock %}
+
+{% block extra_css %}
+<style>
+.availability-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+}
+.day-cell {
+    padding: 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    text-align: center;
+}
+.day-available { background-color: #d4edda; }
+.day-busy { background-color: #f8d7da; }
+.day-partial { background-color: #fff3cd; }
+.utilization-bar {
+    height: 20px;
+    background-color: #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+}
+.utilization-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #28a745, #ffc107, #dc3545);
+    transition: width 0.3s ease;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'scheduling:index' %}">Scheduling</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'scheduling:resource_list' %}">Resources</a></li>
+                    <li class="breadcrumb-item active">{{ resource.name }}</li>
+                </ol>
+            </nav>
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h1>{{ resource.name }}</h1>
+                    <p class="text-muted">{{ resource.get_resource_type_display }} - {{ resource.service_type|title }} Service</p>
+                </div>
+                <div>
+                    {% if resource.is_active %}
+                        <span class="badge bg-success fs-6">Active</span>
+                    {% else %}
+                        <span class="badge bg-secondary fs-6">Inactive</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resource Info & Stats -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Resource Details</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-4">Type:</dt>
+                        <dd class="col-sm-8">{{ resource.get_resource_type_display }}</dd>
+                        
+                        <dt class="col-sm-4">Max Capacity:</dt>
+                        <dd class="col-sm-8">{{ resource.max_concurrent_bookings }} concurrent bookings</dd>
+                        
+                        <dt class="col-sm-4">Default Duration:</dt>
+                        <dd class="col-sm-8">{{ resource.default_booking_duration }}</dd>
+                        
+                        {% if resource.linked_team %}
+                        <dt class="col-sm-4">Linked Team:</dt>
+                        <dd class="col-sm-8">{{ resource.linked_team.name }}</dd>
+                        {% endif %}
+                        
+                        <dt class="col-sm-4">Service:</dt>
+                        <dd class="col-sm-8">{{ resource.service_type|title }}</dd>
+                    </dl>
+                    
+                    {% if resource.description %}
+                    <hr>
+                    <h6>Description</h6>
+                    <p>{{ resource.description }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Utilization Statistics</h5>
+                    <small class="text-muted">{{ start_date }} to {{ end_date }}</small>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Overall Utilization</span>
+                            <span>{{ utilization_stats.utilization_rate }}%</span>
+                        </div>
+                        <div class="utilization-bar">
+                            <div class="utilization-fill" style="width: {{ utilization_stats.utilization_rate }}%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <h4 class="text-primary">{{ utilization_stats.total_bookings }}</h4>
+                            <small>Total Bookings</small>
+                        </div>
+                        <div class="col-6">
+                            <h4 class="text-success">{{ utilization_stats.completed_bookings }}</h4>
+                            <small>Completed</small>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <dl class="row mb-0">
+                        <dt class="col-6">Completion Rate:</dt>
+                        <dd class="col-6">{{ utilization_stats.completion_rate }}%</dd>
+                        
+                        <dt class="col-6">Avg Duration:</dt>
+                        <dd class="col-6">{{ utilization_stats.average_booking_duration|floatformat:1 }}h</dd>
+                        
+                        <dt class="col-6">Total Hours:</dt>
+                        <dd class="col-6">{{ utilization_stats.total_booked_hours|floatformat:1 }}h</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Availability Calendar -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Availability Overview</h5>
+                    <div class="btn-group" role="group">
+                        <a href="?start_date={{ start_date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-primary">Refresh</a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for date_str, day_data in availability_data.items %}
+                        <div class="col-md-4 col-lg-3 mb-3">
+                            <div class="card 
+                                {% if day_data.utilization_percent == 0 %}border-success
+                                {% elif day_data.utilization_percent < 80 %}border-warning
+                                {% else %}border-danger{% endif %}">
+                                <div class="card-body p-3">
+                                    <h6 class="card-title">{{ day_data.date|date:"M j" }}</h6>
+                                    <div class="mb-2">
+                                        <div class="utilization-bar">
+                                            <div class="utilization-fill" style="width: {{ day_data.utilization_percent }}%"></div>
+                                        </div>
+                                        <small class="text-muted">{{ day_data.utilization_percent }}% utilized</small>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <strong>{{ day_data.booking_count }}</strong><br>
+                                            <small>Bookings</small>
+                                        </div>
+                                        <div class="col-6">
+                                            <strong>{{ day_data.total_hours|floatformat:1 }}h</strong><br>
+                                            <small>Total</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Bookings -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Recent Bookings</h5>
+                    <a href="{% url 'scheduling:booking_list' %}?resource={{ resource.id }}" class="btn btn-sm btn-outline-primary">
+                        View All Bookings
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if recent_bookings %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Date & Time</th>
+                                    <th>Duration</th>
+                                    <th>Status</th>
+                                    <th>Requested By</th>
+                                    <th>Source</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for booking in recent_bookings %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'scheduling:booking_detail' booking.id %}">{{ booking.title }}</a>
+                                    </td>
+                                    <td>
+                                        <strong>{{ booking.requested_start|date:"M j, Y" }}</strong><br>
+                                        <small class="text-muted">{{ booking.requested_start|date:"g:i A" }} - {{ booking.requested_end|date:"g:i A" }}</small>
+                                    </td>
+                                    <td>{{ booking.duration }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if booking.status == 'completed' %}success
+                                        {% elif booking.status == 'in_progress' %}primary  
+                                        {% elif booking.status == 'confirmed' %}info
+                                        {% elif booking.status == 'pending' %}warning
+                                        {% else %}secondary{% endif %}">
+                                            {{ booking.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if booking.requested_by %}
+                                            {{ booking.requested_by.user.get_full_name }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ booking.source_service }}</span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
+                        <h5>No recent bookings</h5>
+                        <p class="text-muted">This resource hasn't been booked recently.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

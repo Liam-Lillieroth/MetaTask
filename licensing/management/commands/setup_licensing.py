@@ -42,14 +42,14 @@ class Command(BaseCommand):
             cflows_service.save()
             self.stdout.write(f'✓ Updated CFlows service')
         
-        # Create Job Planning service
-        job_planning_service, created = Service.objects.get_or_create(
-            slug='job-planning',
+        # Create Scheduling service
+        scheduling_service, created = Service.objects.get_or_create(
+            slug='scheduling',
             defaults={
-                'name': 'Job Planning',
+                'name': 'Scheduling',
                 'description': 'Resource Allocation and Scheduling System',
                 'version': '1.0.0',
-                'is_active': False,  # Coming soon
+                'is_active': True,  # Now available
                 'icon': 'fas fa-calendar-alt',
                 'color': '#059669',
                 'sort_order': 2,
@@ -57,20 +57,28 @@ class Command(BaseCommand):
                 'personal_free_limits': {
                     'users': 1,
                     'projects': 2,
-                    'schedules': 5
+                    'resources': 5,
+                    'events': 20
                 }
             }
         )
         
         if created:
-            self.stdout.write(f'✓ Created Job Planning service')
+            self.stdout.write(f'✓ Created Scheduling service')
         else:
             # Update existing service with missing fields
-            job_planning_service.icon = 'fas fa-calendar-alt'
-            job_planning_service.color = '#059669'
-            job_planning_service.sort_order = 2
-            job_planning_service.save()
-            self.stdout.write(f'✓ Updated Job Planning service')
+            scheduling_service.icon = 'fas fa-calendar-alt'
+            scheduling_service.color = '#059669'
+            scheduling_service.sort_order = 2
+            scheduling_service.is_active = True  # Make sure it's active
+            scheduling_service.personal_free_limits = {
+                'users': 1,
+                'projects': 2,
+                'resources': 5,
+                'events': 20
+            }
+            scheduling_service.save()
+            self.stdout.write(f'✓ Updated Scheduling service')
         
         # Create license types for CFlows
         license_types_data = [
@@ -144,21 +152,106 @@ class Command(BaseCommand):
             )
             
             if created:
-                self.stdout.write(f'✓ Created license type: {lt_data["display_name"]}')
+                self.stdout.write(f'✓ Created CFlows license type: {lt_data["display_name"]}')
             else:
-                self.stdout.write(f'✓ License type already exists: {lt_data["display_name"]}')
+                self.stdout.write(f'✓ CFlows license type already exists: {lt_data["display_name"]}')
+        
+        # Create license types for Scheduling
+        scheduling_license_types_data = [
+            {
+                'name': 'personal_free',
+                'display_name': 'Personal Free',
+                'price_monthly': Decimal('0.00'),
+                'price_yearly': Decimal('0.00'),
+                'max_users': 1,
+                'max_projects': 2,
+                'max_workflows': 5,  # Using max_workflows for events/bookings
+                'max_storage_gb': 1,
+                'max_api_calls_per_day': 100,
+                'features': ['Basic scheduling', 'Personal calendar', 'Resource management', 'Event notifications'],
+                'restrictions': ['No team collaboration', 'Limited integrations'],
+                'is_personal_only': True,
+                'requires_organization': False
+            },
+            {
+                'name': 'basic',
+                'display_name': 'Basic Team',
+                'price_monthly': Decimal('19.00'),
+                'price_yearly': Decimal('190.00'),
+                'max_users': 10,
+                'max_projects': 10,
+                'max_workflows': 50,  # Using max_workflows for events/bookings
+                'max_storage_gb': 10,
+                'max_api_calls_per_day': 1000,
+                'features': ['Team scheduling', 'Resource booking', 'Calendar sharing', 'Basic analytics'],
+                'restrictions': ['Limited advanced features'],
+                'is_personal_only': False,
+                'requires_organization': True
+            },
+            {
+                'name': 'professional',
+                'display_name': 'Professional',
+                'price_monthly': Decimal('49.00'),
+                'price_yearly': Decimal('490.00'),
+                'max_users': 50,
+                'max_projects': 50,
+                'max_workflows': 200,  # Using max_workflows for events/bookings
+                'max_storage_gb': 100,
+                'max_api_calls_per_day': 10000,
+                'features': ['Advanced scheduling', 'Resource optimization', 'Advanced analytics', 'Integrations'],
+                'restrictions': [],
+                'is_personal_only': False,
+                'requires_organization': True
+            },
+            {
+                'name': 'enterprise',
+                'display_name': 'Enterprise',
+                'price_monthly': Decimal('199.00'),
+                'price_yearly': Decimal('1990.00'),
+                'max_users': None,  # Unlimited
+                'max_projects': None,
+                'max_workflows': None,  # Unlimited events/bookings
+                'max_storage_gb': None,
+                'max_api_calls_per_day': None,
+                'features': ['Unlimited scheduling', 'Custom integrations', 'Dedicated support', 'SLA guarantee'],
+                'restrictions': [],
+                'is_personal_only': False,
+                'requires_organization': True
+            }
+        ]
+        
+        for lt_data in scheduling_license_types_data:
+            license_type, created = LicenseType.objects.get_or_create(
+                service=scheduling_service,
+                name=lt_data['name'],
+                defaults=lt_data
+            )
+            
+            if created:
+                self.stdout.write(f'✓ Created Scheduling license type: {lt_data["display_name"]}')
+            else:
+                self.stdout.write(f'✓ Scheduling license type already exists: {lt_data["display_name"]}')
         
         # Set up personal free licenses for personal organizations
         personal_orgs = Organization.objects.filter(organization_type='personal')
-        personal_free_license_type = LicenseType.objects.get(
+        
+        # CFlows personal free licenses
+        cflows_personal_free_license_type = LicenseType.objects.get(
             service=cflows_service, 
             name='personal_free'
         )
         
+        # Scheduling personal free licenses  
+        scheduling_personal_free_license_type = LicenseType.objects.get(
+            service=scheduling_service,
+            name='personal_free'
+        )
+        
         for org in personal_orgs:
-            license, created = License.objects.get_or_create(
+            # Create CFlows license
+            cflows_license, created = License.objects.get_or_create(
                 organization=org,
-                license_type=personal_free_license_type,
+                license_type=cflows_personal_free_license_type,
                 defaults={
                     'account_type': 'personal',
                     'is_personal_free': True,
@@ -170,7 +263,24 @@ class Command(BaseCommand):
             )
             
             if created:
-                self.stdout.write(f'✓ Created personal free license for: {org.name}')
+                self.stdout.write(f'✓ Created CFlows personal free license for: {org.name}')
+            
+            # Create Scheduling license
+            scheduling_license, created = License.objects.get_or_create(
+                organization=org,
+                license_type=scheduling_personal_free_license_type,
+                defaults={
+                    'account_type': 'personal',
+                    'is_personal_free': True,
+                    'status': 'active',
+                    'billing_cycle': 'lifetime',
+                    'start_date': timezone.now(),
+                    'current_users': org.members.count(),
+                }
+            )
+            
+            if created:
+                self.stdout.write(f'✓ Created Scheduling personal free license for: {org.name}')
         
         # Update existing Demo Car Dealership organization to be business type with basic license
         try:
@@ -180,14 +290,15 @@ class Command(BaseCommand):
                 demo_org.save()
                 self.stdout.write(f'✓ Updated {demo_org.name} to business organization')
             
-            basic_license_type = LicenseType.objects.get(
+            # CFlows basic license
+            cflows_basic_license_type = LicenseType.objects.get(
                 service=cflows_service,
                 name='basic'
             )
             
-            license, created = License.objects.get_or_create(
+            cflows_license, created = License.objects.get_or_create(
                 organization=demo_org,
-                license_type=basic_license_type,
+                license_type=cflows_basic_license_type,
                 defaults={
                     'account_type': 'organization',
                     'is_personal_free': False,
@@ -201,7 +312,32 @@ class Command(BaseCommand):
             )
             
             if created:
-                self.stdout.write(f'✓ Created basic trial license for: {demo_org.name}')
+                self.stdout.write(f'✓ Created CFlows basic trial license for: {demo_org.name}')
+            
+            # Scheduling basic license
+            scheduling_basic_license_type = LicenseType.objects.get(
+                service=scheduling_service,
+                name='basic'
+            )
+            
+            scheduling_license, created = License.objects.get_or_create(
+                organization=demo_org,
+                license_type=scheduling_basic_license_type,
+                defaults={
+                    'account_type': 'organization',
+                    'is_personal_free': False,
+                    'status': 'trial',
+                    'billing_cycle': 'monthly',
+                    'start_date': timezone.now(),
+                    'trial_end_date': timezone.now() + timezone.timedelta(days=30),
+                    'current_users': demo_org.members.count(),
+                    'current_projects': 0,  # Will be updated as projects are created
+                    'current_workflows': 0,  # Using workflows field for events/bookings tracking
+                }
+            )
+            
+            if created:
+                self.stdout.write(f'✓ Created Scheduling basic trial license for: {demo_org.name}')
                 
         except Organization.DoesNotExist:
             self.stdout.write('⚠ Demo Car Dealership organization not found')

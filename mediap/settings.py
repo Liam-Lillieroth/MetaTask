@@ -30,7 +30,7 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='', cast=lambda v: [s.strip() for s in v.split(',') if s.strip()])
 if not ALLOWED_HOSTS:
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
 
 # Add GitHub Codespaces host
 codespace_name = os.environ.get('CODESPACE_NAME')
@@ -91,7 +91,7 @@ INSTALLED_APPS = [
     
     # Services
     'services.cflows',
-    'services.job_planning',
+    'services.scheduling',
 ]
 
 MIDDLEWARE = [

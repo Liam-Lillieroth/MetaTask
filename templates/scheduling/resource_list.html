@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Resources - {{ profile.organization.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1>Schedulable Resources</h1>
+                    <p class="text-muted">Manage your organization's schedulable resources</p>
+                </div>
+                <div>
+                    <a href="{% url 'scheduling:sync_teams' %}" class="btn btn-primary">
+                        <i class="fas fa-sync"></i> Sync Teams
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Resources ({{ page_obj.paginator.count }} total)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Service</th>
+                                    <th>Capacity</th>
+                                    <th>Linked Team</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for resource in resources %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'scheduling:resource_detail' resource.id %}">
+                                            <strong>{{ resource.name }}</strong>
+                                        </a>
+                                        {% if resource.description %}
+                                        <br><small class="text-muted">{{ resource.description|truncatechars:50 }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ resource.get_resource_type_display }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">{{ resource.service_type }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold">{{ resource.max_concurrent_bookings }}</span>
+                                    </td>
+                                    <td>
+                                        {% if resource.linked_team %}
+                                            <a href="#" class="text-decoration-none">{{ resource.linked_team.name }}</a>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if resource.is_active %}
+                                            <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'scheduling:resource_detail' resource.id %}" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center py-4">
+                                        <div class="text-muted">
+                                            <i class="fas fa-tools fa-3x mb-3"></i>
+                                            <h5>No resources found</h5>
+                                            <p>Create some resources by syncing your teams or adding them manually.</p>
+                                            <a href="{% url 'scheduling:sync_teams' %}" class="btn btn-primary">
+                                                <i class="fas fa-sync"></i> Sync Teams
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if page_obj.has_other_pages %}
+                    <nav aria-label="Resource pagination" class="mt-3">
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1">&laquo; First</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                                </li>
+                            {% endif %}
+
+                            {% for num in page_obj.paginator.page_range %}
+                                {% if page_obj.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

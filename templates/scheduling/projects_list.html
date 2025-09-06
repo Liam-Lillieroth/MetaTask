@@ -1,0 +1,108 @@
+{% extends "scheduling/scheduling_base_fixed.html" %}
+
+{% block scheduling_content %}
+<div class="flex justify-between items-center mb-6">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900">Projects</h2>
+        <p class="text-sm text-gray-600 mt-1">Manage your projects and their scheduling</p>
+    </div>
+    <a href="{% url 'scheduling:create_project' %}" class="btn btn-primary">
+        <i class="fas fa-plus mr-2"></i>New Project
+    </a>
+</div>
+
+<!-- Filters -->
+<div class="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+    <div class="flex flex-wrap items-center gap-4">
+        <div class="flex items-center space-x-2">
+            <label for="status-filter" class="text-sm font-medium text-gray-700">Status:</label>
+            <select id="status-filter" class="form-select text-sm border-gray-300 rounded-md">
+                <option value="">All Statuses</option>
+                <option value="planning">Planning</option>
+                <option value="active">Active</option>
+                <option value="on_hold">On Hold</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+            </select>
+        </div>
+        
+        <div class="flex items-center space-x-2">
+            <label for="priority-filter" class="text-sm font-medium text-gray-700">Priority:</label>
+            <select id="priority-filter" class="form-select text-sm border-gray-300 rounded-md">
+                <option value="">All Priorities</option>
+                <option value="low">Low</option>
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+            </select>
+        </div>
+        
+        <div class="flex items-center space-x-2">
+            <input type="text" id="search-projects" placeholder="Search projects..." 
+                   class="form-input text-sm border-gray-300 rounded-md">
+        </div>
+    </div>
+</div>
+
+<!-- Projects List -->
+<div class="space-y-4">
+    <!-- Empty state -->
+    <div class="bg-white rounded-lg border border-gray-200 p-12 text-center">
+        <div class="mx-auto mb-4">
+            <i class="fas fa-project-diagram text-6xl text-gray-400"></i>
+        </div>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">No projects yet</h3>
+        <p class="text-gray-600 mb-4">Get started by creating your first project to manage resources and scheduling.</p>
+        <a href="{% url 'scheduling:create_project' %}" class="btn btn-primary">
+            <i class="fas fa-plus mr-2"></i>Create Your First Project
+        </a>
+    </div>
+</div>
+    
+    <!-- Projects will be loaded here via JavaScript or Django context -->
+    <!-- Example project card for reference:
+    <div class="card">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <div class="flex items-center mb-2">
+                    <h3 class="text-lg font-semibold text-gray-900 mr-3">Project Name</h3>
+                    <span class="status-badge status-active">Active</span>
+                </div>
+                
+                <p class="text-gray-600 mb-3">Project description goes here...</p>
+                
+                <div class="flex items-center text-sm text-gray-500 space-x-6">
+                    <span><i class="fas fa-calendar mr-1"></i>Start: Jan 15, 2024</span>
+                    <span><i class="fas fa-flag mr-1"></i>Priority: High</span>
+                    <span><i class="fas fa-user mr-1"></i>Manager: John Doe</span>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-2 ml-4">
+                <a href="#" class="text-blue-600 hover:text-blue-800 text-sm">View</a>
+                <a href="#" class="text-gray-600 hover:text-gray-800 text-sm">Edit</a>
+            </div>
+        </div>
+    </div>
+    -->
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add filtering and search functionality
+    const statusFilter = document.getElementById('status-filter');
+    const priorityFilter = document.getElementById('priority-filter');
+    const searchInput = document.getElementById('search-projects');
+    
+    // Add event listeners for filters
+    statusFilter.addEventListener('change', filterProjects);
+    priorityFilter.addEventListener('change', filterProjects);
+    searchInput.addEventListener('input', filterProjects);
+    
+    function filterProjects() {
+        // Implement filtering logic here
+        console.log('Filtering projects...');
+    }
+});
+</script>
+{% endblock %}

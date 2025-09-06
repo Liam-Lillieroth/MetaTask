@@ -1,0 +1,186 @@
+{% extends "scheduling/scheduling_base_fixed.html" %}
+
+{% block scheduling_content %}
+<div class="max-w-2xl mx-auto">
+    <div class="flex items-center mb-6">
+        <a href="{% url 'scheduling:projects' %}" class="text-blue-600 hover:text-blue-800 mr-4">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <div>
+            <h2 class="text-2xl font-bold text-gray-900">Create New Project</h2>
+            <p class="text-sm text-gray-600 mt-1">Set up a new project for resource scheduling</p>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg border border-gray-200 p-6">
+        <form id="project-form" class="space-y-6">
+            <div>
+                <label for="project-name" class="block text-sm font-medium text-gray-700 mb-2">
+                    Project Name *
+                </label>
+                <input type="text" id="project-name" name="name" required 
+                       class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                       placeholder="Enter project name">
+            </div>
+            
+            <div>
+                <label for="project-description" class="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                </label>
+                <textarea id="project-description" name="description" rows="4" 
+                          class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                          placeholder="Describe the project objectives and scope"></textarea>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="project-status" class="block text-sm font-medium text-gray-700 mb-2">
+                        Status
+                    </label>
+                    <select id="project-status" name="status" 
+                            class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="planning" selected>Planning</option>
+                        <option value="active">Active</option>
+                        <option value="on_hold">On Hold</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label for="project-priority" class="block text-sm font-medium text-gray-700 mb-2">
+                        Priority
+                    </label>
+                    <select id="project-priority" name="priority" 
+                            class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="low">Low</option>
+                        <option value="normal" selected>Normal</option>
+                        <option value="high">High</option>
+                        <option value="urgent">Urgent</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="project-start-date" class="block text-sm font-medium text-gray-700 mb-2">
+                        Start Date
+                    </label>
+                    <input type="date" id="project-start-date" name="start_date" 
+                           class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label for="project-end-date" class="block text-sm font-medium text-gray-700 mb-2">
+                        End Date
+                    </label>
+                    <input type="date" id="project-end-date" name="end_date" 
+                           class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+            </div>
+            
+            <div class="border-t border-gray-200 pt-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Client Information</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="client-name" class="block text-sm font-medium text-gray-700 mb-2">
+                            Client Name
+                        </label>
+                        <input type="text" id="client-name" name="client_name" 
+                               class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                               placeholder="Client or organization name">
+                    </div>
+                    
+                    <div>
+                        <label for="client-contact" class="block text-sm font-medium text-gray-700 mb-2">
+                            Client Contact
+                        </label>
+                        <input type="text" id="client-contact" name="client_contact" 
+                               class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                               placeholder="Email or phone number">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="border-t border-gray-200 pt-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Project Management</h3>
+                
+                <div>
+                    <label for="project-manager" class="block text-sm font-medium text-gray-700 mb-2">
+                        Project Manager
+                    </label>
+                    <select id="project-manager" name="manager" 
+                            class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="">Select project manager</option>
+                        <option value="{{ request.user.id }}">{{ request.user.get_full_name|default:request.user.username }} (Me)</option>
+                        <!-- Other users would be loaded here -->
+                    </select>
+                </div>
+            </div>
+            
+            <div class="flex justify-end space-x-4 pt-6">
+                <a href="{% url 'scheduling:projects' %}" class="btn btn-secondary">
+                    Cancel
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    Create Project
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const projectForm = document.getElementById('project-form');
+    const startDateInput = document.getElementById('project-start-date');
+    const endDateInput = document.getElementById('project-end-date');
+    
+    // Set default start date to today
+    const today = new Date().toISOString().split('T')[0];
+    startDateInput.value = today;
+    
+    // Validate end date is after start date
+    startDateInput.addEventListener('change', function() {
+        endDateInput.min = this.value;
+        if (endDateInput.value && endDateInput.value < this.value) {
+            endDateInput.value = '';
+        }
+    });
+    
+    endDateInput.addEventListener('change', function() {
+        if (startDateInput.value && this.value < startDateInput.value) {
+            alert('End date must be after start date');
+            this.value = '';
+        }
+    });
+    
+    // Handle form submission
+    projectForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(projectForm);
+        const projectData = Object.fromEntries(formData.entries());
+        
+        // Basic validation
+        if (!projectData.name.trim()) {
+            alert('Project name is required');
+            return;
+        }
+        
+        if (projectData.start_date && projectData.end_date && projectData.end_date < projectData.start_date) {
+            alert('End date must be after start date');
+            return;
+        }
+        
+        // Here you would typically send the data to your backend
+        console.log('Project data:', projectData);
+        
+        // For now, show success message and redirect
+        alert('Project created successfully!');
+        window.location.href = "{% url 'scheduling:projects' %}";
+    });
+});
+</script>
+{% endblock %}

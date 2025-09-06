@@ -1,0 +1,278 @@
+{% extends "scheduling/scheduling_base_fixed.html" %}
+
+{% block scheduling_content %}
+<div class="flex justify-between items-center mb-6">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900">Resources</h2>
+        <p class="text-sm text-gray-600 mt-1">Manage people, equipment, and other resources</p>
+    </div>
+    <button @click="showResourceModal()" class="btn btn-primary">
+        <i class="fas fa-plus mr-2"></i>Add Resource
+    </button>
+</div>
+
+<!-- Resource Filters -->
+<div class="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+    <div class="flex flex-wrap items-center gap-4">
+        <div class="flex items-center space-x-2">
+            <label for="type-filter" class="text-sm font-medium text-gray-700">Type:</label>
+            <select id="type-filter" class="form-select text-sm border-gray-300 rounded-md">
+                <option value="">All Types</option>
+                <option value="person">Person</option>
+                <option value="equipment">Equipment</option>
+                <option value="room">Room</option>
+                <option value="vehicle">Vehicle</option>
+                <option value="other">Other</option>
+            </select>
+        </div>
+        
+        <div class="flex items-center space-x-2">
+            <label for="availability-filter" class="text-sm font-medium text-gray-700">Availability:</label>
+            <select id="availability-filter" class="form-select text-sm border-gray-300 rounded-md">
+                <option value="">All Resources</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+            </select>
+        </div>
+        
+        <div class="flex items-center space-x-2">
+            <input type="text" id="search-resources" placeholder="Search resources..." 
+                   class="form-input text-sm border-gray-300 rounded-md">
+        </div>
+    </div>
+</div>
+
+<!-- Resource Types Overview -->
+<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+    <div class="bg-white rounded-lg border border-gray-200 p-4 text-center">
+        <div class="text-2xl mb-2">👥</div>
+        <div class="text-2xl font-bold text-blue-600">0</div>
+        <div class="text-sm text-gray-600">People</div>
+    </div>
+    
+    <div class="bg-white rounded-lg border border-gray-200 p-4 text-center">
+        <div class="text-2xl mb-2">🔧</div>
+        <div class="text-2xl font-bold text-green-600">0</div>
+        <div class="text-sm text-gray-600">Equipment</div>
+    </div>
+    
+    <div class="bg-white rounded-lg border border-gray-200 p-4 text-center">
+        <div class="text-2xl mb-2">🏢</div>
+        <div class="text-2xl font-bold text-purple-600">0</div>
+        <div class="text-sm text-gray-600">Rooms</div>
+    </div>
+    
+    <div class="bg-white rounded-lg border border-gray-200 p-4 text-center">
+        <div class="text-2xl mb-2">🚗</div>
+        <div class="text-2xl font-bold text-orange-600">0</div>
+        <div class="text-sm text-gray-600">Vehicles</div>
+    </div>
+    
+    <div class="bg-white rounded-lg border border-gray-200 p-4 text-center">
+        <div class="text-2xl mb-2">📦</div>
+        <div class="text-2xl font-bold text-gray-600">0</div>
+        <div class="text-sm text-gray-600">Other</div>
+    </div>
+</div>
+
+<!-- Resources List -->
+<div class="space-y-4">
+    <!-- Empty state -->
+    <div class="bg-white rounded-lg border border-gray-200 p-12 text-center">
+        <div class="mx-auto mb-4">
+            <i class="fas fa-users text-6xl text-gray-400"></i>
+        </div>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">No resources yet</h3>
+        <p class="text-gray-600 mb-4">Add people, equipment, rooms, or other resources to start scheduling.</p>
+        <button @click="showResourceModal()" class="btn btn-primary">
+            <i class="fas fa-plus mr-2"></i>Add Your First Resource
+        </button>
+    </div>
+</div>
+    
+    <!-- Example resource cards for reference:
+    <div class="card">
+        <div class="flex items-start justify-between">
+            <div class="flex items-start">
+                <div class="flex-shrink-0 mr-4">
+                    <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                        <i class="fas fa-user text-blue-600"></i>
+                    </div>
+                </div>
+                
+                <div class="flex-1">
+                    <div class="flex items-center mb-2">
+                        <h3 class="text-lg font-semibold text-gray-900 mr-3">John Doe</h3>
+                        <span class="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">Person</span>
+                        <span class="ml-2 px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Active</span>
+                    </div>
+                    
+                    <p class="text-gray-600 mb-2">Senior Developer - Full-stack development</p>
+                    
+                    <div class="flex items-center text-sm text-gray-500 space-x-4">
+                        <span><i class="fas fa-envelope mr-1"></i>john@example.com</span>
+                        <span><i class="fas fa-phone mr-1"></i>+1 234 567 8900</span>
+                        <span><i class="fas fa-clock mr-1"></i>9:00 AM - 5:00 PM</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-2 ml-4">
+                <button class="text-blue-600 hover:text-blue-800 text-sm">Edit</button>
+                <button class="text-red-600 hover:text-red-800 text-sm">Delete</button>
+            </div>
+        </div>
+    </div>
+    -->
+</div>
+
+<!-- Add Resource Modal -->
+<div id="resource-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-lg p-6 w-full max-w-lg mx-4">
+        <div class="flex justify-between items-center mb-4">
+            <h3 id="resource-modal-title" class="text-lg font-semibold text-gray-900">Add Resource</h3>
+            <button id="close-resource-modal" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <form id="resource-form" class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="resource-name" class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                    <input type="text" id="resource-name" name="name" required 
+                           class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label for="resource-type" class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                    <select id="resource-type" name="type" required 
+                            class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="">Select type</option>
+                        <option value="person">Person</option>
+                        <option value="equipment">Equipment</option>
+                        <option value="room">Room</option>
+                        <option value="vehicle">Vehicle</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div>
+                <label for="resource-description" class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea id="resource-description" name="description" rows="3" 
+                          class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"></textarea>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="resource-email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" id="resource-email" name="email" 
+                           class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label for="resource-phone" class="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <input type="tel" id="resource-phone" name="phone" 
+                           class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-3 gap-4">
+                <div>
+                    <label for="resource-capacity" class="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
+                    <input type="number" id="resource-capacity" name="capacity" min="1" value="1" 
+                           class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label for="resource-available-from" class="block text-sm font-medium text-gray-700 mb-1">Available From</label>
+                    <input type="time" id="resource-available-from" name="available_from" value="09:00" 
+                           class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label for="resource-available-to" class="block text-sm font-medium text-gray-700 mb-1">Available To</label>
+                    <input type="time" id="resource-available-to" name="available_to" value="17:00" 
+                           class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+            </div>
+            
+            <div class="flex items-center">
+                <input type="checkbox" id="resource-is-active" name="is_active" checked 
+                       class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                <label for="resource-is-active" class="ml-2 block text-sm text-gray-900">Active</label>
+            </div>
+            
+            <div class="flex justify-end space-x-3">
+                <button type="button" id="cancel-resource" class="px-4 py-2 text-gray-600 hover:text-gray-800">
+                    Cancel
+                </button>
+                <button type="submit" class="btn-primary">
+                    Save Resource
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const resourceModal = document.getElementById('resource-modal');
+    const resourceForm = document.getElementById('resource-form');
+    
+    // Modal functions
+    function showResourceModal(title = 'Add Resource', resourceData = {}) {
+        document.getElementById('resource-modal-title').textContent = title;
+        
+        // Populate form with resource data if editing
+        if (resourceData.name) document.getElementById('resource-name').value = resourceData.name;
+        if (resourceData.type) document.getElementById('resource-type').value = resourceData.type;
+        if (resourceData.description) document.getElementById('resource-description').value = resourceData.description;
+        if (resourceData.email) document.getElementById('resource-email').value = resourceData.email;
+        if (resourceData.phone) document.getElementById('resource-phone').value = resourceData.phone;
+        
+        resourceModal.classList.remove('hidden');
+    }
+    
+    function hideResourceModal() {
+        resourceModal.classList.add('hidden');
+        resourceForm.reset();
+    }
+    
+    // Event listeners
+    document.getElementById('add-resource').addEventListener('click', () => showResourceModal());
+    document.getElementById('add-first-resource').addEventListener('click', () => showResourceModal());
+    document.getElementById('close-resource-modal').addEventListener('click', hideResourceModal);
+    document.getElementById('cancel-resource').addEventListener('click', hideResourceModal);
+    
+    // Handle form submission
+    resourceForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(resourceForm);
+        const resourceData = Object.fromEntries(formData.entries());
+        
+        // Here you would typically send the data to your backend
+        console.log('Resource data:', resourceData);
+        
+        // For now, just show success message
+        alert('Resource saved successfully!');
+        hideResourceModal();
+    });
+    
+    // Filter handlers
+    document.getElementById('type-filter').addEventListener('change', function() {
+        console.log('Filter by type:', this.value);
+    });
+    
+    document.getElementById('availability-filter').addEventListener('change', function() {
+        console.log('Filter by availability:', this.value);
+    });
+    
+    document.getElementById('search-resources').addEventListener('input', function() {
+        console.log('Search resources:', this.value);
+    });
+});
+</script>
+{% endblock %}
