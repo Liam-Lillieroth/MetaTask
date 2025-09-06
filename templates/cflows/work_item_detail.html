@@ -88,6 +88,53 @@
                         </div>
                     {% endif %}
                 </div>
+
+                {% if booking_status.required %}
+                <!-- Booking Requirement Banner -->
+                <div class="mt-4">
+                    {% if booking_status.all_completed %}
+                        <div class="flex items-start p-4 rounded-lg border border-green-300 bg-green-50">
+                            <div class="flex-shrink-0 mr-3 text-green-600">
+                                <i class="fas fa-check-circle text-xl"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-green-800 mb-1">All required bookings for this step are completed.</p>
+                                <p class="text-xs text-green-700">You can safely move this work item forward.</p>
+                            </div>
+                            <div class="ml-4 hidden sm:block">
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">{{ booking_status.completed }}/{{ booking_status.total }}</span>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="flex items-start p-4 rounded-lg border border-yellow-300 bg-yellow-50">
+                            <div class="flex-shrink-0 mr-3 text-yellow-600">
+                                <i class="fas fa-exclamation-triangle text-xl"></i>
+                            </div>
+                            <div class="flex-1">
+                                {% if booking_status.needs_creation %}
+                                    <p class="text-sm font-medium text-yellow-800 mb-1">This step requires a booking before it can progress.</p>
+                                    <p class="text-xs text-yellow-700">Create and complete at least one booking for the assigned team.</p>
+                                {% else %}
+                                    <p class="text-sm font-medium text-yellow-800 mb-1">Required bookings incomplete.</p>
+                                    <p class="text-xs text-yellow-700">Complete all bookings to enable forward transitions. ({{ booking_status.completed }}/{{ booking_status.total }} done)</p>
+                                {% endif %}
+                            </div>
+                            <div class="ml-4 flex flex-col space-y-2">
+                                {% if booking_status.needs_creation %}
+                                    <a href="/services/cflows/calendar/bookings/create/?work_item_id={{ work_item.id }}&step_id={{ work_item.current_step.id }}" class="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-md shadow">
+                                        <i class="fas fa-plus mr-2"></i>Create Booking
+                                    </a>
+                                {% else %}
+                                    <a href="/services/scheduling/bookings/?work_item_id={{ work_item.id }}" class="inline-flex items-center px-3 py-2 bg-white border border-yellow-400 text-yellow-800 hover:bg-yellow-100 text-xs font-medium rounded-md">
+                                        <i class="fas fa-calendar-alt mr-2"></i>View Bookings
+                                    </a>
+                                {% endif %}
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">{{ booking_status.completed }}/{{ booking_status.total }}</span>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+                {% endif %}
             </div>
             
             <!-- Actions -->

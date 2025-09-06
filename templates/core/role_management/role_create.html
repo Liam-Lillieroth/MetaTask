@@ -1,0 +1,253 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Create Role - {{ organization.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Create New Role</h1>
+                <a href="{% url 'core:role_list' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Roles
+                </a>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Role Information</h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="post">
+                                {% csrf_token %}
+                                
+                                <!-- Basic Role Info -->
+                                <div class="form-group">
+                                    <label for="name">Role Name *</label>
+                                    <input type="text" class="form-control" id="name" name="name" required 
+                                           placeholder="e.g., Sales Manager, Mechanic, Quality Inspector">
+                                    <small class="form-text text-muted">Choose a descriptive name for this role</small>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="description">Description</label>
+                                    <textarea class="form-control" id="description" name="description" rows="3" 
+                                              placeholder="Describe what this role does and its responsibilities"></textarea>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="role_type">Role Type</label>
+                                            <select class="form-control" id="role_type" name="role_type">
+                                                <option value="custom" selected>Custom Role</option>
+                                                <option value="system">System Role</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="color">Role Color</label>
+                                            <input type="color" class="form-control" id="color" name="color" value="#6B7280">
+                                            <small class="form-text text-muted">Used for visual identification</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="max_users">Maximum Users (optional)</label>
+                                    <input type="number" class="form-control" id="max_users" name="max_users" min="1" 
+                                           placeholder="Leave empty for unlimited">
+                                    <small class="form-text text-muted">Limit the number of users that can have this role</small>
+                                </div>
+
+                                <!-- Permissions Section -->
+                                <div class="form-group mt-4">
+                                    <label class="h6">Permissions</label>
+                                    <p class="text-muted">Select the permissions this role should have:</p>
+                                    
+                                    <!-- Permission Categories -->
+                                    {% for category, permissions in grouped_permissions.items %}
+                                    <div class="card mb-3">
+                                        <div class="card-header" data-toggle="collapse" data-target="#category-{{ forloop.counter }}">
+                                            <h6 class="mb-0 d-flex justify-content-between align-items-center">
+                                                <span>
+                                                    <i class="fas fa-{% if category == 'Workflow Management' %}sitemap{% elif category == 'Work Item Management' %}tasks{% elif category == 'Team Management' %}users{% elif category == 'User Management' %}user-cog{% elif category == 'Booking Management' %}calendar{% elif category == 'Reporting & Analytics' %}chart-bar{% elif category == 'System Administration' %}cog{% else %}puzzle-piece{% endif %}"></i>
+                                                    {{ category }} ({{ permissions|length }} permissions)
+                                                </span>
+                                                <div>
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInCategory('category-{{ forloop.counter }}')">
+                                                        Select All
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAllInCategory('category-{{ forloop.counter }}')">
+                                                        Clear
+                                                    </button>
+                                                    <i class="fas fa-chevron-down"></i>
+                                                </div>
+                                            </h6>
+                                        </div>
+                                        <div class="collapse" id="category-{{ forloop.counter }}">
+                                            <div class="card-body">
+                                                <div class="row">
+                                                    {% for permission in permissions %}
+                                                    <div class="col-md-6 mb-2">
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" 
+                                                                   name="permissions" value="{{ permission.id }}" 
+                                                                   id="perm_{{ permission.id }}">
+                                                            <label class="form-check-label" for="perm_{{ permission.id }}">
+                                                                <strong>{{ permission.name }}</strong>
+                                                                <br><small class="text-muted">{{ permission.description }}</small>
+                                                                <br><code class="text-info">{{ permission.codename }}</code>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+
+                                <!-- Submit Buttons -->
+                                <div class="d-flex justify-content-end">
+                                    <a href="{% url 'core:role_list' %}" class="btn btn-secondary mr-2">Cancel</a>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-plus"></i> Create Role
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Role Templates Sidebar -->
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6>Role Templates</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted">Quick setup for common roles:</p>
+                            
+                            <div class="list-group">
+                                <button type="button" class="list-group-item list-group-item-action" onclick="loadRoleTemplate('sales_manager')">
+                                    <i class="fas fa-handshake text-success"></i>
+                                    <strong>Sales Manager</strong><br>
+                                    <small>Manage sales workflows and customer interactions</small>
+                                </button>
+                                
+                                <button type="button" class="list-group-item list-group-item-action" onclick="loadRoleTemplate('technician')">
+                                    <i class="fas fa-wrench text-primary"></i>
+                                    <strong>Technician</strong><br>
+                                    <small>Perform service work and update job status</small>
+                                </button>
+                                
+                                <button type="button" class="list-group-item list-group-item-action" onclick="loadRoleTemplate('supervisor')">
+                                    <i class="fas fa-eye text-warning"></i>
+                                    <strong>Supervisor</strong><br>
+                                    <small>Oversee operations and manage teams</small>
+                                </button>
+                                
+                                <button type="button" class="list-group-item list-group-item-action" onclick="loadRoleTemplate('receptionist')">
+                                    <i class="fas fa-phone text-info"></i>
+                                    <strong>Receptionist</strong><br>
+                                    <small>Handle bookings and customer communication</small>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tips Card -->
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h6>Tips for Creating Roles</h6>
+                        </div>
+                        <div class="card-body">
+                            <ul class="mb-0">
+                                <li><strong>Be Specific:</strong> Use clear, descriptive names</li>
+                                <li><strong>Follow Principle of Least Privilege:</strong> Only assign necessary permissions</li>
+                                <li><strong>Group Similar Permissions:</strong> Related permissions work better together</li>
+                                <li><strong>Test First:</strong> Create test roles before rolling out</li>
+                                <li><strong>Document:</strong> Use the description field to explain the role's purpose</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function selectAllInCategory(categoryId) {
+    const checkboxes = document.querySelectorAll(`#${categoryId} input[type="checkbox"]`);
+    checkboxes.forEach(checkbox => checkbox.checked = true);
+}
+
+function deselectAllInCategory(categoryId) {
+    const checkboxes = document.querySelectorAll(`#${categoryId} input[type="checkbox"]`);
+    checkboxes.forEach(checkbox => checkbox.checked = false);
+}
+
+function loadRoleTemplate(templateName) {
+    const templates = {
+        'sales_manager': {
+            name: 'Sales Manager',
+            description: 'Manages sales processes, customer relationships, and sales team performance',
+            color: '#10B981',
+            permissions: ['workflow.view', 'workflow.create', 'workitem.view', 'workitem.create', 'workitem.edit', 'workitem.assign', 'team.view', 'team.manage_members', 'user.view', 'booking.create', 'booking.edit', 'booking.view', 'reports.view']
+        },
+        'technician': {
+            name: 'Technician',
+            description: 'Performs technical work, updates work item status, and completes service tasks',
+            color: '#3B82F6',
+            permissions: ['workflow.view', 'workitem.view', 'workitem.edit', 'workitem.transition', 'booking.view', 'booking.complete', 'team.view', 'user.view']
+        },
+        'supervisor': {
+            name: 'Supervisor',
+            description: 'Oversees daily operations, manages team assignments, and ensures quality standards',
+            color: '#F59E0B',
+            permissions: ['workflow.view', 'workitem.view', 'workitem.edit', 'workitem.assign', 'workitem.transition', 'team.view', 'team.manage_members', 'user.view', 'booking.view', 'booking.edit', 'booking.complete', 'reports.view']
+        },
+        'receptionist': {
+            name: 'Receptionist',
+            description: 'Handles customer inquiries, manages bookings, and provides front desk services',
+            color: '#06B6D4',
+            permissions: ['workflow.view', 'workitem.view', 'workitem.create', 'booking.create', 'booking.view', 'booking.edit', 'user.view', 'team.view']
+        }
+    };
+
+    const template = templates[templateName];
+    if (template) {
+        document.getElementById('name').value = template.name;
+        document.getElementById('description').value = template.description;
+        document.getElementById('color').value = template.color;
+
+        // Clear all checkboxes first
+        document.querySelectorAll('input[name="permissions"]').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+
+        // Check template permissions
+        template.permissions.forEach(permission => {
+            const checkbox = document.querySelector(`input[name="permissions"][id*="${permission}"]`);
+            if (checkbox) {
+                checkbox.checked = true;
+            }
+        });
+    }
+}
+
+// Auto-expand first category on page load
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelector('.collapse').classList.add('show');
+});
+</script>
+{% endblock %}

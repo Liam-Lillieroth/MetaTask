@@ -291,9 +291,17 @@ class CFlowsIntegration(ServiceIntegration):
             return []
 
 
+class DefaultIntegration(ServiceIntegration):
+    """Default integration implementation for unknown services"""
+    
+    def sync_data(self):
+        """Default sync does nothing"""
+        return []
+
+
 def get_service_integration(organization, service_name: str) -> ServiceIntegration:
     """Factory function to get appropriate service integration"""
     if service_name == 'cflows':
         return CFlowsIntegration(organization)
     else:
-        return ServiceIntegration(organization)
+        return DefaultIntegration(organization)

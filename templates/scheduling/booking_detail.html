@@ -71,24 +71,11 @@
                 </form>
             {% endif %}
             
-            {% if booking.status == 'confirmed' %}
-                <form method="post" action="{% url 'scheduling:booking_action' booking.id 'start' %}" class="inline">
-                    {% csrf_token %}
-                    <button type="submit" class="action-btn action-btn-warning">
-                        <i class="fas fa-play mr-2"></i>
-                        Start
-                    </button>
-                </form>
-            {% endif %}
-            
-            {% if booking.status == 'in_progress' %}
-                <form method="post" action="{% url 'scheduling:booking_action' booking.id 'complete' %}" class="inline">
-                    {% csrf_token %}
-                    <button type="submit" class="action-btn action-btn-primary">
-                        <i class="fas fa-flag-checkered mr-2"></i>
-                        Complete
-                    </button>
-                </form>
+            {% if booking.status == 'confirmed' or booking.status == 'in-progress' %}
+                <button onclick="completeBooking('{{ booking.id }}')" class="action-btn action-btn-primary">
+                    <i class="fas fa-check-circle mr-2"></i>
+                    Complete
+                </button>
             {% endif %}
             
             {% if booking.status not in 'completed,cancelled' %}
@@ -189,8 +176,76 @@
                 </div>
             </div>
 
+            <!-- Work Item Information -->
+            {% if booking.custom_data.work_item_id %}
+            <div class="bg-white shadow rounded-lg">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">
+                        <i class="fas fa-tasks text-blue-600 mr-2"></i>
+                        Work Item Details
+                    </h3>
+                </div>
+                <div class="px-6 py-4">
+                    <dl class="space-y-4">
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Work Item</dt>
+                            <dd class="mt-1 text-sm font-semibold text-gray-900">
+                                {% if booking.custom_data.work_item_title %}
+                                    <a href="/services/cflows/work_items/{{ booking.custom_data.work_item_id }}/" 
+                                       class="text-blue-600 hover:text-blue-800 hover:underline">
+                                        <i class="fas fa-external-link-alt mr-1"></i>
+                                        {{ booking.custom_data.work_item_title }}
+                                    </a>
+                                {% else %}
+                                    Work Item #{{ booking.custom_data.work_item_id }}
+                                {% endif %}
+                            </dd>
+                        </div>
+                        
+                        {% if booking.custom_data.workflow_step_name %}
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Workflow Step</dt>
+                            <dd class="mt-1 text-sm text-gray-900">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                    <i class="fas fa-sitemap mr-1"></i>
+                                    {{ booking.custom_data.workflow_step_name }}
+                                </span>
+                            </dd>
+                        </div>
+                        {% endif %}
+                        
+                        {% if booking.custom_data.team_name %}
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Assigned Team</dt>
+                            <dd class="mt-1 text-sm text-gray-900">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    <i class="fas fa-users mr-1"></i>
+                                    {{ booking.custom_data.team_name }}
+                                </span>
+                            </dd>
+                        </div>
+                        {% endif %}
+                        
+                        {% if booking.custom_data.original_booking_title %}
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500">Original Booking Title</dt>
+                            <dd class="mt-1 text-sm text-gray-900">{{ booking.custom_data.original_booking_title }}</dd>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="pt-2 border-t border-gray-200">
+                            <p class="text-xs text-gray-500">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                This booking was created from CFlows workflow management system
+                            </p>
+                        </div>
+                    </dl>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Custom Data -->
-            {% if booking.custom_data %}
+            {% if booking.custom_data and not booking.custom_data.work_item_id %}
             <div class="bg-white shadow rounded-lg">
                 <div class="px-6 py-4 border-b border-gray-200">
                     <h3 class="text-lg font-medium text-gray-900">
@@ -416,6 +471,58 @@ function showCancelModal() {
 
 function hideCancelModal() {
     document.getElementById('cancelModal').classList.add('hidden');
+}
+
+function completeBooking(bookingId) {
+    // Check if there's a linked work item first
+    fetch(`/scheduling/booking/${bookingId}/complete_booking_workflow_prompt/`)
+        .then(response => {
+            if (response.ok) {
+                // If we get a successful response, it means there's a workflow prompt
+                window.location.href = `/scheduling/booking/${bookingId}/complete_booking_workflow_prompt/`;
+            } else {
+                // No workflow, complete directly
+                return fetch(`/scheduling/booking/${bookingId}/complete_booking/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({
+                        completion_notes: 'Completed from booking detail'
+                    })
+                });
+            }
+        })
+        .then(response => {
+            if (response && response.ok) {
+                return response.json();
+            }
+        })
+        .then(data => {
+            if (data && data.success) {
+                window.location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while completing the booking.');
+        });
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
 }
 </script>
 {% endblock %}

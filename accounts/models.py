@@ -2,6 +2,11 @@ from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
 from django.db import models
 from django.utils.text import slugify
+from django.utils import timezone
+from typing import List, Set, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.permissions import Permission, Role, UserRoleAssignment
 
 
 class CustomUser(AbstractUser):
@@ -194,6 +199,9 @@ class UserProfile(models.Model):
     bio = models.TextField(max_length=500, blank=True)
     website = models.URLField(blank=True)
     
+    # Organization access
+    is_organization_admin = models.BooleanField(default=False)
+    
     # Notification preferences
     email_notifications = models.BooleanField(default=True)
     push_notifications = models.BooleanField(default=True)
@@ -218,3 +226,154 @@ class UserProfile(models.Model):
     
     def __str__(self):
         return f"{self.user.username}'s Profile"
+    
+    @property 
+    def organization(self) -> Optional['Organization']:
+        """Get user's organization"""
+        if hasattr(self.user, 'owned_organization'):
+            return self.user.owned_organization
+        
+        membership = self.user.organization_memberships.filter(is_active=True).first()
+        return membership.organization if membership else None
+    
+    def get_active_roles(self) -> List['Role']:
+        """Get all active roles for this user"""
+        from core.permissions import UserRoleAssignment
+        
+        now = timezone.now()
+        assignments = UserRoleAssignment.objects.filter(
+            user_profile=self,
+            is_active=True,
+            role__is_active=True
+        ).select_related('role')
+        
+        return [
+            assignment.role for assignment in assignments 
+            if assignment.is_currently_valid()
+        ]
+    
+    def get_all_permissions(self) -> Set[str]:
+        """Get all permission codenames this user has access to"""
+        permissions = set()
+        
+        # Organization admin gets all permissions
+        if self.is_organization_admin:
+            from core.permissions import Permission
+            permissions.update(
+                Permission.objects.values_list('codename', flat=True)
+            )
+            return permissions
+        
+        # Get permissions from roles
+        roles = self.get_active_roles()
+        for role in roles:
+            # Direct role permissions
+            role_permissions = role.permissions.values_list('codename', flat=True)
+            permissions.update(role_permissions)
+            
+            # Inherited permissions from parent roles
+            parent_permissions = role.get_inherited_permissions()
+            permissions.update(parent_permissions.values_list('codename', flat=True))
+        
+        return permissions
+    
+    def has_permission(self, permission_codename: str, resource=None) -> bool:
+        """
+        Check if user has a specific permission
+        
+        Args:
+            permission_codename: The permission code to check
+            resource: Optional resource object for resource-scoped permissions
+        """
+        # Organization admin has all permissions
+        if self.is_organization_admin:
+            return True
+        
+        # Check if user has permission through roles
+        permissions = self.get_all_permissions()
+        if permission_codename not in permissions:
+            return False
+        
+        # If no resource specified, user has the permission
+        if not resource:
+            return True
+        
+        # Check resource-scoped permissions
+        from core.permissions import UserRoleAssignment
+        from django.contrib.contenttypes.models import ContentType
+        
+        resource_type = ContentType.objects.get_for_model(resource.__class__)
+        
+        # Check if user has role assignment for this specific resource
+        has_resource_access = UserRoleAssignment.objects.filter(
+            user_profile=self,
+            is_active=True,
+            role__is_active=True,
+            role__permissions__codename=permission_codename,
+            resource_type=resource_type,
+            resource_id=resource.id
+        ).exists()
+        
+        if has_resource_access:
+            return True
+        
+        # Check if user has global permission (not resource-scoped)
+        has_global_access = UserRoleAssignment.objects.filter(
+            user_profile=self,
+            is_active=True,
+            role__is_active=True,
+            role__permissions__codename=permission_codename,
+            resource_type__isnull=True
+        ).exists()
+        
+        return has_global_access
+    
+    def can_manage_roles(self) -> bool:
+        """Check if user can manage roles in their organization"""
+        return self.is_organization_admin or self.has_permission('user.manage_roles')
+    
+    def can_create_workflows(self) -> bool:
+        """Check if user can create workflows"""
+        return self.has_permission('workflow.create')
+    
+    def can_manage_team(self, team=None) -> bool:
+        """Check if user can manage team members"""
+        if team:
+            return self.has_permission('team.manage_members', team)
+        return self.has_permission('team.manage_members')
+    
+    def get_accessible_resources(self, permission_codename: str, resource_class):
+        """Get all resources of a given type that user has permission to access"""
+        from core.permissions import UserRoleAssignment
+        from django.contrib.contenttypes.models import ContentType
+        
+        if self.is_organization_admin:
+            # Admin can access all resources
+            return resource_class.objects.all()
+        
+        resource_type = ContentType.objects.get_for_model(resource_class)
+        
+        # Get resource IDs from role assignments
+        resource_assignments = UserRoleAssignment.objects.filter(
+            user_profile=self,
+            is_active=True,
+            role__is_active=True,
+            role__permissions__codename=permission_codename,
+            resource_type=resource_type
+        ).values_list('resource_id', flat=True)
+        
+        # Get global assignments (no resource restriction)
+        has_global = UserRoleAssignment.objects.filter(
+            user_profile=self,
+            is_active=True,
+            role__is_active=True,
+            role__permissions__codename=permission_codename,
+            resource_type__isnull=True
+        ).exists()
+        
+        if has_global:
+            return resource_class.objects.all()
+        elif resource_assignments:
+            return resource_class.objects.filter(id__in=resource_assignments)
+        else:
+            return resource_class.objects.none()

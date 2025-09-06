@@ -1,0 +1,253 @@
+{% extends 'scheduling/scheduling_base.html' %}
+
+{% block page_title %}Complete Booking{% endblock %}
+{% block page_subtitle %}Update linked work item{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <!-- Booking Information -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div class="p-6 border-b border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-900">Complete Booking</h2>
+            <p class="text-sm text-gray-600 mt-1">This booking is linked to a CFlows work item</p>
+        </div>
+        
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <h3 class="text-sm font-medium text-gray-700">Booking Details</h3>
+                    <div class="mt-2 space-y-1">
+                        <p class="text-sm text-gray-900">{{ booking.title }}</p>
+                        <p class="text-xs text-gray-500">{{ booking.resource.name }}</p>
+                        <p class="text-xs text-gray-500">
+                            {{ booking.requested_start|date:"M j, Y g:i A" }} - {{ booking.requested_end|date:"g:i A" }}
+                        </p>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="text-sm font-medium text-gray-700">Linked Work Item</h3>
+                    <div class="mt-2 space-y-1">
+                        <p class="text-sm text-gray-900">{{ work_item.title }}</p>
+                        <p class="text-xs text-gray-500">{{ work_item.workflow_name }}</p>
+                        <p class="text-xs text-green-600">Current: {{ work_item.current_step }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Workflow Action Form -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="p-6 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Choose Next Action</h3>
+            <p class="text-sm text-gray-600 mt-1">What should happen to the work item after completing this booking?</p>
+        </div>
+        
+        <form id="workflowCompletionForm" class="p-6">
+            {% csrf_token %}
+            
+            <!-- Workflow Action Selection -->
+            <div class="space-y-4">
+                <!-- Move to Next Step -->
+                {% if completion_options.next_steps %}
+                <div>
+                    <label class="flex items-start">
+                        <input type="radio" name="workflow_action" value="move_next" class="mt-1 text-green-600 focus:ring-green-500" checked>
+                        <div class="ml-3">
+                            <div class="text-sm font-medium text-gray-900">Move to Next Step</div>
+                            <div class="text-sm text-gray-600">Continue the workflow to the next stage</div>
+                            
+                            <div class="mt-3 ml-4">
+                                <select name="target_step_id" class="block w-full text-sm border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500" required>
+                                    <option value="">Select next step...</option>
+                                    {% for step in completion_options.next_steps %}
+                                    <option value="{{ step.id }}" data-is-final="{{ step.is_final }}" data-requires-approval="{{ step.requires_approval }}">
+                                        {{ step.name }}
+                                        {% if step.is_final %} (Final){% endif %}
+                                        {% if step.requires_approval %} (Requires Approval){% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+                {% endif %}
+                
+                <!-- Complete Work Item -->
+                {% if completion_options.can_complete %}
+                <div>
+                    <label class="flex items-start">
+                        <input type="radio" name="workflow_action" value="complete" class="mt-1 text-green-600 focus:ring-green-500">
+                        <div class="ml-3">
+                            <div class="text-sm font-medium text-gray-900">Mark Work Item as Complete</div>
+                            <div class="text-sm text-gray-600">Finish the work item entirely</div>
+                        </div>
+                    </label>
+                </div>
+                {% endif %}
+                
+                <!-- Move Back -->
+                {% if completion_options.backward_steps %}
+                <div>
+                    <label class="flex items-start">
+                        <input type="radio" name="workflow_action" value="move_back" class="mt-1 text-yellow-600 focus:ring-yellow-500">
+                        <div class="ml-3">
+                            <div class="text-sm font-medium text-gray-900">Move to Previous Step</div>
+                            <div class="text-sm text-gray-600">Return to an earlier stage</div>
+                            
+                            <div class="mt-3 ml-4">
+                                <select name="backward_step_id" class="block w-full text-sm border-gray-300 rounded-md focus:ring-yellow-500 focus:border-yellow-500">
+                                    <option value="">Select previous step...</option>
+                                    {% for step in completion_options.backward_steps %}
+                                    <option value="{{ step.id }}">{{ step.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+                {% endif %}
+                
+                <!-- No Change -->
+                <div>
+                    <label class="flex items-start">
+                        <input type="radio" name="workflow_action" value="no_change" class="mt-1 text-gray-600 focus:ring-gray-500">
+                        <div class="ml-3">
+                            <div class="text-sm font-medium text-gray-900">Complete Booking Only</div>
+                            <div class="text-sm text-gray-600">Don't change the work item status</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Completion Notes -->
+            <div class="mt-6">
+                <label for="completion_notes" class="block text-sm font-medium text-gray-700">Completion Notes</label>
+                <textarea 
+                    name="completion_notes" 
+                    id="completion_notes"
+                    rows="3" 
+                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                    placeholder="Add any notes about this completion..."></textarea>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="flex justify-between items-center mt-8">
+                <a href="{% url 'scheduling:booking_list' %}" 
+                   class="text-sm text-gray-600 hover:text-gray-800">
+                    ← Back to Bookings
+                </a>
+                
+                <div class="flex space-x-3">
+                    <button type="button" 
+                            onclick="completeWithoutWorkflow()" 
+                            class="px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50">
+                        Just Complete Booking
+                    </button>
+                    
+                    <button type="submit" 
+                            class="px-6 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
+                        Complete with Workflow Update
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('workflowCompletionForm');
+    const actionInputs = form.querySelectorAll('input[name="workflow_action"]');
+    const nextStepSelect = form.querySelector('select[name="target_step_id"]');
+    const backStepSelect = form.querySelector('select[name="backward_step_id"]');
+    
+    // Handle workflow action changes
+    actionInputs.forEach(input => {
+        input.addEventListener('change', function() {
+            // Show/hide relevant selects
+            if (nextStepSelect) {
+                nextStepSelect.parentElement.style.display = 
+                    this.value === 'move_next' ? 'block' : 'none';
+                nextStepSelect.required = this.value === 'move_next';
+            }
+            
+            if (backStepSelect) {
+                backStepSelect.parentElement.style.display = 
+                    this.value === 'move_back' ? 'block' : 'none';
+                backStepSelect.required = this.value === 'move_back';
+            }
+        });
+    });
+    
+    // Initialize visibility
+    actionInputs.forEach(input => {
+        if (input.checked) {
+            input.dispatchEvent(new Event('change'));
+        }
+    });
+    
+    // Handle form submission
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        
+        // Handle backward step selection
+        if (formData.get('workflow_action') === 'move_back') {
+            formData.set('target_step_id', formData.get('backward_step_id'));
+        }
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success message and redirect
+                alert(data.messages.join('\n'));
+                window.location.href = "{% url 'scheduling:booking_list' %}";
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error occurred'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while processing your request.');
+        });
+    });
+});
+
+function completeWithoutWorkflow() {
+    if (confirm('Complete this booking without updating the work item?')) {
+        fetch('{% url "scheduling:complete_booking" booking.uuid %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: 'completion_notes=' + encodeURIComponent(document.getElementById('completion_notes').value)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                window.location.href = "{% url 'scheduling:booking_list' %}";
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred.');
+        });
+    }
+}
+</script>
+{% endblock %}

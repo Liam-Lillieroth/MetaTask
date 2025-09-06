@@ -107,13 +107,15 @@
             <ul class="divide-y divide-gray-200">
                 {% for booking in bookings %}
                 <li class="hover:bg-gray-50">
-                    <a href="{% url 'scheduling:booking_detail' booking.id %}" class="block px-6 py-4">
+                    <div class="px-6 py-4">
                         <div class="flex items-center justify-between">
-                            <div class="flex-1 min-w-0">
+                            <a href="{% url 'scheduling:booking_detail' booking.id %}" class="flex-1 min-w-0">
                                 <div class="flex items-center justify-between">
                                     <div class="flex-1">
                                         <p class="text-sm font-medium text-green-600 truncate">
-                                            {{ booking.title }}
+                                            <span class="booking-title" data-source="{{ booking.source_service }}" data-title="{{ booking.title|escape }}">
+                                                {{ booking.title }}
+                                            </span>
                                         </p>
                                         <p class="text-sm text-gray-500">
                                             <i class="fas fa-calendar mr-1"></i>
@@ -151,13 +153,21 @@
                                     </p>
                                 </div>
                                 {% endif %}
-                            </div>
+                            </a>
                             
-                            <div class="ml-5 flex-shrink-0">
+                            <div class="ml-5 flex-shrink-0 flex items-center space-x-2">
+                                <!-- Complete Button for Active Bookings -->
+                                {% if booking.status == 'confirmed' or booking.status == 'in-progress' %}
+                                    <button onclick="completeBooking('{{ booking.id }}')" 
+                                            class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                                        <i class="fas fa-check-circle mr-1"></i>
+                                        Complete
+                                    </button>
+                                {% endif %}
                                 <i class="fas fa-chevron-right text-gray-400"></i>
                             </div>
                         </div>
-                    </a>
+                    </div>
                 </li>
                 {% endfor %}
             </ul>
@@ -244,4 +254,135 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Booking Completion Modal -->
+<div id="completeBookingModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
+                <i class="fas fa-check-circle text-green-600 text-2xl"></i>
+            </div>
+            <div class="mt-3 text-center sm:mt-5">
+                <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                    Complete Booking
+                </h3>
+                <div class="mt-2">
+                    <p class="text-sm text-gray-500" id="modal-message">
+                        Are you sure you want to mark this booking as complete?
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse">
+            <button type="button" id="confirmComplete"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm">
+                Complete
+            </button>
+            <button type="button" onclick="closeModal()"
+                    class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:mt-0 sm:w-auto sm:text-sm">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentBookingId = null;
+
+function completeBooking(bookingId) {
+    currentBookingId = bookingId;
+    document.getElementById('completeBookingModal').classList.remove('hidden');
+}
+
+function closeModal() {
+    document.getElementById('completeBookingModal').classList.add('hidden');
+    currentBookingId = null;
+}
+
+document.getElementById('confirmComplete').addEventListener('click', function() {
+    if (currentBookingId) {
+        // Check if there's a linked work item first
+        fetch(`/scheduling/booking/${currentBookingId}/complete_booking_workflow_prompt/`)
+            .then(response => {
+                if (response.ok) {
+                    // If we get a successful response, it means there's a workflow prompt
+                    window.location.href = `/scheduling/booking/${currentBookingId}/complete_booking_workflow_prompt/`;
+                } else {
+                    // No workflow, complete directly
+                    return fetch(`/scheduling/booking/${currentBookingId}/complete_booking/`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCookie('csrftoken')
+                        },
+                        body: JSON.stringify({
+                            completion_notes: 'Completed from booking list'
+                        })
+                    });
+                }
+            })
+            .then(response => {
+                if (response && response.ok) {
+                    return response.json();
+                }
+            })
+            .then(data => {
+                if (data && data.success) {
+                    window.location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while completing the booking.');
+            })
+            .finally(() => {
+                closeModal();
+            });
+    }
+});
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Close modal when clicking outside
+document.getElementById('completeBookingModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeModal();
+    }
+});
+
+// Enhance CFlows booking titles to highlight work item names
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.booking-title').forEach(function(element) {
+        const source = element.getAttribute('data-source');
+        const title = element.getAttribute('data-title');
+        
+        if (source === 'cflows' && title.includes('[') && title.includes(']')) {
+            const workItemMatch = title.match(/^\[([^\]]+)\]\s*(.*)$/);
+            if (workItemMatch) {
+                const workItem = workItemMatch[1];
+                const bookingPart = workItemMatch[2];
+                
+                element.innerHTML = 
+                    '<span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-semibold mr-2">' + 
+                    workItem + 
+                    '</span>' +
+                    '<span class="text-gray-700">' + bookingPart + '</span>';
+            }
+        }
+    });
+});
+</script>
 {% endblock %}

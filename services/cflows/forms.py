@@ -451,17 +451,31 @@ class WorkItemForm(forms.ModelForm):
             tags_data = self.clean_tags_input()
             instance.tags = tags_data
         
-        # Handle field replacements
+        # Handle field replacements - CRITICAL: Transfer replacement values to actual work item fields
         if hasattr(self, '_field_replacements'):
             for standard_field, replacement_info in self._field_replacements.items():
                 field_name = replacement_info['field_name']
                 if field_name in self.cleaned_data:
-                    # For now, we'll store replacement values in the work item's data field
+                    replacement_value = self.cleaned_data[field_name]
+                    
+                    # Transfer the replacement value to the actual work item field
+                    if standard_field == 'title' and replacement_value:
+                        instance.title = str(replacement_value)
+                    elif standard_field == 'description' and replacement_value:
+                        instance.description = str(replacement_value)
+                    elif standard_field == 'priority' and replacement_value:
+                        instance.priority = str(replacement_value)
+                    elif standard_field == 'due_date' and replacement_value:
+                        instance.due_date = replacement_value
+                    elif standard_field == 'estimated_duration' and replacement_value:
+                        instance.estimated_duration = replacement_value
+                    
+                    # Also store replacement metadata in the work item's data field for reference
                     if not instance.data:
                         instance.data = {}
                     instance.data[f'replacement_{standard_field}'] = {
                         'custom_field_id': replacement_info['custom_field_id'],
-                        'value': str(self.cleaned_data[field_name])
+                        'value': str(replacement_value)
                     }
         
         if commit:

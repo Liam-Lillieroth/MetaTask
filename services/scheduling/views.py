@@ -13,6 +13,7 @@ from .models import SchedulableResource, BookingRequest, ResourceScheduleRule
 from .services import SchedulingService, ResourceManagementService
 from .integrations import get_service_integration
 from .forms import BookingForm, ResourceForm
+from .workflow_integration import BookingWorkflowIntegration
 import json
 
 
@@ -30,27 +31,55 @@ def get_user_profile(request):
 @login_required
 @require_organization_access
 def index(request):
-    """Scheduling service dashboard"""
+    """Enhanced scheduling service dashboard"""
     profile = get_user_profile(request)
     if not profile:
         return render(request, 'scheduling/no_profile.html')
     
-    # Get today's statistics
+    # Get today's and comparison dates
     today = timezone.now().date()
+    yesterday = today - timedelta(days=1)
+    week_ago = today - timedelta(days=7)
+    next_week = today + timedelta(days=7)
+    
+    # Today's bookings with detailed statuses
     today_bookings = BookingRequest.objects.filter(
         organization=profile.organization,
-        requested_start__date=today,
-        status__in=['confirmed', 'in_progress', 'completed']
-    ).select_related('resource', 'requested_by')
+        requested_start__date=today
+    ).select_related('resource', 'requested_by', 'completed_by').order_by('requested_start')
     
-    # Get active resources
+    # Yesterday's bookings for comparison
+    yesterday_bookings = BookingRequest.objects.filter(
+        organization=profile.organization,
+        requested_start__date=yesterday
+    ).count()
+    
+    # Get active resources with utilization info
     resources = SchedulableResource.objects.filter(
         organization=profile.organization,
         is_active=True
     ).select_related('linked_team')
     
+    # Calculate resource utilization for today
+    resource_utilization = []
+    for resource in resources:
+        today_usage = BookingRequest.objects.filter(
+            resource=resource,
+            requested_start__date=today,
+            status__in=['confirmed', 'in_progress', 'completed']
+        ).count()
+        
+        total_capacity = resource.max_concurrent_bookings
+        utilization_percent = (today_usage / total_capacity * 100) if total_capacity > 0 else 0
+        
+        resource_utilization.append({
+            'resource': resource,
+            'today_bookings': today_usage,
+            'capacity': total_capacity,
+            'utilization_percent': round(utilization_percent, 1)
+        })
+    
     # Get upcoming bookings (next 7 days)
-    next_week = today + timedelta(days=7)
     upcoming_bookings = BookingRequest.objects.filter(
         organization=profile.organization,
         requested_start__date__gt=today,
@@ -58,11 +87,48 @@ def index(request):
         status__in=['pending', 'confirmed']
     ).select_related('resource', 'requested_by').order_by('requested_start')[:10]
     
-    # Get pending requests
+    # Get pending requests with urgency
     pending_requests = BookingRequest.objects.filter(
         organization=profile.organization,
         status='pending'
     ).select_related('resource', 'requested_by').order_by('created_at')[:5]
+    
+    # Recent activity (last 7 days)
+    recent_activity = BookingRequest.objects.filter(
+        organization=profile.organization,
+        created_at__gte=timezone.now() - timedelta(days=7)
+    ).select_related('resource', 'requested_by').order_by('-created_at')[:10]
+    
+    # Today's schedule timeline
+    todays_schedule = today_bookings.filter(
+        status__in=['confirmed', 'in_progress']
+    ).order_by('requested_start')
+    
+    # Calculate trends
+    total_bookings_today = today_bookings.count()
+    active_bookings = today_bookings.filter(status='in_progress').count()
+    completed_today = today_bookings.filter(status='completed').count()
+    pending_count = pending_requests.count()
+    
+    # Calculate percentage changes
+    booking_trend = ((total_bookings_today - yesterday_bookings) / yesterday_bookings * 100) if yesterday_bookings > 0 else 0
+    
+    # Overdue bookings (should have been completed but are still in progress)
+    now = timezone.now()
+    overdue_bookings = BookingRequest.objects.filter(
+        organization=profile.organization,
+        status='in_progress',
+        requested_end__lt=now
+    ).select_related('resource', 'requested_by')
+    
+    # Next 3 hours schedule
+    next_3_hours = now + timedelta(hours=3)
+    immediate_schedule = BookingRequest.objects.filter(
+        organization=profile.organization,
+        requested_start__gte=now,
+        requested_start__lte=next_3_hours,
+        status__in=['confirmed', 'pending']
+    ).select_related('resource', 'requested_by').order_by('requested_start')
     
     context = {
         'profile': profile,
@@ -71,12 +137,22 @@ def index(request):
         'today_bookings': today_bookings,
         'upcoming_bookings': upcoming_bookings,
         'pending_requests': pending_requests,
+        'recent_activity': recent_activity,
+        'todays_schedule': todays_schedule,
+        'resource_utilization': resource_utilization,
+        'overdue_bookings': overdue_bookings,
+        'immediate_schedule': immediate_schedule,
         'stats': {
-            'total_bookings_today': today_bookings.count(),
-            'active_bookings': today_bookings.filter(status='in_progress').count(),
-            'completed_bookings': today_bookings.filter(status='completed').count(),
-            'pending_requests_count': pending_requests.count(),
+            'total_bookings_today': total_bookings_today,
+            'active_bookings': active_bookings,
+            'completed_bookings': completed_today,
+            'pending_requests_count': pending_count,
             'total_resources': resources.count(),
+            'overdue_count': overdue_bookings.count(),
+            'booking_trend': round(booking_trend, 1),
+            'resource_utilization_avg': round(
+                sum([ru['utilization_percent'] for ru in resource_utilization]) / len(resource_utilization), 1
+            ) if resource_utilization else 0
         }
     }
     
@@ -637,3 +713,134 @@ def project_detail(request, pk):
     }
     
     return render(request, 'scheduling/project_detail.html', context)
+
+
+@login_required
+@require_organization_access
+def complete_booking_workflow_prompt(request, booking_uuid):
+    """Prompt user for workflow action when completing a booking linked to a work item"""
+    profile = get_user_profile(request)
+    if not profile:
+        return JsonResponse({'error': 'User profile not found'}, status=400)
+    
+    booking = get_object_or_404(
+        BookingRequest, 
+        uuid=booking_uuid, 
+        organization=profile.organization
+    )
+    
+    # Check if this booking should prompt for workflow update
+    if not BookingWorkflowIntegration.should_prompt_workflow_update(booking):
+        return JsonResponse({'prompt_required': False})
+    
+    # Get completion options
+    work_item = BookingWorkflowIntegration.get_linked_work_item(booking)
+    completion_options = BookingWorkflowIntegration.get_completion_options(work_item)
+    
+    if request.method == 'POST':
+        # Handle the workflow completion
+        workflow_action = request.POST.get('workflow_action', 'no_change')
+        target_step_id = request.POST.get('target_step_id')
+        completion_notes = request.POST.get('completion_notes', '')
+        mark_complete = request.POST.get('mark_work_item_complete') == 'true'
+        
+        # Convert target_step_id to int if provided
+        if target_step_id:
+            try:
+                target_step_id = int(target_step_id)
+            except (ValueError, TypeError):
+                target_step_id = None
+        
+        # Complete the booking with workflow update
+        result = BookingWorkflowIntegration.complete_booking_with_workflow_update(
+            booking=booking,
+            completed_by=profile,
+            workflow_action=workflow_action,
+            target_step_id=target_step_id,
+            completion_notes=completion_notes,
+            mark_work_item_complete=mark_complete
+        )
+        
+        if result['success']:
+            for message in result['messages']:
+                messages.success(request, message)
+        else:
+            messages.error(request, result.get('error', 'An error occurred'))
+        
+        return JsonResponse(result)
+    
+    # GET request - return prompt data
+    return JsonResponse({
+        'prompt_required': True,
+        'booking': {
+            'uuid': str(booking.uuid),
+            'title': booking.title,
+            'description': booking.description,
+            'status': booking.status,
+        },
+        'work_item': {
+            'uuid': str(work_item.uuid),
+            'title': work_item.title,
+            'current_step': work_item.current_step.name,
+            'workflow_name': work_item.workflow.name,
+        } if work_item else None,
+        'completion_options': completion_options
+    })
+
+
+@login_required
+@require_organization_access  
+def complete_booking(request, booking_uuid):
+    """Complete a booking (with optional workflow integration)"""
+    profile = get_user_profile(request)
+    if not profile:
+        return JsonResponse({'error': 'User profile not found'}, status=400)
+    
+    booking = get_object_or_404(
+        BookingRequest, 
+        uuid=booking_uuid, 
+        organization=profile.organization
+    )
+    
+    if booking.status == 'completed':
+        return JsonResponse({'error': 'Booking is already completed'}, status=400)
+    
+    # Check if we should prompt for workflow action
+    should_prompt = BookingWorkflowIntegration.should_prompt_workflow_update(booking)
+    
+    if should_prompt and request.method == 'GET':
+        # Return prompt requirement instead of completing directly
+        return JsonResponse({
+            'requires_workflow_prompt': True,
+            'prompt_url': f'/services/scheduling/bookings/{booking_uuid}/complete-workflow/'
+        })
+    
+    if request.method == 'POST':
+        # Simple completion without workflow integration
+        booking.status = 'completed'
+        booking.completed_by = profile
+        booking.completed_at = timezone.now()
+        booking.actual_end = timezone.now()
+        
+        completion_notes = request.POST.get('completion_notes', '')
+        if completion_notes:
+            booking.custom_data['completion_notes'] = completion_notes
+            booking.custom_data['completed_at'] = booking.completed_at.isoformat()
+        
+        booking.save()
+        
+        messages.success(request, f'Booking "{booking.title}" completed successfully.')
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Booking completed successfully',
+            'booking_status': booking.status
+        })
+    
+    # GET request for simple completion form
+    context = {
+        'profile': profile,
+        'booking': booking,
+    }
+    
+    return render(request, 'scheduling/complete_booking.html', context)

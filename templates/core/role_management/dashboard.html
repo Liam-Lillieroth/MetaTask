@@ -1,0 +1,205 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Role Management - {{ organization.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Role Management</h1>
+                <div>
+                    <a href="{% url 'core:role_create' %}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Create Role
+                    </a>
+                </div>
+            </div>
+
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="card-title">{{ total_roles }}</h4>
+                                    <p class="card-text">Active Roles</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-user-tag fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="card-title">{{ total_users_with_roles }}</h4>
+                                    <p class="card-text">Users with Roles</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-users fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="card-title">{{ organization.name }}</h4>
+                                    <p class="card-text">Organization</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-building fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Quick Actions</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <a href="{% url 'core:role_list' %}" class="btn btn-outline-primary btn-block mb-2">
+                                        <i class="fas fa-list"></i> View All Roles
+                                    </a>
+                                </div>
+                                <div class="col-md-3">
+                                    <a href="{% url 'core:role_create' %}" class="btn btn-outline-success btn-block mb-2">
+                                        <i class="fas fa-plus"></i> Create New Role
+                                    </a>
+                                </div>
+                                <div class="col-md-3">
+                                    <a href="{% url 'core:user_roles' %}" class="btn btn-outline-info btn-block mb-2">
+                                        <i class="fas fa-user-cog"></i> Manage User Roles
+                                    </a>
+                                </div>
+                                <div class="col-md-3">
+                                    <button class="btn btn-outline-warning btn-block mb-2" data-toggle="modal" data-target="#setupPermissionsModal">
+                                        <i class="fas fa-cog"></i> Setup Permissions
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Role Assignments -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Recent Role Assignments</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if recent_assignments %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>User</th>
+                                                <th>Role</th>
+                                                <th>Assigned By</th>
+                                                <th>Date</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for assignment in recent_assignments %}
+                                            <tr>
+                                                <td>
+                                                    <strong>{{ assignment.user_profile.user.get_full_name|default:assignment.user_profile.user.username }}</strong>
+                                                    <br>
+                                                    <small class="text-muted">{{ assignment.user_profile.user.email }}</small>
+                                                </td>
+                                                <td>
+                                                    <span class="badge" style="background-color: {{ assignment.role.color }}; color: white;">
+                                                        {{ assignment.role.name }}
+                                                    </span>
+                                                </td>
+                                                <td>{{ assignment.assigned_by.user.get_full_name|default:assignment.assigned_by.user.username }}</td>
+                                                <td>{{ assignment.created_at|date:"M d, Y H:i" }}</td>
+                                                <td>
+                                                    {% if assignment.is_currently_valid %}
+                                                        <span class="badge badge-success">Active</span>
+                                                    {% else %}
+                                                        <span class="badge badge-secondary">Inactive</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <p class="text-muted">No role assignments found.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Setup Permissions Modal -->
+<div class="modal fade" id="setupPermissionsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Setup Default Permissions</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>This will create default permissions and roles for your organization if they don't already exist.</p>
+                <p><strong>Note:</strong> This is typically done automatically when an organization is created.</p>
+                <div class="alert alert-info">
+                    <strong>Default Roles Created:</strong>
+                    <ul class="mb-0">
+                        <li>Organization Administrator</li>
+                        <li>Workflow Manager</li>
+                        <li>Team Lead</li>
+                        <li>Team Member</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="setupPermissions()">Setup Permissions</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function setupPermissions() {
+    // This would call a management command or API endpoint
+    // For now, show a message
+    alert('Permission setup would be triggered here. Use Django management command: python manage.py setup_permissions --organization-id={{ organization.id }}');
+    $('#setupPermissionsModal').modal('hide');
+}
+</script>
+{% endblock %}

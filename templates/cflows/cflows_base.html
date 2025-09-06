@@ -219,6 +219,26 @@
                 </div>
             </div>
 
+            <!-- Services Shortcut -->
+            {% if profile %}
+            <div class="px-4 py-4 border-t border-gray-200">
+                <button onclick="openServicesModal()" 
+                        class="w-full group relative flex items-center px-3 py-4 text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5">
+                    <div class="absolute inset-0 bg-gradient-to-r from-purple-400 to-purple-500 rounded-xl opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+                    <div class="relative flex items-center w-full">
+                        <div class="flex items-center justify-center w-10 h-10 bg-white bg-opacity-20 rounded-lg mr-3">
+                            <i class="fas fa-th-large text-white text-lg"></i>
+                        </div>
+                        <div class="flex-1 text-left">
+                            <div class="text-sm font-semibold">All Services</div>
+                            <div class="text-xs text-purple-200">Access your tools</div>
+                        </div>
+                        <i class="fas fa-arrow-right text-purple-200 group-hover:text-white transition-colors duration-200"></i>
+                    </div>
+                </button>
+            </div>
+            {% endif %}
+
             <!-- Organization Info -->
             {% if profile %}
             <div class="px-4 py-4 border-t border-gray-200">
@@ -284,6 +304,175 @@
             </div>
         </footer>
     </div>
+
+    <!-- Services Modal -->
+    <div id="servicesModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+        <div class="relative top-20 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <!-- Modal Header -->
+                <div class="flex items-center justify-between pb-4 border-b border-gray-200">
+                    <div class="flex items-center">
+                        <i class="fas fa-th-large text-purple-600 text-2xl mr-3"></i>
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">All Services</h3>
+                            <p class="text-sm text-gray-500">Access your organization's services and tools</p>
+                        </div>
+                    </div>
+                    <button onclick="closeServicesModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+
+                <!-- Services Grid -->
+                <div class="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Core Services -->
+                    <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg border border-blue-200 hover:shadow-md transition-shadow duration-200">
+                        <div class="flex items-center mb-3">
+                            <i class="fas fa-home text-blue-600 text-2xl mr-3"></i>
+                            <div>
+                                <h4 class="text-lg font-semibold text-blue-900">Core</h4>
+                                <p class="text-sm text-blue-600">Main Dashboard</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-blue-700 mb-4">Organization overview and main controls</p>
+                        <a href="/" class="inline-flex items-center px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors duration-200">
+                            <i class="fas fa-arrow-right mr-2"></i>
+                            Open Core
+                        </a>
+                    </div>
+
+                    <!-- CFlows Service (Current) -->
+                    <div class="bg-gradient-to-br from-indigo-50 to-indigo-100 p-6 rounded-lg border border-indigo-200 hover:shadow-md transition-shadow duration-200">
+                        <div class="flex items-center mb-3">
+                            <i class="fas fa-project-diagram text-indigo-600 text-2xl mr-3"></i>
+                            <div>
+                                <h4 class="text-lg font-semibold text-indigo-900">CFlows</h4>
+                                <p class="text-sm text-indigo-600">Current Service</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-indigo-700 mb-4">Workflow management and task processing</p>
+                        <div class="inline-flex items-center px-3 py-2 bg-indigo-100 text-indigo-700 text-sm font-medium rounded border border-indigo-300">
+                            <i class="fas fa-check-circle mr-2"></i>
+                            You're here
+                        </div>
+                    </div>
+
+                    <!-- Scheduling Service -->
+                    <div class="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-lg border border-green-200 hover:shadow-md transition-shadow duration-200">
+                        <div class="flex items-center mb-3">
+                            <i class="fas fa-calendar-check text-green-600 text-2xl mr-3"></i>
+                            <div>
+                                <h4 class="text-lg font-semibold text-green-900">Scheduling</h4>
+                                <p class="text-sm text-green-600">Resource Management</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-green-700 mb-4">Resource scheduling and booking management</p>
+                        <a href="/services/scheduling/" class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700 transition-colors duration-200">
+                            <i class="fas fa-arrow-right mr-2"></i>
+                            Open Scheduling
+                        </a>
+                    </div>
+
+                    <!-- Analytics Service -->
+                    <div class="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-lg border border-orange-200 hover:shadow-md transition-shadow duration-200">
+                        <div class="flex items-center mb-3">
+                            <i class="fas fa-chart-line text-orange-600 text-2xl mr-3"></i>
+                            <div>
+                                <h4 class="text-lg font-semibold text-orange-900">Analytics</h4>
+                                <p class="text-sm text-orange-600">Data & Reporting</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-orange-700 mb-4">Business intelligence and data visualization</p>
+                        <a href="/analytics/" class="inline-flex items-center px-3 py-2 bg-orange-600 text-white text-sm font-medium rounded hover:bg-orange-700 transition-colors duration-200">
+                            <i class="fas fa-arrow-right mr-2"></i>
+                            Open Analytics
+                        </a>
+                    </div>
+
+                    <!-- API Service -->
+                    <div class="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-lg border border-gray-200 hover:shadow-md transition-shadow duration-200">
+                        <div class="flex items-center mb-3">
+                            <i class="fas fa-code text-gray-600 text-2xl mr-3"></i>
+                            <div>
+                                <h4 class="text-lg font-semibold text-gray-900">API</h4>
+                                <p class="text-sm text-gray-600">Developer Tools</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-700 mb-4">API documentation and developer resources</p>
+                        <a href="/api/" class="inline-flex items-center px-3 py-2 bg-gray-600 text-white text-sm font-medium rounded hover:bg-gray-700 transition-colors duration-200">
+                            <i class="fas fa-arrow-right mr-2"></i>
+                            Open API
+                        </a>
+                    </div>
+
+                    <!-- Account Management -->
+                    <div class="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-lg border border-purple-200 hover:shadow-md transition-shadow duration-200">
+                        <div class="flex items-center mb-3">
+                            <i class="fas fa-users text-purple-600 text-2xl mr-3"></i>
+                            <div>
+                                <h4 class="text-lg font-semibold text-purple-900">Accounts</h4>
+                                <p class="text-sm text-purple-600">User Management</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-purple-700 mb-4">User accounts, roles, and permissions</p>
+                        <a href="/accounts/" class="inline-flex items-center px-3 py-2 bg-purple-600 text-white text-sm font-medium rounded hover:bg-purple-700 transition-colors duration-200">
+                            <i class="fas fa-arrow-right mr-2"></i>
+                            Open Accounts
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="mt-8 pt-6 border-t border-gray-200">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-4">Quick Actions</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <button class="flex flex-col items-center p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors duration-200">
+                            <i class="fas fa-stream text-indigo-600 text-xl mb-2"></i>
+                            <span class="text-xs text-gray-700">New Workflow</span>
+                        </button>
+                        <button class="flex flex-col items-center p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors duration-200">
+                            <i class="fas fa-calendar-plus text-green-600 text-xl mb-2"></i>
+                            <span class="text-xs text-gray-700">Schedule</span>
+                        </button>
+                        <button class="flex flex-col items-center p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors duration-200">
+                            <i class="fas fa-chart-bar text-orange-600 text-xl mb-2"></i>
+                            <span class="text-xs text-gray-700">Reports</span>
+                        </button>
+                        <button class="flex flex-col items-center p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors duration-200">
+                            <i class="fas fa-cog text-gray-600 text-xl mb-2"></i>
+                            <span class="text-xs text-gray-700">Settings</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openServicesModal() {
+            document.getElementById('servicesModal').classList.remove('hidden');
+            document.body.classList.add('overflow-hidden');
+        }
+
+        function closeServicesModal() {
+            document.getElementById('servicesModal').classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('servicesModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeServicesModal();
+            }
+        });
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && !document.getElementById('servicesModal').classList.contains('hidden')) {
+                closeServicesModal();
+            }
+        });
+    </script>
 
     {% block extra_js %}{% endblock %}
 </body>

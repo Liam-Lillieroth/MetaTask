@@ -61,6 +61,40 @@ def transition_work_item(request, work_item_id, transition_id):
     notes = request.POST.get('notes', '')
     
     try:
+        # BLOCK FORWARD PROGRESSION IF CURRENT STEP REQUIRES BOOKING THAT IS NOT COMPLETED
+        current_step = work_item.current_step
+        if current_step.requires_booking:
+            step_bookings = TeamBooking.objects.filter(work_item=work_item, workflow_step=current_step)
+            # Require at least one booking AND all must be completed
+            if not step_bookings.exists():
+                msg = 'This step requires a booking. Create and complete a booking before moving forward.'
+                # Audit trail via system comment
+                WorkItemComment.objects.create(
+                    work_item=work_item,
+                    content=f"Transition blocked: {msg}",
+                    author=profile,
+                    is_system_comment=True
+                )
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': False, 'error': msg, 'requires_booking': True})
+                messages.error(request, msg)
+                return redirect('cflows:work_item_detail', work_item_id=work_item.id)
+            incomplete = step_bookings.filter(is_completed=False).exists()
+            if incomplete:
+                remaining = step_bookings.filter(is_completed=False).count()
+                total = step_bookings.count()
+                msg = f'All bookings for this step must be completed before progressing. ({total - remaining}/{total} done)'
+                WorkItemComment.objects.create(
+                    work_item=work_item,
+                    content=f"Transition blocked: {msg}",
+                    author=profile,
+                    is_system_comment=True
+                )
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': False, 'error': msg, 'requires_booking': True})
+                messages.error(request, msg)
+                return redirect('cflows:work_item_detail', work_item_id=work_item.id)
+
         with transaction.atomic():
             # Store previous step for history
             from_step = work_item.current_step
@@ -435,6 +469,32 @@ def backward_transition_form(request, work_item_id, step_id):
                         is_system_comment=True
                     )
                     
+                    # REMOVE FUTURE (DOWNSTREAM) UNCOMPLETED BOOKINGS WHEN MOVING BACK
+                    removed_count = 0
+                    future_bookings = TeamBooking.objects.filter(
+                        work_item=work_item,
+                        workflow_step__order__gt=target_step.order,
+                        is_completed=False
+                    )
+                    # Delete (signals will clean scheduling mirror)
+                    removed_ids = []
+                    for b in future_bookings:
+                        removed_ids.append(b.id)
+                        b.delete()
+                        removed_count += 1
+
+                    if removed_count:
+                        # Audit system comment
+                        WorkItemComment.objects.create(
+                            work_item=work_item,
+                            content=f"Removed {removed_count} downstream uncompleted booking(s) on backward move. IDs: {removed_ids}",
+                            author=profile,
+                            is_system_comment=True
+                        )
+
+                    if removed_count:
+                        messages.info(request, f'Removed {removed_count} pending booking(s) from later steps.')
+
                     messages.success(request, f'Work item moved back to "{target_step.name}"')
                     return redirect('cflows:work_item_detail', work_item_id=work_item.id)
                     

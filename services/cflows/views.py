@@ -585,6 +585,26 @@ def work_item_detail(request, work_item_id):
     
     # Get history
     history = work_item.history.order_by('-created_at')
+
+    # Booking gating / status context
+    booking_status = None
+    if work_item.current_step and work_item.current_step.requires_booking:
+        from services.cflows.models import TeamBooking  # local import to avoid circulars
+        step_bookings = TeamBooking.objects.filter(work_item=work_item, workflow_step=work_item.current_step)
+        total = step_bookings.count()
+        completed = step_bookings.filter(is_completed=True).count()
+        remaining = total - completed
+        booking_status = {
+            'required': True,
+            'total': total,
+            'completed': completed,
+            'remaining': remaining,
+            'all_completed': total > 0 and remaining == 0,
+            'has_any': total > 0,
+            'needs_creation': total == 0,
+        }
+    else:
+        booking_status = {'required': False}
     
     context = {
         'profile': profile,
@@ -595,6 +615,7 @@ def work_item_detail(request, work_item_id):
         'comment_form': comment_form,
         'comments': comments,
         'history': history,
+    'booking_status': booking_status,
     }
     
     return render(request, 'cflows/work_item_detail.html', context)

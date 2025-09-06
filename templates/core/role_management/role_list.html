@@ -1,0 +1,218 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Roles - {{ organization.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Organization Roles</h1>
+                <div>
+                    <a href="{% url 'core:role_dashboard' %}" class="btn btn-outline-secondary mr-2">
+                        <i class="fas fa-tachometer-alt"></i> Dashboard
+                    </a>
+                    <a href="{% url 'core:role_create' %}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Create Role
+                    </a>
+                </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-primary">{{ roles|length }}</h3>
+                            <p class="mb-0">Active Roles</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-success">{% for role in roles %}{{ role.user_count|add:0 }}{% if not forloop.last %}+{% endif %}{% endfor %}</h3>
+                            <p class="mb-0">Total Assignments</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-info">{% for role in roles %}{% if role.role_type == 'custom' %}1{% endif %}{% endfor %}</h3>
+                            <p class="mb-0">Custom Roles</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-warning">{% for role in roles %}{% if role.is_default %}1{% endif %}{% endfor %}</h3>
+                            <p class="mb-0">Default Role</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Roles Grid -->
+            <div class="row">
+                {% for role in roles %}
+                <div class="col-lg-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <span class="badge mr-2" style="background-color: {{ role.color }}; color: white; font-size: 0.8rem;">
+                                    ●
+                                </span>
+                                <h5 class="mb-0">{{ role.name }}</h5>
+                                {% if role.is_default %}
+                                    <span class="badge badge-info ml-2">Default</span>
+                                {% endif %}
+                            </div>
+                            <div class="dropdown">
+                                <button class="btn btn-outline-secondary btn-sm" type="button" data-toggle="dropdown">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </button>
+                                <div class="dropdown-menu">
+                                    <a class="dropdown-item" href="{% url 'core:role_detail' role.id %}">
+                                        <i class="fas fa-eye"></i> View Details
+                                    </a>
+                                    <a class="dropdown-item" href="{% url 'core:role_permissions' role.id %}">
+                                        <i class="fas fa-key"></i> Edit Permissions
+                                    </a>
+                                    {% if role.role_type == 'custom' %}
+                                    <div class="dropdown-divider"></div>
+                                    <a class="dropdown-item text-danger" href="#" onclick="deleteRole({{ role.id }}, '{{ role.name }}')">
+                                        <i class="fas fa-trash"></i> Delete Role
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted">{{ role.description|default:"No description provided" }}</p>
+                            
+                            <!-- Role Stats -->
+                            <div class="row text-center mb-3">
+                                <div class="col-4">
+                                    <small class="text-muted">Users</small>
+                                    <div class="h6 mb-0">{{ role.user_count }}</div>
+                                    {% if role.max_users %}
+                                        <small class="text-muted">/ {{ role.max_users }}</small>
+                                    {% endif %}
+                                </div>
+                                <div class="col-4">
+                                    <small class="text-muted">Permissions</small>
+                                    <div class="h6 mb-0">{{ role.permissions.count }}</div>
+                                </div>
+                                <div class="col-4">
+                                    <small class="text-muted">Type</small>
+                                    <div class="h6 mb-0">
+                                        <span class="badge badge-{% if role.role_type == 'system' %}primary{% else %}secondary{% endif %}">
+                                            {{ role.get_role_type_display }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Quick Permission Preview -->
+                            <div class="mb-3">
+                                <small class="text-muted">Key Permissions:</small><br>
+                                {% with role.permissions.all|slice:":5" as preview_perms %}
+                                    {% for perm in preview_perms %}
+                                        <span class="badge badge-light badge-sm mr-1 mb-1">{{ perm.name }}</span>
+                                    {% endfor %}
+                                    {% if role.permissions.count > 5 %}
+                                        <span class="badge badge-secondary badge-sm">+{{ role.permissions.count|add:"-5" }} more</span>
+                                    {% endif %}
+                                {% endwith %}
+                            </div>
+
+                            <!-- Progress bar for role capacity -->
+                            {% if role.max_users %}
+                            <div class="progress mb-2" style="height: 4px;">
+                                {% widthratio role.user_count role.max_users 100 as usage_percent %}
+                                <div class="progress-bar {% if usage_percent > 90 %}bg-danger{% elif usage_percent > 70 %}bg-warning{% else %}bg-success{% endif %}" 
+                                     style="width: {{ usage_percent }}%"></div>
+                            </div>
+                            <small class="text-muted">{{ usage_percent }}% capacity used</small>
+                            {% endif %}
+                        </div>
+                        <div class="card-footer">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">
+                                    Created {{ role.created_at|date:"M d, Y" }}
+                                </small>
+                                <div>
+                                    <a href="{% url 'core:role_detail' role.id %}" class="btn btn-outline-primary btn-sm">
+                                        View Details
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body text-center py-5">
+                            <i class="fas fa-user-tag fa-3x text-muted mb-3"></i>
+                            <h5>No Roles Found</h5>
+                            <p class="text-muted">Your organization doesn't have any roles set up yet.</p>
+                            <a href="{% url 'core:role_create' %}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Create Your First Role
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Role Modal -->
+<div class="modal fade" id="deleteRoleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete Role</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the role <strong id="roleNameToDelete"></strong>?</p>
+                <div class="alert alert-warning">
+                    <strong>Warning:</strong> This will remove the role from all users who currently have it assigned.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteRole()">Delete Role</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let roleToDelete = null;
+
+function deleteRole(roleId, roleName) {
+    roleToDelete = roleId;
+    document.getElementById('roleNameToDelete').textContent = roleName;
+    $('#deleteRoleModal').modal('show');
+}
+
+function confirmDeleteRole() {
+    if (roleToDelete) {
+        // Here you would send an AJAX request to delete the role
+        // For now, we'll redirect to a delete URL
+        window.location.href = `/core/roles/${roleToDelete}/delete/`;
+    }
+}
+</script>
+{% endblock %}

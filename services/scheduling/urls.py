@@ -18,6 +18,8 @@ urlpatterns = [
     path('bookings/create/', views.create_booking, name='create_booking'),
     path('bookings/<int:booking_id>/', views.booking_detail, name='booking_detail'),
     path('bookings/<int:booking_id>/<str:action>/', views.booking_action, name='booking_action'),
+    path('bookings/<uuid:booking_uuid>/complete/', views.complete_booking, name='complete_booking'),
+    path('bookings/<uuid:booking_uuid>/complete-workflow/', views.complete_booking_workflow_prompt, name='complete_booking_workflow'),
     
     # API endpoints
     path('api/calendar-events/', views.api_calendar_events, name='api_calendar_events'),
