@@ -1,0 +1,265 @@
+{% extends 'scheduling/scheduling_base.html' %}
+
+{% block title %}Create Resource - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto py-6 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="md:flex md:items-center md:justify-between mb-8">
+        <div class="flex-1 min-w-0">
+            <nav class="flex" aria-label="Breadcrumb">
+                <ol class="flex items-center space-x-4">
+                    <li>
+                        <a href="{% url 'scheduling:index' %}" class="text-gray-400 hover:text-gray-500">
+                            <i class="fas fa-home"></i>
+                        </a>
+                    </li>
+                    <li>
+                        <div class="flex items-center">
+                            <i class="fas fa-chevron-right text-gray-400 mx-2"></i>
+                            <a href="{% url 'scheduling:resource_list' %}" class="text-sm font-medium text-gray-500 hover:text-gray-700">
+                                Resources
+                            </a>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="flex items-center">
+                            <i class="fas fa-chevron-right text-gray-400 mx-2"></i>
+                            <span class="text-sm font-medium text-gray-500">Create</span>
+                        </div>
+                    </li>
+                </ol>
+            </nav>
+            <h2 class="mt-2 text-3xl font-bold leading-7 text-gray-900 sm:text-4xl sm:truncate">
+                <i class="fas fa-plus-circle text-green-600 mr-3"></i>
+                Create New Resource
+            </h2>
+            <p class="mt-1 text-sm text-gray-500">
+                Add a new schedulable resource to your organization
+            </p>
+        </div>
+    </div>
+
+    <!-- Form -->
+    <div class="bg-white shadow rounded-lg">
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            
+            <!-- Basic Information -->
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">
+                    <i class="fas fa-info-circle text-green-600 mr-2"></i>
+                    Basic Information
+                </h3>
+                <p class="mt-1 text-sm text-gray-600">
+                    Provide the basic details about your resource.
+                </p>
+            </div>
+            
+            <div class="px-6 py-4 space-y-6">
+                <!-- Name Field -->
+                <div>
+                    <label for="{{ form.name.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Resource Name <span class="text-red-500">*</span>
+                    </label>
+                    <div class="mt-1">
+                        {{ form.name }}
+                        {% if form.name.errors %}
+                            <div class="mt-2 text-sm text-red-600">
+                                {% for error in form.name.errors %}
+                                    <p>{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <p class="mt-1 text-sm text-gray-500">
+                        A unique name to identify this resource
+                    </p>
+                </div>
+
+                <!-- Resource Type Field -->
+                <div>
+                    <label for="{{ form.resource_type.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Resource Type <span class="text-red-500">*</span>
+                    </label>
+                    <div class="mt-1">
+                        {{ form.resource_type }}
+                        {% if form.resource_type.errors %}
+                            <div class="mt-2 text-sm text-red-600">
+                                {% for error in form.resource_type.errors %}
+                                    <p>{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <p class="mt-1 text-sm text-gray-500">
+                        Select the type of resource this represents
+                    </p>
+                </div>
+
+                <!-- Max Concurrent Bookings -->
+                <div>
+                    <label for="{{ form.max_concurrent_bookings.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Maximum Concurrent Bookings <span class="text-red-500">*</span>
+                    </label>
+                    <div class="mt-1">
+                        {{ form.max_concurrent_bookings }}
+                        {% if form.max_concurrent_bookings.errors %}
+                            <div class="mt-2 text-sm text-red-600">
+                                {% for error in form.max_concurrent_bookings.errors %}
+                                    <p>{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <p class="mt-1 text-sm text-gray-500">
+                        How many bookings can be active at the same time for this resource
+                    </p>
+                </div>
+
+                <!-- Description Field -->
+                <div>
+                    <label for="{{ form.description.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                        Description
+                    </label>
+                    <div class="mt-1">
+                        {{ form.description }}
+                        {% if form.description.errors %}
+                            <div class="mt-2 text-sm text-red-600">
+                                {% for error in form.description.errors %}
+                                    <p>{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <p class="mt-1 text-sm text-gray-500">
+                        Additional details about this resource (optional)
+                    </p>
+                </div>
+            </div>
+
+            <!-- Availability Rules -->
+            <div class="px-6 py-4 border-t border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">
+                    <i class="fas fa-clock text-green-600 mr-2"></i>
+                    Availability Rules
+                </h3>
+                <p class="text-sm text-gray-600 mb-6">
+                    Configure when this resource is available for booking.
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Working Hours -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-3">
+                            Working Hours
+                        </label>
+                        <div class="space-y-3">
+                            <div>
+                                <label for="{{ form.start_hour.id_for_label }}" class="block text-sm font-medium text-gray-600">
+                                    Start Hour (24-hour format)
+                                </label>
+                                <div class="mt-1">
+                                    {{ form.start_hour }}
+                                    {% if form.start_hour.errors %}
+                                        <div class="mt-1 text-sm text-red-600">
+                                            {% for error in form.start_hour.errors %}
+                                                <p>{{ error }}</p>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div>
+                                <label for="{{ form.end_hour.id_for_label }}" class="block text-sm font-medium text-gray-600">
+                                    End Hour (24-hour format)
+                                </label>
+                                <div class="mt-1">
+                                    {{ form.end_hour }}
+                                    {% if form.end_hour.errors %}
+                                        <div class="mt-1 text-sm text-red-600">
+                                            {% for error in form.end_hour.errors %}
+                                                <p>{{ error }}</p>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Working Days -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-3">
+                            Working Days
+                        </label>
+                        <div class="space-y-2">
+                            {{ form.working_days }}
+                            {% if form.working_days.errors %}
+                                <div class="mt-2 text-sm text-red-600">
+                                    {% for error in form.working_days.errors %}
+                                        <p>{{ error }}</p>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <p class="mt-2 text-sm text-gray-500">
+                            Select the days when this resource is available
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Form Errors -->
+            {% if form.non_field_errors %}
+                <div class="px-6">
+                    <div class="rounded-md bg-red-50 p-4">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-exclamation-circle text-red-400"></i>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="text-sm font-medium text-red-800">
+                                    Please fix the following errors:
+                                </h3>
+                                <div class="mt-2 text-sm text-red-700">
+                                    <ul class="list-disc pl-5 space-y-1">
+                                        {% for error in form.non_field_errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            <!-- Form Actions -->
+            <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-3">
+                <a href="{% url 'scheduling:resource_list' %}" 
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                    <i class="fas fa-times mr-2"></i>
+                    Cancel
+                </a>
+                <button type="submit" 
+                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                    <i class="fas fa-save mr-2"></i>
+                    Create Resource
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+/* Custom checkbox styling for working days */
+.space-y-2 input[type="checkbox"] {
+    @apply mr-2 h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500;
+}
+
+.space-y-2 label {
+    @apply flex items-center text-sm text-gray-700 font-medium;
+}
+</style>
+{% endblock %}

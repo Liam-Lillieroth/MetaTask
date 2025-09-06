@@ -12,6 +12,7 @@ from core.models import UserProfile
 from .models import SchedulableResource, BookingRequest, ResourceScheduleRule
 from .services import SchedulingService, ResourceManagementService
 from .integrations import get_service_integration
+from .forms import BookingForm, ResourceForm
 import json
 
 
@@ -314,6 +315,80 @@ def booking_action(request, booking_id, action):
     return redirect('scheduling:booking_detail', booking_id=booking.id)
 
 
+@login_required
+@require_organization_access
+def create_booking(request):
+    """Create a new booking"""
+    profile = get_user_profile(request)
+    if not profile:
+        return render(request, 'scheduling/no_profile.html')
+    
+    if request.method == 'POST':
+        form = BookingForm(request.POST, organization=profile.organization)
+        if form.is_valid():
+            try:
+                scheduling_service = SchedulingService(profile.organization)
+                
+                booking = scheduling_service.create_booking(
+                    user_profile=profile,
+                    resource=form.cleaned_data['resource'],
+                    start_time=form.cleaned_data['requested_start'],
+                    end_time=form.cleaned_data['requested_end'],
+                    title=form.cleaned_data['title'],
+                    description=form.cleaned_data['description'],
+                    priority=form.cleaned_data['priority']
+                )
+                
+                messages.success(request, f'Booking "{booking.title}" created successfully!')
+                return redirect('scheduling:booking_detail', booking_id=booking.id)
+                
+            except Exception as e:
+                messages.error(request, f'Failed to create booking: {str(e)}')
+    else:
+        form = BookingForm(organization=profile.organization)
+    
+    context = {
+        'profile': profile,
+        'form': form,
+        'page_title': 'Create New Booking',
+    }
+    
+    return render(request, 'scheduling/create_booking.html', context)
+
+
+@login_required
+@require_organization_access
+def create_resource(request):
+    """Create a new resource"""
+    profile = get_user_profile(request)
+    if not profile:
+        return render(request, 'scheduling/no_profile.html')
+    
+    if request.method == 'POST':
+        form = ResourceForm(request.POST)
+        if form.is_valid():
+            try:
+                resource = form.save(commit=False)
+                resource.organization = profile.organization
+                resource.save()
+                
+                messages.success(request, f'Resource "{resource.name}" created successfully!')
+                return redirect('scheduling:resource_detail', resource_id=resource.id)
+                
+            except Exception as e:
+                messages.error(request, f'Failed to create resource: {str(e)}')
+    else:
+        form = ResourceForm()
+    
+    context = {
+        'profile': profile,
+        'form': form,
+        'page_title': 'Create New Resource',
+    }
+    
+    return render(request, 'scheduling/create_resource.html', context)
+
+
 @login_required  
 @require_organization_access
 def api_calendar_events(request):
@@ -375,6 +450,58 @@ def api_calendar_events(request):
         })
     
     return JsonResponse(events, safe=False)
+
+
+@login_required
+@require_organization_access
+def api_check_availability(request):
+    """API endpoint for checking resource availability"""
+    profile = get_user_profile(request)
+    if not profile:
+        return JsonResponse({'error': 'No profile found'}, status=400)
+    
+    resource_id = request.GET.get('resource_id')
+    start_time = request.GET.get('start_time')
+    end_time = request.GET.get('end_time')
+    
+    if not all([resource_id, start_time, end_time]):
+        return JsonResponse({'error': 'Missing required parameters'}, status=400)
+    
+    try:
+        resource = SchedulableResource.objects.get(
+            id=resource_id,
+            organization=profile.organization
+        )
+        
+        start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+        end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+        
+        scheduling_service = SchedulingService(profile.organization)
+        is_available = scheduling_service.is_time_slot_available(resource, start_dt, end_dt)
+        
+        response_data = {
+            'available': is_available,
+            'resource_name': resource.name,
+            'requested_time': {
+                'start': start_dt.isoformat(),
+                'end': end_dt.isoformat()
+            }
+        }
+        
+        if not is_available:
+            # Get suggestions for alternative times
+            duration = end_dt - start_dt
+            suggestions = scheduling_service.suggest_alternative_times(
+                resource, start_dt, duration, max_alternatives=5
+            )
+            response_data['suggestions'] = suggestions
+        
+        return JsonResponse(response_data)
+        
+    except SchedulableResource.DoesNotExist:
+        return JsonResponse({'error': 'Resource not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @login_required

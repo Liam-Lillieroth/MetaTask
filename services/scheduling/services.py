@@ -12,6 +12,108 @@ class SchedulingService:
     def __init__(self, organization):
         self.organization = organization
     
+    def check_availability(
+        self,
+        resource: SchedulableResource,
+        start_time: datetime,
+        end_time: datetime,
+        exclude_booking_id: Optional[int] = None
+    ) -> bool:
+        """Validates time slot availability"""
+        return self.is_time_slot_available(resource, start_time, end_time, exclude_booking_id)
+    
+    def create_booking(
+        self,
+        user_profile,
+        resource: SchedulableResource,
+        start_time: datetime,
+        end_time: datetime,
+        **kwargs
+    ) -> BookingRequest:
+        """Creates new booking"""
+        
+        # Validate time slot is available
+        if not self.is_time_slot_available(resource, start_time, end_time):
+            raise ValidationError("Time slot is not available")
+        
+        # Extract optional parameters
+        title = kwargs.get('title', f'Booking for {resource.name}')
+        description = kwargs.get('description', '')
+        priority = kwargs.get('priority', 'normal')
+        source_service = kwargs.get('source_service', 'scheduling')
+        source_object_type = kwargs.get('source_object_type', 'booking')
+        source_object_id = kwargs.get('source_object_id', '')
+        custom_data = kwargs.get('custom_data', {})
+        
+        booking = BookingRequest.objects.create(
+            organization=self.organization,
+            title=title,
+            description=description,
+            requested_start=start_time,
+            requested_end=end_time,
+            resource=resource,
+            requested_by=user_profile,
+            priority=priority,
+            source_service=source_service,
+            source_object_type=source_object_type,
+            source_object_id=source_object_id,
+            custom_data=custom_data,
+            status='pending'
+        )
+        
+        # Auto-confirm if allowed
+        if self.can_auto_confirm(booking):
+            booking.status = 'confirmed'
+            booking.save()
+        
+        return booking
+    
+    def approve_booking(self, booking_id: int, approver) -> bool:
+        """Approves pending booking"""
+        try:
+            booking = BookingRequest.objects.get(
+                id=booking_id,
+                organization=self.organization,
+                status='pending'
+            )
+            return self.confirm_booking(booking, approver)
+        except BookingRequest.DoesNotExist:
+            return False
+    
+    def cancel_booking_by_id(self, booking_id: int, user, reason: str = "") -> bool:
+        """Cancels existing booking by ID"""
+        try:
+            booking = BookingRequest.objects.get(
+                id=booking_id,
+                organization=self.organization
+            )
+            return self.cancel_booking(booking, reason)
+        except BookingRequest.DoesNotExist:
+            return False
+    
+    def get_upcoming_bookings(self, organization=None, days: int = 7) -> List[BookingRequest]:
+        """Retrieves upcoming bookings"""
+        organization = organization or self.organization
+        
+        start_time = timezone.now()
+        end_time = start_time + timedelta(days=days)
+        
+        return BookingRequest.objects.filter(
+            organization=organization,
+            status__in=['confirmed', 'in_progress'],
+            requested_start__gte=start_time,
+            requested_start__lte=end_time
+        ).select_related('resource', 'requested_by').order_by('requested_start')
+    
+    def get_utilization_stats(
+        self,
+        resource: SchedulableResource,
+        start_date: date,
+        end_date: date
+    ) -> Dict[str, Any]:
+        """Calculates usage statistics"""
+        return self.get_resource_utilization_stats(resource, start_date, end_date)
+    
     def get_resource_availability(
         self,
         resource: SchedulableResource,
@@ -490,6 +592,130 @@ class ResourceManagementService:
     
     def __init__(self, organization):
         self.organization = organization
+    
+    def create_resource(
+        self,
+        organization,
+        name: str,
+        resource_type: str,
+        **kwargs
+    ) -> SchedulableResource:
+        """Creates new resource"""
+        
+        description = kwargs.get('description', '')
+        capacity = kwargs.get('capacity', 1)
+        location = kwargs.get('location', '')
+        metadata = kwargs.get('metadata', {})
+        availability_rules = kwargs.get('availability_rules', {
+            'start_hour': 8,
+            'end_hour': 18,
+            'working_days': [0, 1, 2, 3, 4]  # Mon-Fri
+        })
+        
+        resource = SchedulableResource.objects.create(
+            organization=organization,
+            name=name,
+            resource_type=resource_type,
+            description=description,
+            max_concurrent_bookings=capacity,
+            availability_rules=availability_rules,
+            service_type='scheduling',
+            is_active=True
+        )
+        
+        return resource
+    
+    def update_resource(self, resource_id: int, **kwargs) -> Optional[SchedulableResource]:
+        """Updates resource properties"""
+        try:
+            resource = SchedulableResource.objects.get(
+                id=resource_id,
+                organization=self.organization
+            )
+            
+            # Update allowed fields
+            allowed_fields = [
+                'name', 'description', 'max_concurrent_bookings',
+                'availability_rules', 'is_active'
+            ]
+            
+            for field, value in kwargs.items():
+                if field in allowed_fields and hasattr(resource, field):
+                    setattr(resource, field, value)
+            
+            resource.save()
+            return resource
+            
+        except SchedulableResource.DoesNotExist:
+            return None
+    
+    def deactivate_resource(self, resource_id: int) -> bool:
+        """Safely deactivates resource"""
+        try:
+            resource = SchedulableResource.objects.get(
+                id=resource_id,
+                organization=self.organization
+            )
+            
+            # Check for future bookings
+            future_bookings = BookingRequest.objects.filter(
+                resource=resource,
+                status__in=['pending', 'confirmed'],
+                requested_start__gt=timezone.now()
+            )
+            
+            if future_bookings.exists():
+                # Don't deactivate if there are future bookings
+                return False
+            
+            resource.is_active = False
+            resource.save()
+            return True
+            
+        except SchedulableResource.DoesNotExist:
+            return False
+    
+    def get_available_resources(
+        self,
+        organization,
+        check_datetime: datetime,
+        duration: Optional[timedelta] = None
+    ) -> List[SchedulableResource]:
+        """Gets available resources at time"""
+        
+        duration = duration or timedelta(hours=1)
+        end_datetime = check_datetime + duration
+        
+        # Get all active resources
+        resources = SchedulableResource.objects.filter(
+            organization=organization,
+            is_active=True
+        )
+        
+        available_resources = []
+        scheduling_service = SchedulingService(organization)
+        
+        for resource in resources:
+            if scheduling_service.is_time_slot_available(resource, check_datetime, end_datetime):
+                available_resources.append(resource)
+        
+        return available_resources
+    
+    def calculate_capacity_utilization(
+        self,
+        resource: SchedulableResource,
+        period: Dict[str, date]
+    ) -> Dict[str, Any]:
+        """Analyzes capacity usage"""
+        
+        start_date = period.get('start_date')
+        end_date = period.get('end_date')
+        
+        if not start_date or not end_date:
+            raise ValueError("Period must include start_date and end_date")
+        
+        scheduling_service = SchedulingService(resource.organization)
+        return scheduling_service.get_resource_utilization_stats(resource, start_date, end_date)
     
     def create_resource_from_team(self, team) -> SchedulableResource:
         """Create a schedulable resource from a team"""
