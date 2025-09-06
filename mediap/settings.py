@@ -92,6 +92,7 @@ INSTALLED_APPS = [
     # Services
     'services.cflows',
     'services.job_planning',
+    'services.scheduling',
 ]
 
 MIDDLEWARE = [

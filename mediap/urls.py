@@ -28,6 +28,7 @@ urlpatterns = [
     path('core/', include('core.urls')),
     path('services/cflows/', include('services.cflows.urls')),
     path('services/job-planning/', include('services.job_planning.urls')),
+    path('services/scheduling/', include('services.scheduling.urls')),
 ]
 
 # Serve media files in development
