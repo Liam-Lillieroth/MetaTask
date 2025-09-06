@@ -1,16 +1,47 @@
 from typing import Dict, Any, Optional, List
+from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from django.utils import timezone
 from .models import BookingRequest, SchedulableResource
 from .services import SchedulingService
 
 
-class ServiceIntegration:
-    """Base class for service integrations"""
+class ServiceIntegration(ABC):
+    """Abstract base class for service integrations"""
     
     def __init__(self, organization):
         self.organization = organization
         self.scheduling_service = SchedulingService(organization)
+    
+    @abstractmethod
+    def sync_data(self):
+        """Abstract method for data synchronization"""
+        pass
+    
+    def handle_booking_created(self, booking: BookingRequest):
+        """Hook for new bookings - can be overridden by subclasses"""
+        pass
+    
+    def handle_booking_cancelled(self, booking: BookingRequest):
+        """Hook for cancellations - can be overridden by subclasses"""
+        pass
+    
+    def get_booking_by_source(
+        self,
+        source_service: str,
+        source_object_type: str,
+        source_object_id: str
+    ) -> Optional[BookingRequest]:
+        """Get booking by source information"""
+        try:
+            return BookingRequest.objects.get(
+                organization=self.organization,
+                source_service=source_service,
+                source_object_type=source_object_type,
+                source_object_id=source_object_id
+            )
+        except BookingRequest.DoesNotExist:
+            return None
     
     def create_booking_request(
         self,
@@ -95,6 +126,10 @@ class ServiceIntegration:
 
 class CFlowsIntegration(ServiceIntegration):
     """Integration with CFlows service"""
+    
+    def sync_data(self):
+        """Synchronize TeamBookings with scheduling system"""
+        return self.sync_all_team_bookings()
     
     def create_work_item_booking(
         self,
