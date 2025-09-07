@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 class CustomUser(AbstractUser):
     """
-    Extended user model for Mediap platform
+    Extended user model for MetaTask platform
     """
     REFERRAL_SOURCES = [
         ('search', 'Search Engine'),
@@ -74,13 +74,13 @@ class CustomUser(AbstractUser):
 
 class UserRole(models.Model):
     """
-    User role model for Mediap platform role management
+    User role model for MetaTask platform role management
     """
     ROLE_CHOICES = [
-        ('mediap_support', 'Mediap Support'),
-        ('mediap_admin', 'Mediap Admin'),
-        ('mediap_moderator', 'Mediap Moderator'),
-        ('mediap_editor', 'Mediap Editor'),
+        ('metatask_support', 'MetaTask Support'),
+        ('metatask_admin', 'MetaTask Admin'),
+        ('metatask_moderator', 'MetaTask Moderator'),
+        ('metatask_editor', 'MetaTask Editor'),
         ('workflow_manager', 'Workflow Manager'),
         ('process_designer', 'Process Designer'),
         ('job_planner', 'Job Planner'),
@@ -110,7 +110,7 @@ class UserRole(models.Model):
 
 class UserProfile(models.Model):
     """
-    Extended user profile for additional Mediap-specific data
+    Extended user profile for additional MetaTask-specific data
     """
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='profile')
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
@@ -149,7 +149,7 @@ class UserProfile(models.Model):
     def organization(self):
         """Get the user's organization through UserProfile"""
         try:
-            # Get the Mediap profile which has the organization relationship
+            # Get the MetaTask profile which has the organization relationship
             mediap_profile = self.user.mediap_profile
             return mediap_profile.organization
         except AttributeError:

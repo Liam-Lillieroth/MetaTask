@@ -10,7 +10,7 @@ from .models import Organization, UserProfile, Team, CalendarEvent
 @login_required
 def dashboard(request):
     """
-    Main dashboard for logged-in users showing overview of their Mediap experience
+    Main dashboard for logged-in users showing overview of their MetaTask experience
     """
     try:
         profile = request.user.mediap_profile

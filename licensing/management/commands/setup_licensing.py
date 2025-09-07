@@ -6,7 +6,7 @@ from core.models import Organization
 
 
 class Command(BaseCommand):
-    help = 'Set up initial licensing data for Mediap services'
+    help = 'Set up initial licensing data for MetaTask services'
 
     def handle(self, *args, **options):
         self.stdout.write('Setting up initial licensing data...')

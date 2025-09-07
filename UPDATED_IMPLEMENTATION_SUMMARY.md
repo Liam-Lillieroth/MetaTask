@@ -1,7 +1,7 @@
-# Mediap Platform Implementation Summary
+# MetaTask Platform Implementation Summary
 
 ## Overview
-This document summarizes the comprehensive implementation of the Mediap platform with model refactoring, licensing system, organization access control, transition customization, and advanced workflow field customization.
+This document summarizes the comprehensive implementation of the MetaTask platform with model refactoring, licensing system, organization access control, transition customization, and advanced workflow field customization.
 
 ## Major Features Implemented
 

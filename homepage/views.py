@@ -8,7 +8,7 @@ def index(request):
         return redirect('dashboard:dashboard')
     
     return render(request, 'homepage/index.html', {
-        'title': 'Mediap - Comprehensive Service Platform',
+        'title': 'MetaTask - Comprehensive Service Platform',
         'services': [
             {'name': 'CFlows', 'description': 'Workflow Management System'},
             {'name': 'Job Planning', 'description': 'Resource Allocation and Scheduling'},
@@ -26,7 +26,7 @@ def services(request):
 def about(request):
     """About page"""
     return render(request, 'homepage/about.html', {
-        'title': 'About Mediap',
+        'title': 'About MetaTask',
     })
 
 
