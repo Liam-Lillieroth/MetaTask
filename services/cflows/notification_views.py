@@ -30,26 +30,52 @@ def real_time_notifications(request):
     last_check = request.GET.get('last_check')
     
     if last_check:
-        last_check = datetime.fromisoformat(last_check.replace('Z', '+00:00'))
+        try:
+            # Handle different ISO format variations
+            if last_check.endswith('Z'):
+                last_check = last_check.replace('Z', '+00:00')
+            elif '+' in last_check and last_check.count('+') == 1:
+                # Format like: 2025-09-07T18:40:03.157053+00:00
+                pass  # Already correct
+            elif ' ' in last_check:
+                # Format like: 2025-09-07T18:40:03.157053 00:00
+                last_check = last_check.replace(' ', '+')
+            
+            last_check = datetime.fromisoformat(last_check)
+        except ValueError:
+            # Fallback if parsing fails
+            last_check = timezone.now() - timedelta(hours=1)
     else:
         last_check = timezone.now() - timedelta(hours=1)
     
     notifications = []
     
-    # Check for new work item assignments
+    # Check for new work item assignments - use updated_at and check history
     new_assignments = WorkItem.objects.filter(
         workflow__organization=user_org,
         current_assignee=user_profile,
-        assigned_at__gt=last_check
+        updated_at__gt=last_check
     ).select_related('workflow', 'current_step')
     
+    # Filter to only items where assignee actually changed recently
+    actual_assignments = []
     for item in new_assignments:
+        # Check if this is a recent assignment by looking at history
+        recent_history = item.history.filter(
+            created_at__gt=last_check
+        ).order_by('-created_at').first()
+        
+        # If there's recent history or item was created recently, consider it a new assignment
+        if recent_history or item.created_at > last_check:
+            actual_assignments.append(item)
+    
+    for item in actual_assignments:
         notifications.append({
             'type': 'work_item_assigned',
             'title': 'New Work Item Assigned',
             'message': f'You have been assigned to "{item.title}"',
             'url': f'/services/cflows/work-items/{item.id}/',
-            'timestamp': item.assigned_at.isoformat(),
+            'timestamp': item.updated_at.isoformat(),
             'priority': item.priority,
             'workflow': item.workflow.name
         })
@@ -60,7 +86,7 @@ def real_time_notifications(request):
         current_assignee=user_profile,
         updated_at__gt=last_check
     ).exclude(
-        assigned_at__gt=last_check  # Exclude already counted assignments
+        id__in=[item.id for item in actual_assignments]  # Exclude already counted assignments
     ).select_related('workflow', 'current_step')
     
     for item in transitions:
@@ -76,20 +102,20 @@ def real_time_notifications(request):
     
     # Check for upcoming booking deadlines
     upcoming_bookings = TeamBooking.objects.filter(
-        assigned_to=user_profile,
-        start_date__gte=timezone.now().date(),
-        start_date__lte=timezone.now().date() + timedelta(days=1),
-        status='scheduled'
+        assigned_members=user_profile,
+        start_time__gte=timezone.now(),
+        start_time__lte=timezone.now() + timedelta(days=1),
+        is_completed=False
     ).select_related('work_item', 'team')
     
     for booking in upcoming_bookings:
         notifications.append({
             'type': 'booking_reminder',
             'title': 'Booking Reminder',
-            'message': f'"{booking.work_item.title}" with {booking.team.name} starts {"today" if booking.start_date == timezone.now().date() else "tomorrow"}',
-            'url': f'/services/cflows/work-items/{booking.work_item.id}/',
-            'timestamp': booking.start_date.isoformat(),
-            'priority': booking.work_item.priority,
+            'message': f'"{booking.title}" with {booking.team.name} starts {"today" if booking.start_time.date() == timezone.now().date() else "tomorrow"}',
+            'url': f'/services/cflows/work-items/{booking.work_item.id}/' if booking.work_item else f'/services/cflows/bookings/{booking.id}/',
+            'timestamp': booking.start_time.isoformat(),
+            'priority': booking.work_item.priority if booking.work_item else 'normal',
             'team': booking.team.name
         })
     
@@ -141,14 +167,14 @@ def get_dashboard_stats(user_profile):
     
     # Team bookings
     my_bookings = TeamBooking.objects.filter(
-        assigned_to=user_profile,
-        start_date__gte=timezone.now().date(),
-        status__in=['scheduled', 'in_progress']
+        assigned_members=user_profile,
+        start_time__gte=timezone.now(),
+        is_completed=False
     )
     
     stats['my_upcoming_bookings'] = my_bookings.count()
     stats['my_today_bookings'] = my_bookings.filter(
-        start_date=timezone.now().date()
+        start_time__date=timezone.now().date()
     ).count()
     
     # Organization totals (for admin users)

@@ -131,9 +131,9 @@ WSGI_APPLICATION = 'mediap.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME', default='metatask'),
-        'USER': config('DB_USER', default='metatask'),
-        'PASSWORD': config('DB_PASSWORD', default='metatask'),
+        'NAME': config('DB_NAME', default='mediap'),
+        'USER': config('DB_USER', default='mediap'),
+        'PASSWORD': config('DB_PASSWORD', default='mediap'),
         'HOST': config('DB_HOST', default='localhost'),
         'PORT': config('DB_PORT', default='5432'),
     }
@@ -272,23 +272,21 @@ LOGGING = {
         },
     },
     'handlers': {
-        'file': {
-            'level': 'INFO',
-            'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'logs' / 'metatask.log',
-            'formatter': 'verbose',
-        },
         'console': {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
     },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
     'loggers': {
-        'metatask': {
-            'handlers': ['file', 'console'],
+        'django': {
+            'handlers': ['console'],
             'level': 'INFO',
-            'propagate': True,
+            'propagate': False,
         },
     },
 }

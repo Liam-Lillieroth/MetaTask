@@ -573,10 +573,10 @@ class SchedulingService:
         
         try:
             if booking.source_service == 'cflows':
-                from django.dispatch import Signal
+                # Import the signal from CFlows
+                from services.cflows.signals import booking_status_changed
                 
-                # Define signal if not already defined
-                booking_status_changed = Signal()
+                # Send signal to CFlows
                 booking_status_changed.send(
                     sender=self.__class__,
                     booking=booking,

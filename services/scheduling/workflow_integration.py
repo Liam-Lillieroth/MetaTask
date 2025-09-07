@@ -72,8 +72,8 @@ class BookingWorkflowIntegration:
         # Get available next steps (transitions from current step)
         next_steps = WorkflowStep.objects.filter(
             workflow=workflow,
-            step_transitions_from__from_step=current_step,
-            step_transitions_from__is_active=True
+            incoming_transitions__from_step=current_step,
+            incoming_transitions__is_active=True
         ).order_by('order')
         
         # Get backward steps if allowed
@@ -87,9 +87,9 @@ class BookingWorkflowIntegration:
                     'id': step.id,
                     'name': step.name,
                     'description': step.description,
-                    'is_final': step.is_final,
-                    'requires_approval': step.requires_approval,
-                    'estimated_duration': step.estimated_duration
+                    'is_terminal': step.is_terminal,
+                    'requires_booking': step.requires_booking,
+                    'estimated_duration_hours': step.estimated_duration_hours
                 }
                 for step in next_steps
             ],
@@ -101,8 +101,8 @@ class BookingWorkflowIntegration:
                 }
                 for step in backward_steps[:3]  # Limit to last 3 steps
             ],
-            'can_complete': current_step.is_final,
-            'requires_approval': current_step.requires_approval
+            'can_complete': current_step.is_terminal,
+            'requires_booking': current_step.requires_booking
         }
     
     @staticmethod
@@ -206,7 +206,7 @@ class BookingWorkflowIntegration:
                         result['new_step'] = target_step.name
                         
                         # Check if the new step is final
-                        if target_step.is_final:
+                        if target_step.is_terminal:
                             work_item.is_completed = True
                             work_item.completed_at = timezone.now()
                             work_item.save()

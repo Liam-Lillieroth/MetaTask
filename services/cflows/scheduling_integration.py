@@ -243,3 +243,117 @@ class CFlowsSchedulingIntegration:
             except TeamBooking.DoesNotExist:
                 return None
         return None
+    
+    @staticmethod
+    def handle_scheduling_booking_completion(booking_request):
+        """Handle completion of scheduling booking - mark corresponding CFlows TeamBooking as complete"""
+        from .models import TeamBooking, WorkflowStep
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Find the corresponding TeamBooking
+            team_booking = TeamBooking.objects.get(id=booking_request.source_object_id)
+            
+            # Mark the team booking as complete
+            team_booking.is_completed = True
+            team_booking.completed_at = timezone.now()
+            
+            # Add completion notes if provided (create a WorkItem comment)
+            completion_notes = booking_request.custom_data.get('completion_notes', '')
+            if completion_notes and team_booking.work_item:
+                from .models import WorkItemComment
+                WorkItemComment.objects.create(
+                    work_item=team_booking.work_item,
+                    author=None,  # System comment
+                    content=f"Booking completion notes: {completion_notes}",
+                    is_system_comment=True
+                )
+            
+            team_booking.save()
+            
+            # Try to advance the work item workflow if this is the final booking
+            work_item = team_booking.work_item
+            if work_item and work_item.workflow_step:
+                current_step = work_item.workflow_step
+                
+                # Check if all team bookings for this work item are complete
+                all_bookings = TeamBooking.objects.filter(work_item=work_item)
+                incomplete_bookings = all_bookings.filter(is_completed=False)
+                
+                if not incomplete_bookings.exists():
+                    # All bookings are complete, try to advance workflow
+                    # Find a transition that doesn't require approval
+                    from .models import WorkflowTransition
+                    transitions = WorkflowTransition.objects.filter(
+                        from_step=current_step,
+                        requires_booking=False  # Auto-advance transitions
+                    ).first()
+                    
+                    if transitions and transitions.to_step.is_terminal:
+                        work_item.current_step = transitions.to_step
+                        work_item.is_completed = True
+                        work_item.completed_at = timezone.now()
+                        work_item.save()
+                        
+                        logger.info(f"Work item {work_item.id} automatically completed after all bookings finished")
+            
+            logger.info(f"TeamBooking {team_booking.id} marked as complete from scheduling service")
+            return True
+            
+        except TeamBooking.DoesNotExist:
+            logger.error(f"TeamBooking with id {booking_request.source_object_id} not found")
+            return False
+        except Exception as e:
+            logger.error(f"Error handling scheduling booking completion: {str(e)}")
+            return False
+
+    @staticmethod
+    def sync_completed_bookings_retroactively(organization=None):
+        """
+        Sync already completed scheduling bookings with CFlows team bookings
+        This handles cases where bookings were completed before bidirectional sync was implemented
+        """
+        from services.scheduling.models import BookingRequest
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        # Find completed scheduling bookings that originated from CFlows
+        completed_bookings = BookingRequest.objects.filter(
+            source_service='cflows',
+            source_object_type='TeamBooking',
+            status='completed'  # Note: using 'completed' not 'complete'
+        )
+        
+        if organization:
+            completed_bookings = completed_bookings.filter(organization=organization)
+        
+        synced_count = 0
+        error_count = 0
+        
+        for booking in completed_bookings:
+            try:
+                team_booking = TeamBooking.objects.get(id=booking.source_object_id)
+                
+                # Skip if already completed
+                if team_booking.is_completed:
+                    continue
+                
+                # Use the existing handler method
+                result = CFlowsSchedulingIntegration.handle_scheduling_booking_completion(booking)
+                if result:
+                    synced_count += 1
+                else:
+                    error_count += 1
+                    
+            except TeamBooking.DoesNotExist:
+                logger.error(f"TeamBooking {booking.source_object_id} not found for booking {booking.id}")
+                error_count += 1
+            except Exception as e:
+                logger.error(f"Error syncing completed booking {booking.id}: {str(e)}")
+                error_count += 1
+        
+        logger.info(f"Retroactive sync completed: {synced_count} synced, {error_count} errors")
+        return synced_count, error_count
