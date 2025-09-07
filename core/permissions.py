@@ -78,7 +78,7 @@ class Role(models.Model):
     ]
     
     organization = models.ForeignKey(
-        'accounts.Organization', 
+        'core.Organization', 
         on_delete=models.CASCADE, 
         related_name='roles'
     )

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser, Organization, OrganizationMember, UserRole, UserProfile
+from .models import CustomUser, UserRole, UserProfile
 
 
 @admin.register(CustomUser)
@@ -32,47 +32,8 @@ class CustomUserAdmin(UserAdmin):
     search_fields = ('username', 'first_name', 'last_name', 'email')
 
 
-@admin.register(Organization)
-class OrganizationAdmin(admin.ModelAdmin):
-    """
-    Admin interface for Organization model
-    """
-    list_display = ('name', 'owner', 'company_type', 'team_size', 'is_active', 'created_at')
-    list_filter = ('company_type', 'purpose', 'is_active', 'team_size')
-    search_fields = ('name', 'owner__username', 'owner__email', 'contact_email')
-    readonly_fields = ('slug', 'created_at', 'updated_at')
-    
-    fieldsets = (
-        ('Basic Information', {
-            'fields': ('name', 'slug', 'owner', 'description', 'website')
-        }),
-        ('Business Details', {
-            'fields': ('company_type', 'purpose', 'team_size')
-        }),
-        ('Contact Information', {
-            'fields': ('contact_email', 'contact_phone')
-        }),
-        ('Address', {
-            'fields': ('address_line1', 'address_line2', 'city', 'state', 'postal_code', 'country')
-        }),
-        ('Settings', {
-            'fields': ('is_active', 'max_users')
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at')
-        }),
-    )
+# Organization admin moved to core/admin.py
 
-
-@admin.register(OrganizationMember)
-class OrganizationMemberAdmin(admin.ModelAdmin):
-    """
-    Admin interface for OrganizationMember model
-    """
-    list_display = ('user', 'organization', 'role', 'is_active', 'created_at')
-    list_filter = ('role', 'is_active')
-    search_fields = ('user__username', 'user__email', 'organization__name')
-    readonly_fields = ('created_at',)
 
 
 @admin.register(UserRole)

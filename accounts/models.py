@@ -68,90 +68,8 @@ class CustomUser(AbstractUser):
         return f"{self.first_name} {self.last_name}".strip()
 
 
-class Organization(models.Model):
-    """
-    Represents a company or team account
-    """
-    COMPANY_TYPES = [
-        ('startup', 'Startup'),
-        ('smb', 'Small-Medium Business'),
-        ('enterprise', 'Enterprise'),
-        ('non_profit', 'Non-Profit'),
-        ('education', 'Education'),
-        ('other', 'Other'),
-    ]
-
-    PURPOSES = [
-        ('project_management', 'Project Management'),
-        ('marketing', 'Marketing'),
-        ('sales', 'Sales'),
-        ('development', 'Development'),
-        ('hr', 'Human Resources'),
-        ('other', 'Other'),
-    ]
-
-    name = models.CharField(max_length=100)
-    slug = models.SlugField(unique=True, blank=True)
-    owner = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='owned_organization')
-    team_size = models.CharField(max_length=20, choices=CustomUser.TEAM_SIZES, blank=True, null=True)
-    company_type = models.CharField(max_length=50, choices=COMPANY_TYPES, blank=True, null=True)
-    purpose = models.CharField(max_length=50, choices=PURPOSES, blank=True, null=True)
-    description = models.TextField(blank=True)
-    website = models.URLField(blank=True)
-    
-    # Contact information
-    contact_email = models.EmailField(blank=True)
-    contact_phone = models.CharField(max_length=17, blank=True)
-    
-    # Address information
-    address_line1 = models.CharField(max_length=255, blank=True)
-    address_line2 = models.CharField(max_length=255, blank=True)
-    city = models.CharField(max_length=100, blank=True)
-    state = models.CharField(max_length=100, blank=True)
-    postal_code = models.CharField(max_length=20, blank=True)
-    country = models.CharField(max_length=100, blank=True)
-    
-    # Organization settings
-    is_active = models.BooleanField(default=True)
-    max_users = models.PositiveIntegerField(default=100)
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = slugify(self.name)
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        ordering = ['name']
-
-
-class OrganizationMember(models.Model):
-    """
-    Manages users within an organization, including their roles and invitation status
-    """
-    ROLES = [
-        ('owner', 'Owner'),
-        ('admin', 'Admin'),
-        ('member', 'Member'),
-    ]
-
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='members')
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='organization_memberships')
-    role = models.CharField(max_length=20, choices=ROLES, default='member')
-    is_active = models.BooleanField(default=True)
-    invited_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='invited_members')
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('organization', 'user')
-
-    def __str__(self):
-        return f'{self.user.username} in {self.organization.name} ({self.role})'
+# Organization model moved to core.models to avoid duplication
+# Use: from core.models import Organization
 
 
 class UserRole(models.Model):
@@ -227,14 +145,16 @@ class UserProfile(models.Model):
     def __str__(self):
         return f"{self.user.username}'s Profile"
     
-    @property 
-    def organization(self) -> Optional['Organization']:
-        """Get user's organization"""
-        if hasattr(self.user, 'owned_organization'):
-            return self.user.owned_organization
-        
-        membership = self.user.organization_memberships.filter(is_active=True).first()
-        return membership.organization if membership else None
+    @property
+    def organization(self):
+        """Get the user's organization through UserProfile"""
+        try:
+            # Get the Mediap profile which has the organization relationship
+            mediap_profile = self.user.mediap_profile
+            return mediap_profile.organization
+        except AttributeError:
+            # No mediap_profile exists
+            return None
     
     def get_active_roles(self) -> List['Role']:
         """Get all active roles for this user"""

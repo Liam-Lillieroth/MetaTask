@@ -13,7 +13,8 @@ from django.db import transaction
 from django.core.paginator import Paginator
 from django.utils import timezone
 
-from accounts.models import UserProfile, Organization
+from accounts.models import UserProfile
+from core.models import Organization
 from core.permissions import Role, Permission, UserRoleAssignment
 from core.services.permission_service import PermissionService
 from core.decorators import (

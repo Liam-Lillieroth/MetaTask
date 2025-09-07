@@ -6,7 +6,8 @@ from typing import List, Dict, Any, Optional
 from django.db import transaction
 from django.utils import timezone
 from django.contrib.contenttypes.models import ContentType
-from accounts.models import UserProfile, Organization
+from accounts.models import UserProfile
+from core.models import Organization
 from core.permissions import Permission, Role, UserRoleAssignment
 
 

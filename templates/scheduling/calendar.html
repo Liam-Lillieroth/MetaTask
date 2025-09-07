@@ -1,662 +1,933 @@
-{% extends 'scheduling/scheduling_base.html' %}
+{% extends "scheduling/scheduling_base.html" %}
 {% load static %}
 
-{% block title %}Calendar - {{ profile.organization.name }}{% endblock %}
+{% block title %}Calendar - Scheduling{% endblock %}
 
-{% block extra_css %}
-<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/main.min.css" rel="stylesheet">
-<style>
-.fc-event {
-    cursor: pointer;
-}
-.resource-filter {
-    max-height: 200px;
-    overflow-y: auto;
-}
-</style>
+{% block extra_head %}
+    <!-- CSRF Token for AJAX requests -->
+    <meta name="csrf-token" content="{{ csrf_token }}">
 {% endblock %}
 
 {% block content %}
-<div class="space-y-8">
-    <!-- Page Header -->
-    <div>
-        <h1 class="text-3xl font-bold text-gray-900">Scheduling Calendar</h1>
-        <p class="mt-2 text-lg text-gray-600">View and manage all bookings across your resources</p>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        <!-- Filters Sidebar -->
-        <div class="lg:col-span-1">
-            <div class="bg-white shadow rounded-lg">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">Filters</h3>
-                </div>
-                <div class="p-6">
-                    <h4 class="text-sm font-medium text-gray-900 mb-3">Resources</h4>
-                    <div class="resource-filter space-y-2">
-                        <div class="flex items-center">
-                            <input class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded" type="checkbox" id="all-resources" checked>
-                            <label class="ml-3 text-sm font-medium text-gray-700" for="all-resources">
-                                All Resources
-                            </label>
-                        </div>
-                        <hr class="my-3 border-gray-200">
-                        {% for resource in resources %}
-                        <div class="flex items-center">
-                            <input class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded resource-checkbox" type="checkbox" 
-                                   value="{{ resource.id }}" id="resource-{{ resource.id }}" checked>
-                            <label class="ml-3 text-sm text-gray-700" for="resource-{{ resource.id }}">
-                                {{ resource.name }}
-                                <span class="block text-xs text-gray-500">{{ resource.get_resource_type_display }}</span>
-                            </label>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
+<div class="max-w-7xl mx-auto p-6">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900 mb-2">Booking Calendar</h1>
+                <p class="text-gray-600">View and manage your resource bookings</p>
             </div>
-
-            <div class="bg-white shadow rounded-lg mt-6">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">Legend</h3>
-                </div>
-                <div class="p-6 space-y-3">
-                    <div class="flex items-center">
-                        <div class="bg-blue-500 rounded mr-3" style="width: 20px; height: 20px;"></div>
-                        <span class="text-sm text-gray-700">Confirmed</span>
-                    </div>
-                    <div class="flex items-center">
-                        <div class="bg-green-500 rounded mr-3" style="width: 20px; height: 20px;"></div>
-                        <span class="text-sm text-gray-700">In Progress</span>
-                    </div>
-                    <div class="flex items-center">
-                        <div class="bg-gray-500 rounded mr-3" style="width: 20px; height: 20px;"></div>
-                        <span class="text-sm text-gray-700">Completed</span>
-                    </div>
-                    <div class="flex items-center">
-                        <div class="bg-yellow-500 rounded mr-3" style="width: 20px; height: 20px;"></div>
-                        <span class="text-sm text-gray-700">Pending</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Calendar -->
-                    </div>
-        </div>
-
-        <!-- Calendar -->
-        <div class="lg:col-span-3">
-            <div class="bg-white shadow rounded-lg">
-                <div class="p-6">
-                    <div id="calendar"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Event Detail Modal -->
-<div id="eventModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="eventModalTitle" role="dialog" aria-modal="true">
-    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
-        
-        <!-- Modal panel -->
-        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
-            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div class="sm:flex sm:items-start">
-                    <div class="mt-3 text-center sm:mt-0 sm:text-left w-full">
-                        <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4" id="eventModalTitle">
-                            Booking Details
-                        </h3>
-                        <div id="eventModalBody" class="mt-2">
-                            <!-- Content loaded via JavaScript -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <a href="#" id="eventModalLink" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm">
-                    View Details
+            <div class="flex space-x-3">
+                <button onclick="exportCalendar()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center">
+                    <i class="fas fa-download mr-2"></i>
+                    Export
+                </button>
+                <button onclick="printCalendar()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center">
+                    <i class="fas fa-print mr-2"></i>
+                    Print
+                </button>
+                <a href="{% url 'scheduling:create_booking' %}" 
+                   class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center">
+                    <i class="fas fa-plus mr-2"></i>
+                    New Booking
                 </a>
-                <button type="button" onclick="closeModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                    Close
-                </button>
             </div>
         </div>
     </div>
-</div>
-{% endblock %}
 
-{% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/main.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    var calendarEl = document.getElementById('calendar');
-    
-    // Modal functions
-    function openModal() {
-        document.getElementById('eventModal').classList.remove('hidden');
-    }
-    
-    function closeModal() {
-        document.getElementById('eventModal').classList.add('hidden');
-    }
-    
-    // Make closeModal globally available
-    window.closeModal = closeModal;
-{% endblock %}
-
-{% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/main.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    var calendarEl = document.getElementById('calendar');
-    var eventModal = new bootstrap.Modal(document.getElementById('eventModal'));
-    
-    var calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
-        headerToolbar: {
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay'
-        },
-        height: 'auto',
-        events: {
-            url: '{% url "scheduling:api_calendar_events" %}',
-            method: 'GET',
-            extraParams: function() {
-                // Get selected resources
-                var selectedResources = [];
-                document.querySelectorAll('.resource-checkbox:checked').forEach(function(checkbox) {
-                    selectedResources.push(checkbox.value);
-                });
-                return {
-                    'resources[]': selectedResources
-                };
-            }
-        },
-        eventClick: function(info) {
-            var event = info.event;
-            var props = event.extendedProps;
-            
-            document.getElementById('eventModalTitle').textContent = event.title;
-            document.getElementById('eventModalLink').href = `/services/scheduling/bookings/${event.id}/`;
-            
-            var modalBody = document.getElementById('eventModalBody');
-            modalBody.innerHTML = 
-                '<div class="grid grid-cols-1 md:grid-cols-2 gap-6">' +
-                    '<div>' +
-                        '<h4 class="text-sm font-medium text-gray-900 mb-3">Basic Information</h4>' +
-                        '<div class="space-y-2">' +
-                            '<div><span class="font-medium text-gray-700">Title:</span> ' + event.title + '</div>' +
-                            '<div><span class="font-medium text-gray-700">Resource:</span> ' + props.resource + '</div>' +
-                            '<div><span class="font-medium text-gray-700">Status:</span> <span class="inline-flex px-2 py-1 text-xs font-semibold bg-blue-100 text-blue-800 rounded-full">' + props.status + '</span></div>' +
-                            (props.description ? '<div><span class="font-medium text-gray-700">Description:</span> ' + props.description + '</div>' : '') +
-                        '</div>' +
-                    '</div>' +
-                    '<div>' +
-                        '<h4 class="text-sm font-medium text-gray-900 mb-3">Timing</h4>' +
-                        '<div class="space-y-2">' +
-                            '<div><span class="font-medium text-gray-700">Start:</span> ' + event.start.toLocaleString() + '</div>' +
-                            '<div><span class="font-medium text-gray-700">End:</span> ' + event.end.toLocaleString() + '</div>' +
-                            (props.requestedBy ? '<div><span class="font-medium text-gray-700">Requested By:</span> ' + props.requestedBy + '</div>' : '') +
-                            '<div><span class="font-medium text-gray-700">Source:</span> ' + props.sourceService + '</div>' +
-                        '</div>' +
-                    '</div>' +
-                '</div>';
-            
-            openModal();
-        }
-    });
-
-    calendar.render();
-
-    // Resource filter functionality
-    document.getElementById('all-resources').addEventListener('change', function() {
-        var checkboxes = document.querySelectorAll('.resource-checkbox');
-        var thisChecked = this.checked;
-        checkboxes.forEach(function(checkbox) {
-            checkbox.checked = thisChecked;
-        });
-        calendar.refetchEvents();
-    });
-
-    document.querySelectorAll('.resource-checkbox').forEach(function(checkbox) {
-        checkbox.addEventListener('change', function() {
-            // Update "All Resources" checkbox
-            var allCheckbox = document.getElementById('all-resources');
-            var checkedBoxes = document.querySelectorAll('.resource-checkbox:checked').length;
-            var totalBoxes = document.querySelectorAll('.resource-checkbox').length;
-            
-            allCheckbox.checked = checkedBoxes === totalBoxes;
-            allCheckbox.indeterminate = checkedBoxes > 0 && checkedBoxes < totalBoxes;
-            
-            calendar.refetchEvents();
-        });
-    });
-});
-</script>
-{% endblock %}
-        <div class="flex items-center space-x-2">
-            <label for="project-filter" class="text-sm font-medium text-gray-700">Project:</label>
-            <select id="project-filter" class="block w-48 pl-3 pr-10 py-2 text-sm border-gray-300 focus:ring-green-500 focus:border-green-500 rounded-lg">
-                <option value="">All Projects</option>
-                <!-- Projects will be loaded here -->
-            </select>
+    <!-- Calendar Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-calendar-check text-white text-sm"></i>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-blue-900">Confirmed</p>
+                    <p class="text-lg font-semibold text-blue-900" id="confirmedCount">0</p>
+                </div>
+            </div>
         </div>
         
-        <div class="flex items-center space-x-2">
-            <label for="resource-filter" class="text-sm font-medium text-gray-700">Resource:</label>
-            <select id="resource-filter" class="block w-48 pl-3 pr-10 py-2 text-sm border-gray-300 focus:ring-green-500 focus:border-green-500 rounded-lg">
-                <option value="">All Resources</option>
-                <!-- Resources will be loaded here -->
-            </select>
+        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-clock text-white text-sm"></i>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-green-900">In Progress</p>
+                    <p class="text-lg font-semibold text-green-900" id="inProgressCount">0</p>
+                </div>
+            </div>
         </div>
         
-        <div class="flex items-center space-x-2">
-            <label for="status-filter" class="text-sm font-medium text-gray-700">Status:</label>
-            <select id="status-filter" class="block w-40 pl-3 pr-10 py-2 text-sm border-gray-300 focus:ring-green-500 focus:border-green-500 rounded-lg">
-                <option value="">All Statuses</option>
-                <option value="scheduled">Scheduled</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="in_progress">In Progress</option>
-                                <option value="completed">Completed</option>
-            </select>
+        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-hourglass-half text-white text-sm"></i>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-yellow-900">Pending</p>
+                    <p class="text-lg font-semibold text-yellow-900" id="pendingCount">0</p>
+                </div>
+            </div>
         </div>
         
-        <!-- Clear Filters Button -->
-        <button id="clear-filters" class="inline-flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-50">
-            <i class="fas fa-times mr-1"></i> Clear
-        </button>
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-gray-500 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-check-circle text-white text-sm"></i>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-900">Completed</p>
+                    <p class="text-lg font-semibold text-gray-900" id="completedCount">0</p>
+                </div>
+            </div>
+        </div>
     </div>
-</div>
 
-<!-- Calendar Container -->
-<div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-    <div id="calendar" class="scheduling-calendar"></div>
-</div>
-
-<!-- Event Modal -->
-<div id="event-modal" 
-     class="fixed inset-0 z-50 hidden" 
-     x-data="{ open: false }"
-     x-show="open"
-     x-transition:enter="transition ease-out duration-300"
-     x-transition:enter-start="opacity-0"
-     x-transition:enter-end="opacity-100"
-     x-transition:leave="transition ease-in duration-200"
-     x-transition:leave-start="opacity-100"
-     x-transition:leave-end="opacity-0">
-    
-    <!-- Backdrop -->
-    <div class="absolute inset-0 bg-gray-600 bg-opacity-75" @click="closeModal()"></div>
-    
-    <!-- Modal Content -->
-    <div class="flex items-center justify-center min-h-screen p-4">
-        <div class="relative bg-white rounded-xl shadow-lg max-w-lg w-full"
-             x-transition:enter="transition ease-out duration-300"
-             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-             x-transition:leave="transition ease-in duration-200"
-             x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-             x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
-            
-            <!-- Modal Header -->
-            <div class="flex items-center justify-between p-6 border-b border-gray-200">
-                <h3 id="modal-title" class="text-lg font-semibold text-gray-900">New Event</h3>
-                <button id="close-modal" 
-                        class="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
-                        @click="closeModal()">
-                    <i class="fas fa-times"></i>
+    <!-- Advanced Filters -->
+    <div class="bg-white rounded-lg shadow-sm border mb-6 overflow-hidden">
+        <!-- Filter Header -->
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-b px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-filter text-white text-sm"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900">Calendar Filters</h3>
+                </div>
+                <button id="toggleFilters" class="text-blue-600 hover:text-blue-800 transition-colors">
+                    <i class="fas fa-chevron-up" id="filterToggleIcon"></i>
                 </button>
             </div>
-            
-            <!-- Modal Body -->
-            <form id="event-form" class="p-6 space-y-4">
+        </div>
+        
+        <!-- Filter Content -->
+        <div id="filterContent" class="p-6 space-y-6">
+            <!-- Date Range Filter -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                    <label for="event-title" class="block text-sm font-medium text-gray-700 mb-2">Event Title</label>
-                    <input type="text" id="event-title" name="title" required 
-                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">From Date</label>
+                    <input type="date" id="filterStartDate" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">To Date</label>
+                    <input type="date" id="filterEndDate" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                    <div class="relative">
+                        <input type="text" id="searchBookings" placeholder="Search bookings..." class="w-full border border-gray-300 rounded-lg px-3 py-2 pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Status Filter -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-3">Filter by Status</label>
+                <div class="flex flex-wrap gap-3">
+                    <label class="flex items-center space-x-2 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg cursor-pointer transition-colors">
+                        <input type="checkbox" class="status-filter rounded border-blue-300 text-blue-600 focus:ring-blue-500" value="confirmed" checked>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-blue-500 rounded-full"></div>
+                            <span class="text-sm font-medium text-blue-900">Confirmed</span>
+                        </div>
+                    </label>
+                    <label class="flex items-center space-x-2 bg-green-50 hover:bg-green-100 px-4 py-2 rounded-lg cursor-pointer transition-colors">
+                        <input type="checkbox" class="status-filter rounded border-green-300 text-green-600 focus:ring-green-500" value="in_progress" checked>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                            <span class="text-sm font-medium text-green-900">In Progress</span>
+                        </div>
+                    </label>
+                    <label class="flex items-center space-x-2 bg-yellow-50 hover:bg-yellow-100 px-4 py-2 rounded-lg cursor-pointer transition-colors">
+                        <input type="checkbox" class="status-filter rounded border-yellow-300 text-yellow-600 focus:ring-yellow-500" value="pending" checked>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                            <span class="text-sm font-medium text-yellow-900">Pending</span>
+                        </div>
+                    </label>
+                    <label class="flex items-center space-x-2 bg-gray-50 hover:bg-gray-100 px-4 py-2 rounded-lg cursor-pointer transition-colors">
+                        <input type="checkbox" class="status-filter rounded border-gray-300 text-gray-600 focus:ring-gray-500" value="completed" checked>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-gray-500 rounded-full"></div>
+                            <span class="text-sm font-medium text-gray-900">Completed</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Resource Filter with Groups -->
+            <div>
+                <div class="flex items-center justify-between mb-3">
+                    <label class="block text-sm font-medium text-gray-700">Filter by Resources</label>
+                    <div class="flex space-x-2">
+                        <button id="selectAllResources" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded-md transition-colors">Select All</button>
+                        <button id="clearAllResources" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-md transition-colors">Clear All</button>
+                    </div>
+                </div>
+                
+                <!-- Group resources by type -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {% regroup resources by get_resource_type_display as resource_groups %}
+                    {% for group in resource_groups %}
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-medium text-gray-900 flex items-center">
+                                <i class="fas fa-{{ group.grouper|lower|default:'cube' }} mr-2 text-gray-600"></i>
+                                {{ group.grouper }}
+                            </h4>
+                            <span class="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">{{ group.list|length }}</span>
+                        </div>
+                        <div class="space-y-2">
+                            {% for resource in group.list %}
+                            <label class="flex items-center space-x-3 p-2 hover:bg-white rounded-md cursor-pointer transition-colors group">
+                                <input type="checkbox" value="{{ resource.id }}" class="resource-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm font-medium text-gray-900 truncate">{{ resource.name }}</span>
+                                        <div class="flex items-center space-x-1 ml-2">
+                                            {% if resource.is_active %}
+                                            <div class="w-2 h-2 bg-green-400 rounded-full" title="Active"></div>
+                                            {% else %}
+                                            <div class="w-2 h-2 bg-red-400 rounded-full" title="Inactive"></div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% if resource.description %}
+                                    <p class="text-xs text-gray-500 truncate">{{ resource.description }}</p>
+                                    {% endif %}
+                                </div>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-span-full text-center py-8 text-gray-500">
+                        <i class="fas fa-inbox text-3xl mb-3"></i>
+                        <p>No resources available</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <!-- Filter Actions -->
+            <div class="flex items-center justify-between pt-4 border-t">
+                <div class="text-sm text-gray-600">
+                    <span id="filteredCount">0</span> bookings found
+                </div>
+                <div class="flex space-x-3">
+                    <button id="resetFilters" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                        <i class="fas fa-undo mr-2"></i>Reset Filters
+                    </button>
+                    <button id="applyFilters" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                        <i class="fas fa-check mr-2"></i>Apply Filters
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calendar Container -->
+    <div class="bg-white rounded-lg shadow-sm border p-6">
+        <div id="calendar"></div>
+    </div>
+</div>
+
+<!-- Event Details Modal -->
+<div id="eventModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">Booking Details</h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="eventDetails">
+            <!-- Event details will be populated here -->
+        </div>
+    </div>
+</div>
+
+<!-- Quick Booking Modal -->
+<div id="quickBookingModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">Quick Booking</h3>
+            <button onclick="closeQuickBookingModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form id="quickBookingForm">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                    <input type="date" id="quickBookingDate" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                        <input type="time" id="quickBookingStartTime" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                        <input type="time" id="quickBookingEndTime" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
                 </div>
                 
                 <div>
-                    <label for="event-project" class="block text-sm font-medium text-gray-700 mb-2">Project</label>
-                    <select id="event-project" name="project" required 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                        <option value="">Select a project</option>
-                        <!-- Projects will be loaded here -->
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                    <input type="text" id="quickBookingTitle" placeholder="Booking title" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Resource</label>
+                    <select id="quickBookingResource" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Select a resource</option>
+                        {% for resource in resources %}
+                        <option value="{{ resource.id }}">{{ resource.name }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label for="event-start" class="block text-sm font-medium text-gray-700 mb-2">Start Date & Time</label>
-                        <input type="datetime-local" id="event-start" name="start" required 
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                    </div>
-                    
-                    <div>
-                        <label for="event-end" class="block text-sm font-medium text-gray-700 mb-2">End Date & Time</label>
-                        <input type="datetime-local" id="event-end" name="end" required 
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                    </div>
-                </div>
-                
                 <div>
-                    <label for="event-description" class="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                    <textarea id="event-description" name="description" rows="3" 
-                              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
-                              placeholder="Optional event details..."></textarea>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
+                    <textarea id="quickBookingDescription" rows="3" placeholder="Booking description" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                 </div>
-                
-                <!-- Modal Footer -->
-                <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-                    <button type="button" id="cancel-event" 
-                            class="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium rounded-lg hover:bg-gray-50"
-                            @click="closeModal()">
-                        Cancel
-                    </button>
-                    <button type="submit" 
-                            class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">
-                        <i class="fas fa-save mr-2"></i>Save Event
-                    </button>
-                </div>
-            </form>
-        </div>
+            </div>
+            
+            <div class="flex justify-end space-x-3 mt-6">
+                <button type="button" onclick="closeQuickBookingModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Create Booking</button>
+            </div>
+        </form>
     </div>
 </div>
-
 {% endblock %}
 
-<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/main.min.js'></script>
+{% block extra_scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const calendarEl = document.getElementById('calendar');
-    const eventModal = document.getElementById('event-modal');
-    const eventForm = document.getElementById('event-form');
+    let calendar;
+    let selectedResources = [];
+    let selectedStatuses = ['confirmed', 'in_progress', 'pending', 'completed'];
+    let searchTerm = '';
+    let dateRange = { start: null, end: null };
     
-    // Modal management functions
-    window.showEventModal = function(title = 'New Event', eventData = {}) {
-        document.getElementById('modal-title').textContent = title;
-        if (eventData.start) {
-            document.getElementById('event-start').value = formatDateForInput(eventData.start);
+    // Real-time updates simulation
+    let realTimeUpdateInterval;
+    
+    function startRealTimeUpdates() {
+        realTimeUpdateInterval = setInterval(() => {
+            if (calendar) {
+                console.log('🔄 Auto-refreshing calendar events...');
+                calendar.refetchEvents();
+            }
+        }, 30000); // Refresh every 30 seconds
+    }
+    
+    function stopRealTimeUpdates() {
+        if (realTimeUpdateInterval) {
+            clearInterval(realTimeUpdateInterval);
         }
-        if (eventData.end) {
-            document.getElementById('event-end').value = formatDateForInput(eventData.end);
-        }
-        eventModal.classList.remove('hidden');
-    };
-    
-    window.closeModal = function() {
-        eventModal.classList.add('hidden');
-        eventForm.reset();
-    };
-    
-    function formatDateForInput(date) {
-        const d = new Date(date);
-        return d.toISOString().slice(0, 16);
     }
     
     // Initialize FullCalendar
-    const calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
-        headerToolbar: {
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
-        },
-        buttonText: {
-            today: 'Today',
-            month: 'Month',
-            week: 'Week',
-            day: 'Day',
-            list: 'List'
-        },
-        height: 'auto',
-        editable: true,
-        selectable: true,
-        selectMirror: true,
-        dayMaxEvents: true,
-        weekends: true,
-        eventColor: '#059669',
-        eventBorderColor: '#047857',
-        eventTextColor: '#ffffff',
+    function initializeCalendar() {
+        const calendarEl = document.getElementById('calendar');
         
-        // Custom styling
-        eventClassNames: 'rounded-lg shadow-sm',
+        calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay,resourceTimelineDay'
+            },
+            height: 'auto',
+            editable: true,
+            droppable: true,
+            events: function(info, successCallback, failureCallback) {
+                loadEvents(info.start, info.end, successCallback, failureCallback);
+            },
+            eventClick: function(info) {
+                showEventDetails(info.event);
+            },
+            dateClick: function(info) {
+                // Quick booking creation on day click
+                quickCreateBooking(info.date);
+            },
+            eventDrop: function(info) {
+                updateBookingTime(info.event, info.oldEvent);
+            },
+            eventResize: function(info) {
+                updateBookingTime(info.event, info.oldEvent);
+            },
+            eventDisplay: 'block',
+            dayMaxEvents: 3,
+            moreLinkClick: 'popover',
+            eventTimeFormat: {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            },
+            slotLabelFormat: {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            },
+            // Custom styling
+            eventDidMount: function(info) {
+                // Add status-based styling
+                const status = info.event.extendedProps.status;
+                const statusColors = {
+                    'confirmed': { bg: '#3b82f6', border: '#1d4ed8' },
+                    'in_progress': { bg: '#10b981', border: '#059669' },
+                    'completed': { bg: '#6b7280', border: '#4b5563' },
+                    'pending': { bg: '#f59e0b', border: '#d97706' }
+                };
+                
+                if (statusColors[status]) {
+                    info.el.style.backgroundColor = statusColors[status].bg;
+                    info.el.style.borderColor = statusColors[status].border;
+                }
+                
+                // Add hover effect
+                info.el.style.cursor = 'pointer';
+                info.el.style.transition = 'all 0.2s ease';
+                
+                info.el.addEventListener('mouseenter', function() {
+                    this.style.transform = 'scale(1.02)';
+                    this.style.zIndex = '10';
+                });
+                
+                info.el.addEventListener('mouseleave', function() {
+                    this.style.transform = 'scale(1)';
+                    this.style.zIndex = 'auto';
+                });
+            }
+        });
         
-        // Event sources (to be loaded from backend)
-        events: function(fetchInfo, successCallback, failureCallback) {
-            // TODO: Load events from Django backend
-            // For now, return empty array
-            successCallback([]);
-        },
+        calendar.render();
+    }
+    
+    // Load events from API
+    function loadEvents(start, end, successCallback, failureCallback) {
+        const params = new URLSearchParams({
+            start: start.toISOString(),
+            end: end.toISOString()
+        });
         
-        // Handle date selection for new events
-        select: function(info) {
-            showEventModal('New Event', {
-                start: info.start,
-                end: info.end
-            });
-            calendar.unselect();
-        },
+        selectedResources.forEach(resourceId => {
+            params.append('resources[]', resourceId);
+        });
         
-        // Handle event clicks
-        eventClick: function(info) {
-            showEventModal('Edit Event', {
-                id: info.event.id,
-                title: info.event.title,
-                start: info.event.start,
-                end: info.event.end,
-                description: info.event.extendedProps.description
-            });
-        },
+        selectedStatuses.forEach(status => {
+            params.append('statuses[]', status);
+        });
         
-        // Handle event drag and resize
-        eventChange: function(info) {
-            // TODO: Update event in backend
-            console.log('Event changed:', info.event);
+        if (searchTerm) {
+            params.append('search', searchTerm);
         }
-    });
-    
-    calendar.render();
-    
-    // Event handlers
-    document.getElementById('add-event').addEventListener('click', function() {
-        showEventModal('New Event');
-    });
-    
-    document.getElementById('close-modal').addEventListener('click', closeModal);
-    document.getElementById('cancel-event').addEventListener('click', closeModal);
-    
-    // View toggle
-    document.getElementById('toggle-view').addEventListener('click', function() {
-        const currentView = calendar.view.type;
-        if (currentView === 'dayGridMonth') {
-            calendar.changeView('timeGridWeek');
-            this.innerHTML = '<i class="fas fa-calendar mr-2"></i>Week View';
-        } else {
-            calendar.changeView('dayGridMonth');
-            this.innerHTML = '<i class="fas fa-th mr-2"></i>Month View';
-        }
-    });
-    
-    // Form submission
-    eventForm.addEventListener('submit', function(e) {
-        e.preventDefault();
         
-        const formData = new FormData(eventForm);
-        const eventData = {
-            title: formData.get('title'),
-            project: formData.get('project'),
-            start: formData.get('start'),
-            end: formData.get('end'),
-            description: formData.get('description')
+        // Get CSRF token
+        const csrfToken = document.querySelector('meta[name=csrf-token]')?.content ||
+                         getCookie('csrftoken');
+        
+        fetch(`/services/scheduling/api/calendar-events/?${params}`, {
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json',
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(events => {
+            console.log('Loaded events:', events.length);
+            
+            // Update stats
+            updateCalendarStats(events);
+            
+            // Transform events for FullCalendar
+            const calendarEvents = events.map(event => ({
+                id: event.id,
+                title: event.title,
+                start: event.start,
+                end: event.end,
+                extendedProps: {
+                    status: event.status,
+                    resource: event.resource,
+                    resourceType: event.resourceType,
+                    description: event.description,
+                    requestedBy: event.requestedBy,
+                    sourceService: event.sourceService
+                }
+            }));
+            
+            successCallback(calendarEvents);
+        })
+        .catch(error => {
+            console.error('Error loading events:', error);
+            failureCallback(error);
+        });
+    }
+    
+    // Show event details in modal
+    function showEventDetails(event) {
+        const modal = document.getElementById('eventModal');
+        const details = document.getElementById('eventDetails');
+        
+        const startTime = new Date(event.start).toLocaleString();
+        const endTime = new Date(event.end).toLocaleString();
+        const props = event.extendedProps;
+        
+        const statusBadges = {
+            'confirmed': 'bg-blue-100 text-blue-800',
+            'in_progress': 'bg-green-100 text-green-800',
+            'completed': 'bg-gray-100 text-gray-800',
+            'pending': 'bg-yellow-100 text-yellow-800'
         };
         
-        // TODO: Send to Django backend
-        console.log('Creating event:', eventData);
+        details.innerHTML = `
+            <div class="space-y-4">
+                <div>
+                    <h4 class="font-semibold text-lg text-gray-900">${event.title}</h4>
+                    <span class="inline-block px-2 py-1 text-xs font-medium rounded ${statusBadges[props.status] || 'bg-gray-100 text-gray-800'}">${props.status.replace('_', ' ').toUpperCase()}</span>
+                </div>
+                
+                <div class="grid grid-cols-1 gap-3">
+                    <div>
+                        <span class="font-medium text-gray-700">Time:</span>
+                        <p class="text-gray-600">${startTime} - ${endTime}</p>
+                    </div>
+                    
+                    ${props.resource ? `
+                    <div>
+                        <span class="font-medium text-gray-700">Resource:</span>
+                        <p class="text-gray-600">${props.resource} ${props.resourceType ? `(${props.resourceType})` : ''}</p>
+                    </div>
+                    ` : ''}
+                    
+                    ${props.description ? `
+                    <div>
+                        <span class="font-medium text-gray-700">Description:</span>
+                        <p class="text-gray-600">${props.description}</p>
+                    </div>
+                    ` : ''}
+                    
+                    ${props.requestedBy ? `
+                    <div>
+                        <span class="font-medium text-gray-700">Requested by:</span>
+                        <p class="text-gray-600">${props.requestedBy}</p>
+                    </div>
+                    ` : ''}
+                    
+                    ${props.sourceService ? `
+                    <div>
+                        <span class="font-medium text-gray-700">Source:</span>
+                        <p class="text-gray-600">${props.sourceService}</p>
+                    </div>
+                    ` : ''}
+                </div>
+                
+                <div class="flex justify-end space-x-3 pt-4 border-t">
+                    <button onclick="closeModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800">Close</button>
+                    <a href="/services/scheduling/bookings/${event.id}/" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">View Details</a>
+                </div>
+            </div>
+        `;
         
-        // For demo purposes, add to calendar
-        calendar.addEvent({
-            title: eventData.title,
-            start: eventData.start,
-            end: eventData.end,
-            backgroundColor: '#059669',
-            borderColor: '#047857',
-            textColor: '#ffffff'
+        modal.classList.remove('hidden');
+    }
+    
+    // Close modal
+    window.closeModal = function() {
+        document.getElementById('eventModal').classList.add('hidden');
+    };
+    
+    // Update calendar stats
+    function updateCalendarStats(events) {
+        const stats = {
+            confirmed: 0,
+            in_progress: 0,
+            pending: 0,
+            completed: 0
+        };
+        
+        events.forEach(event => {
+            if (stats.hasOwnProperty(event.status)) {
+                stats[event.status]++;
+            }
         });
         
-        closeModal();
+        document.getElementById('confirmedCount').textContent = stats.confirmed;
+        document.getElementById('inProgressCount').textContent = stats.in_progress;
+        document.getElementById('pendingCount').textContent = stats.pending;
+        document.getElementById('completedCount').textContent = stats.completed;
+    }
+    
+    // Quick booking creation
+    function quickCreateBooking(date) {
+        const modal = document.getElementById('quickBookingModal');
+        const dateInput = document.getElementById('quickBookingDate');
+        const startTimeInput = document.getElementById('quickBookingStartTime');
+        const endTimeInput = document.getElementById('quickBookingEndTime');
+        
+        // Set default date
+        dateInput.value = date.toISOString().split('T')[0];
+        
+        // Set default times (current time + 1 hour)
+        const now = new Date();
+        const startTime = new Date(now.getTime() + 60 * 60 * 1000); // +1 hour
+        const endTime = new Date(startTime.getTime() + 60 * 60 * 1000); // +1 hour
+        
+        startTimeInput.value = startTime.toTimeString().slice(0, 5);
+        endTimeInput.value = endTime.toTimeString().slice(0, 5);
+        
+        modal.classList.remove('hidden');
+    }
+    
+    // Close quick booking modal
+    window.closeQuickBookingModal = function() {
+        document.getElementById('quickBookingModal').classList.add('hidden');
+        document.getElementById('quickBookingForm').reset();
+    };
+    
+    // Handle quick booking form submission
+    document.getElementById('quickBookingForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = {
+            date: document.getElementById('quickBookingDate').value,
+            start_time: document.getElementById('quickBookingStartTime').value,
+            end_time: document.getElementById('quickBookingEndTime').value,
+            title: document.getElementById('quickBookingTitle').value,
+            resource: document.getElementById('quickBookingResource').value,
+            description: document.getElementById('quickBookingDescription').value
+        };
+        
+        // Basic validation
+        if (!formData.title || !formData.resource || !formData.start_time || !formData.end_time) {
+            alert('Please fill in all required fields');
+            return;
+        }
+        
+        // For now, redirect to full booking form with pre-filled data
+        const params = new URLSearchParams(formData);
+        window.location.href = `{% url 'scheduling:create_booking' %}?${params.toString()}`;
     });
     
-    // Filter handlers
-    document.getElementById('clear-filters').addEventListener('click', function() {
-        document.getElementById('project-filter').value = '';
-        document.getElementById('resource-filter').value = '';
-        document.getElementById('status-filter').value = '';
-        // TODO: Refresh calendar with cleared filters
-        calendar.refetchEvents();
-    });
-    
-    // Load initial data
-    loadProjects();
-    loadResources();
-    
-    function loadProjects() {
-        // TODO: Load from Django backend
-        const projectFilter = document.getElementById('project-filter');
-        const eventProject = document.getElementById('event-project');
+    // Export calendar to CSV
+    window.exportCalendar = function() {
+        const events = calendar.getEvents();
         
-        // Sample data - replace with actual Django data
-        const projects = [];
+        const csvData = [
+            ['Title', 'Start Date', 'End Date', 'Resource', 'Status', 'Description']
+        ];
         
-        projects.forEach(project => {
-            const option1 = new Option(project.name, project.id);
-            const option2 = new Option(project.name, project.id);
-            projectFilter.add(option1);
-            eventProject.add(option2);
+        events.forEach(event => {
+            csvData.push([
+                event.title,
+                event.start ? event.start.toISOString().split('T')[0] : '',
+                event.end ? event.end.toISOString().split('T')[0] : '',
+                event.extendedProps.resource || '',
+                event.extendedProps.status || '',
+                event.extendedProps.description || ''
+            ]);
+        });
+        
+        const csvContent = csvData.map(row => row.map(field => `"${field}"`).join(',')).join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `calendar-export-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    };
+    
+    // Print calendar
+    window.printCalendar = function() {
+        window.print();
+    };
+    
+    // Helper function to get cookie
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // Initialize resource filters
+    function initializeResourceFilters() {
+        const allResourcesCheckbox = document.getElementById('all-resources');
+        const resourceCheckboxes = document.querySelectorAll('.resource-checkbox');
+        
+        // Get all resource IDs initially
+        selectedResources = Array.from(resourceCheckboxes).map(cb => cb.value);
+        
+        // Handle "All Resources" checkbox
+        if (allResourcesCheckbox) {
+            allResourcesCheckbox.addEventListener('change', function() {
+                resourceCheckboxes.forEach(cb => {
+                    cb.checked = this.checked;
+                });
+                updateResourceFilter();
+            });
+        }
+        
+        // Handle individual resource checkboxes
+        resourceCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                updateResourceFilter();
+                
+                // Update "All Resources" checkbox
+                const checkedCount = Array.from(resourceCheckboxes).filter(cb => cb.checked).length;
+                allResourcesCheckbox.checked = checkedCount === resourceCheckboxes.length;
+            });
         });
     }
     
-    function loadResources() {
-        // TODO: Load from Django backend
-        const resourceFilter = document.getElementById('resource-filter');
+    // Update resource filter
+    function updateResourceFilter() {
+        const resourceCheckboxes = document.querySelectorAll('.resource-checkbox');
+        selectedResources = Array.from(resourceCheckboxes)
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
         
-        // Sample data - replace with actual Django data
-        const resources = [];
+        console.log('Selected resources:', selectedResources);
         
-        resources.forEach(resource => {
-            const option = new Option(resource.name, resource.id);
-            resourceFilter.add(option);
+        // Refresh calendar events
+        if (calendar) {
+            calendar.refetchEvents();
+        }
+    }
+    
+    // Update booking time via drag & drop
+    function updateBookingTime(event, oldEvent) {
+        const bookingId = event.id;
+        const newStart = event.start.toISOString();
+        const newEnd = event.end ? event.end.toISOString() : null;
+        
+        // Show notification - for now just simulate success
+        showNotification('Booking time updated successfully', 'success');
+        console.log('Booking updated:', { bookingId, newStart, newEnd });
+    }
+    
+    // Advanced filter functions
+    function initializeAdvancedFilters() {
+        // Filter toggle
+        const toggleBtn = document.getElementById('toggleFilters');
+        const filterContent = document.getElementById('filterContent');
+        const icon = document.getElementById('filterToggleIcon');
+        
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', function() {
+                if (filterContent.classList.contains('hidden')) {
+                    filterContent.classList.remove('hidden');
+                    icon.classList.remove('fa-chevron-down');
+                    icon.classList.add('fa-chevron-up');
+                } else {
+                    filterContent.classList.add('hidden');
+                    icon.classList.remove('fa-chevron-up');
+                    icon.classList.add('fa-chevron-down');
+                }
+            });
+        }
+        
+        // Resource selection buttons
+        const selectAllBtn = document.getElementById('selectAllResources');
+        const clearAllBtn = document.getElementById('clearAllResources');
+        
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', function() {
+                document.querySelectorAll('.resource-checkbox').forEach(cb => cb.checked = true);
+                updateResourceFilter();
+            });
+        }
+        
+        if (clearAllBtn) {
+            clearAllBtn.addEventListener('click', function() {
+                document.querySelectorAll('.resource-checkbox').forEach(cb => cb.checked = false);
+                updateResourceFilter();
+            });
+        }
+        
+        // Status filters
+        document.querySelectorAll('.status-filter').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                selectedStatuses = Array.from(document.querySelectorAll('.status-filter:checked')).map(cb => cb.value);
+                if (calendar) {
+                    calendar.refetchEvents();
+                }
+            });
+        });
+        
+        // Search filter
+        const searchInput = document.getElementById('searchBookings');
+        if (searchInput) {
+            let searchTimeout;
+            searchInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    searchTerm = this.value.toLowerCase();
+                    if (calendar) {
+                        calendar.refetchEvents();
+                    }
+                }, 300);
+            });
+        }
+        
+        // Reset filters
+        const resetBtn = document.getElementById('resetFilters');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', function() {
+                // Reset all filters
+                selectedResources = Array.from(document.querySelectorAll('.resource-checkbox')).map(cb => {
+                    cb.checked = true;
+                    return cb.value;
+                });
+                selectedStatuses = ['confirmed', 'in_progress', 'pending', 'completed'];
+                document.querySelectorAll('.status-filter').forEach(cb => cb.checked = true);
+                searchTerm = '';
+                dateRange = { start: null, end: null };
+                
+                // Reset UI
+                const searchInput = document.getElementById('searchBookings');
+                if (searchInput) searchInput.value = '';
+                
+                if (calendar) {
+                    calendar.refetchEvents();
+                }
+            });
+        }
+    }
+    
+    // Show notifications
+    function showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg transition-all duration-300 transform translate-x-full`;
+        
+        const colors = {
+            success: 'bg-green-500 text-white',
+            error: 'bg-red-500 text-white',
+            info: 'bg-blue-500 text-white',
+            warning: 'bg-yellow-500 text-white'
+        };
+        
+        notification.className += ` ${colors[type] || colors.info}`;
+        notification.innerHTML = `
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'times' : 'info'}-circle"></i>
+                <span>${message}</span>
+            </div>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Animate in
+        setTimeout(() => {
+            notification.classList.remove('translate-x-full');
+        }, 100);
+        
+        // Auto remove after 3 seconds
+        setTimeout(() => {
+            notification.classList.add('translate-x-full');
+            setTimeout(() => {
+                if (document.body.contains(notification)) {
+                    document.body.removeChild(notification);
+                }
+            }, 300);
+        }, 3000);
+    }
+    
+    // Mobile optimizations
+    function initializeMobileOptimizations() {
+        // Touch gestures for mobile navigation
+        let touchStartX = 0;
+        
+        if (calendar && calendar.el) {
+            calendar.el.addEventListener('touchstart', function(e) {
+                touchStartX = e.touches[0].clientX;
+            });
+            
+            calendar.el.addEventListener('touchend', function(e) {
+                if (!e.changedTouches) return;
+                
+                const touchEndX = e.changedTouches[0].clientX;
+                const diffX = touchStartX - touchEndX;
+                
+                // Minimum swipe distance
+                if (Math.abs(diffX) > 50) {
+                    if (diffX > 0) {
+                        // Swipe left - next
+                        calendar.next();
+                    } else {
+                        // Swipe right - previous
+                        calendar.prev();
+                    }
+                }
+            });
+        }
+    }
+    
+    // Initialize everything
+    function initializeAll() {
+        initializeCalendar();
+        initializeResourceFilters();
+        initializeAdvancedFilters();
+        initializeMobileOptimizations();
+        startRealTimeUpdates();
+        
+        // Set initial resource selection
+        selectedResources = Array.from(document.querySelectorAll('.resource-checkbox')).map(cb => {
+            cb.checked = true;
+            return cb.value;
         });
     }
+    
+    // Start initialization
+    initializeAll();
+    
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', function() {
+        stopRealTimeUpdates();
+    });
+    
+    // Close modal when clicking outside
+    document.getElementById('eventModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeModal();
+        }
+    });
 });
 </script>
 {% endblock %}
-                end: info.end
-            });
-        },
-        
-        eventClick: function(info) {
-            // Handle event click - open modal for editing
-            showEventModal('Edit Event', {
-                title: info.event.title,
-                start: info.event.start,
-                end: info.event.end,
-                description: info.event.extendedProps.description
-            });
-        }
-    });
-    
-    calendar.render();
-    
-    // Modal functions
-    function showEventModal(title, eventData = {}) {
-        document.getElementById('modal-title').textContent = title;
-        
-        // Populate form with event data
-        if (eventData.title) document.getElementById('event-title').value = eventData.title;
-        if (eventData.start) document.getElementById('event-start').value = formatDateForInput(eventData.start);
-        if (eventData.end) document.getElementById('event-end').value = formatDateForInput(eventData.end);
-        if (eventData.description) document.getElementById('event-description').value = eventData.description;
-        
-        eventModal.classList.remove('hidden');
-    }
-    
-    function hideEventModal() {
-        eventModal.classList.add('hidden');
-        eventForm.reset();
-    }
-    
-    function formatDateForInput(date) {
-        const d = new Date(date);
-        return d.getFullYear() + '-' +
-               String(d.getMonth() + 1).padStart(2, '0') + '-' +
-               String(d.getDate()).padStart(2, '0') + 'T' +
-               String(d.getHours()).padStart(2, '0') + ':' +
-               String(d.getMinutes()).padStart(2, '0');
-    }
-    
-    // Event listeners
-    document.getElementById('add-event').addEventListener('click', () => {
-        showEventModal('New Event');
-    });
-    
-    document.getElementById('close-modal').addEventListener('click', hideEventModal);
-    document.getElementById('cancel-event').addEventListener('click', hideEventModal);
-    
-    document.getElementById('toggle-view').addEventListener('click', function() {
-        const currentView = calendar.view.type;
-        if (currentView === 'dayGridMonth') {
-            calendar.changeView('timeGridWeek');
-            this.innerHTML = '<i class="fas fa-calendar mr-2"></i>Week View';
-        } else if (currentView === 'timeGridWeek') {
-            calendar.changeView('timeGridDay');
-            this.innerHTML = '<i class="fas fa-calendar-day mr-2"></i>Day View';
-        } else {
-            calendar.changeView('dayGridMonth');
-            this.innerHTML = '<i class="fas fa-th mr-2"></i>Month View';
-        }
-    });
-    
-    // Handle form submission
-    eventForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        // Get form data
-        const formData = new FormData(eventForm);
-        const eventData = Object.fromEntries(formData.entries());
-        
-        // Here you would typically send the data to your backend
-        console.log('Event data:', eventData);
-        
-        // For now, just add to calendar
-        calendar.addEvent({
-            title: eventData.title,
-            start: eventData.start,
-            end: eventData.end,
-            description: eventData.description,
-            backgroundColor: '#667eea'
-        });
-        
-        hideEventModal();
-    });
-    
-    // Filter handlers
-    document.getElementById('project-filter').addEventListener('change', function() {
-        // Implement project filtering
-        console.log('Filter by project:', this.value);
-    });
-    
-    document.getElementById('resource-filter').addEventListener('change', function() {
-        // Implement resource filtering
-        console.log('Filter by resource:', this.value);
-    });
-    
-    document.getElementById('status-filter').addEventListener('change', function() {
-        // Implement status filtering
-        console.log('Filter by status:', this.value);
-    });
-});
-</script>

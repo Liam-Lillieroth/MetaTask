@@ -6,7 +6,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
 from django.core.paginator import Paginator
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, time
 from core.views import require_organization_access
 from core.models import UserProfile
 from .models import SchedulableResource, BookingRequest, ResourceScheduleRule
@@ -473,39 +473,46 @@ def api_calendar_events(request):
     if not profile:
         return JsonResponse({'error': 'No profile found'}, status=400)
     
-    # Get date range
+    # Get date range - provide defaults if not specified
     start = request.GET.get('start')
     end = request.GET.get('end')
     resource_ids = request.GET.getlist('resources[]')
     
+    # Default to current month if no dates provided
     if not start or not end:
-        return JsonResponse({'error': 'Start and end dates required'}, status=400)
-    
-    try:
-        start_dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
-        end_dt = datetime.fromisoformat(end.replace('Z', '+00:00'))
-    except ValueError:
-        return JsonResponse({'error': 'Invalid date format'}, status=400)
+        today = timezone.now().date()
+        start_dt = timezone.make_aware(datetime.combine(today.replace(day=1), time.min))
+        end_dt = timezone.make_aware(datetime.combine(
+            (today.replace(day=1) + timedelta(days=32)).replace(day=1) - timedelta(days=1), 
+            time.max
+        ))
+    else:
+        try:
+            start_dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
+            end_dt = datetime.fromisoformat(end.replace('Z', '+00:00'))
+        except ValueError:
+            return JsonResponse({'error': 'Invalid date format'}, status=400)
     
     # Build query
     bookings = BookingRequest.objects.filter(
         organization=profile.organization,
         requested_start__lt=end_dt,
-        requested_end__gt=start_dt,
-        status__in=['confirmed', 'in_progress', 'completed']
+        requested_end__gt=start_dt
     ).select_related('resource', 'requested_by')
     
     if resource_ids:
         bookings = bookings.filter(resource_id__in=resource_ids)
     
-    # Format events for FullCalendar
+    # Format events for calendar
     events = []
     for booking in bookings:
-        color = {
-            'confirmed': '#007bff',
-            'in_progress': '#28a745', 
-            'completed': '#6c757d'
-        }.get(booking.status, '#007bff')
+        color_map = {
+            'confirmed': '#3b82f6',
+            'in_progress': '#10b981', 
+            'completed': '#6b7280',
+            'pending': '#f59e0b'
+        }
+        color = color_map.get(booking.status, '#3b82f6')
         
         events.append({
             'id': booking.id,
@@ -513,16 +520,14 @@ def api_calendar_events(request):
             'title': booking.title,
             'start': booking.requested_start.isoformat(),
             'end': booking.requested_end.isoformat(),
+            'status': booking.status,
+            'resource': booking.resource.name if booking.resource else None,
+            'resourceType': booking.resource.get_resource_type_display() if booking.resource else None,
+            'description': booking.description,
+            'requestedBy': booking.requested_by.user.get_full_name() if booking.requested_by and booking.requested_by.user else None,
+            'sourceService': booking.source_service,
             'backgroundColor': color,
-            'borderColor': color,
-            'extendedProps': {
-                'status': booking.status,
-                'resource': booking.resource.name,
-                'resourceId': booking.resource.id,
-                'description': booking.description,
-                'requestedBy': booking.requested_by.user.get_full_name() if booking.requested_by else None,
-                'sourceService': booking.source_service,
-            }
+            'borderColor': color
         })
     
     return JsonResponse(events, safe=False)

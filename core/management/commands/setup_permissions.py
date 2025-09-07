@@ -4,7 +4,7 @@ Management command to set up default permissions and roles for organizations
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
-from accounts.models import Organization
+from core.models import Organization
 from core.services.permission_service import PermissionService
 
 

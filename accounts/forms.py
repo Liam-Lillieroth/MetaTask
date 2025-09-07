@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from core.models import Organization
-from .models import CustomUser, OrganizationMember
+from .models import CustomUser
 
 class RegistrationForm(UserCreationForm):
     email = forms.EmailField(
@@ -130,8 +130,12 @@ class InviteMemberForm(forms.Form):
     )
     
     role = forms.ChoiceField(
-        choices=OrganizationMember.ROLES[1:],  # Exclude 'owner' role
-        initial='member',
+        choices=[
+            ('team_member', 'Team Member'),
+            ('team_leader', 'Team Leader'),
+            ('admin', 'Admin'),
+        ],
+        initial='team_member',
         widget=forms.Select(attrs={
             'class': 'block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6'
         }),
