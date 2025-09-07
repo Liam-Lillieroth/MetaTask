@@ -7,7 +7,7 @@ from django.utils import timezone
 
 class Service(models.Model):
     """
-    Model representing a Mediap service (e.g., CFlows, Job Planning)
+    Model representing a MetaTask service (e.g., CFlows, Job Planning)
     """
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(unique=True)

@@ -1,4 +1,4 @@
-# Mediap Platform
+# MetaTask Platform
 
 **Version:** 2.0  
 **Last Updated:** December 2024  
@@ -6,7 +6,7 @@
 
 ## Overview
 
-Mediap is a comprehensive multi-tenant business process management platform that integrates workflow management, team collaboration, and resource scheduling. Built with Django and modern web technologies, it provides organizations with powerful tools to streamline their operations while maintaining complete data isolation and security.
+MetaTask is a comprehensive multi-tenant business process management platform that integrates workflow management, team collaboration, and resource scheduling. Built with Django and modern web technologies, it provides organizations with powerful tools to streamline their operations while maintaining complete data isolation and security.
 
 ## 🚀 Current Features
 
@@ -232,4 +232,4 @@ open http://localhost:8000
 
 ---
 
-**Mediap Platform** - Streamlining workflows, empowering organizations.
+**MetaTask Platform** - Streamlining workflows, empowering organizations.

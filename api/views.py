@@ -12,7 +12,7 @@ def health_check(request):
     return Response({
         'status': 'healthy',
         'version': '1.0.0',
-        'message': 'Mediap API is running'
+        'message': 'MetaTask API is running'
     })
 
 

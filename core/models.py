@@ -7,7 +7,7 @@ import uuid
 
 class BaseModel(models.Model):
     """
-    Base model with common fields for all Mediap models
+    Base model with common fields for all MetaTask models
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -297,7 +297,7 @@ class Organization(models.Model):
 
 
 class UserProfile(models.Model):
-    """Extended user information with organization association for all Mediap services"""
+    """Extended user information with organization association for all MetaTask services"""
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='mediap_profile')
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='members')
     

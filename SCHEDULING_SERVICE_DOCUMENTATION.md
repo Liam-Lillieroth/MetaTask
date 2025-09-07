@@ -2,8 +2,7 @@
 
 ## Overview
 
-The Scheduling Service is a comprehensive resource management and booking system integrated into the Mediap platform. It provides flexible scheduling capabilities for any type of resource (rooms, equipment, vehicles,- **Metadata Preservation**: Original IDs stored in metadata field
-- **Relationship Maintenance**: Links to UserProfile and core.Organization preservedeams) with approval workflows, calendar integration, and utilization tracking.
+The Scheduling Service is a comprehensive resource management and booking system integrated into the MetaTask platform. It provides flexible scheduling capabilities for any type of resource (rooms, equipment, vehicles, people) with approval workflows, calendar integration, and utilization tracking.
 
 ## Architecture
 

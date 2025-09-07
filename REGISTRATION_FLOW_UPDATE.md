@@ -1,4 +1,4 @@
-# ✅ MediaP Registration Flow - UPDATED
+# ✅ MetaTask Registration Flow - UPDATED
 
 ## 🎯 New User Experience Flow
 
