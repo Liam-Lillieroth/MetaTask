@@ -18,7 +18,8 @@ class WorkflowForm(forms.ModelForm):
         model = Workflow
         fields = [
             'name', 'description', 'template', 'is_shared', 
-            'auto_assign', 'requires_approval'
+            'auto_assign', 'requires_approval', 'owner_team',
+            'allowed_view_teams', 'allowed_edit_teams'
         ]
         widgets = {
             'name': forms.TextInput(attrs={
@@ -42,71 +43,53 @@ class WorkflowForm(forms.ModelForm):
             'requires_approval': forms.CheckboxInput(attrs={
                 'class': 'rounded text-purple-600 focus:ring-purple-500'
             }),
-        }
-
-    def __init__(self, *args, organization=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.organization = organization
-        
-        if organization:
-            # Filter templates available to this organization
-            self.fields['template'].queryset = WorkflowTemplate.objects.filter(
-                models.Q(is_public=True) | models.Q(created_by_org=organization)
-            )
-from django.db import models
-from core.models import Organization, UserProfile, Team, JobType
-from .models import (
-    Workflow, WorkflowStep, WorkflowTransition, WorkflowTemplate,
-    WorkItem, WorkItemComment, WorkItemAttachment, TeamBooking,
-    CustomField
-)
-import json
-
-
-class WorkflowForm(forms.ModelForm):
-    """Form for creating and editing workflows"""
-    
-    class Meta:
-        model = Workflow
-        fields = [
-            'name', 'description', 'template', 'is_shared', 
-            'auto_assign', 'requires_approval'
-        ]
-        widgets = {
-            'name': forms.TextInput(attrs={
-                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
-                'placeholder': 'Enter workflow name'
-            }),
-            'description': forms.Textarea(attrs={
-                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
-                'placeholder': 'Describe this workflow...',
-                'rows': 3
-            }),
-            'template': forms.Select(attrs={
+            'owner_team': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500'
             }),
-            'is_shared': forms.CheckboxInput(attrs={
-                'class': 'rounded text-purple-600 focus:ring-purple-500'
+            'allowed_view_teams': forms.SelectMultiple(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+                'size': '4'
             }),
-            'auto_assign': forms.CheckboxInput(attrs={
-                'class': 'rounded text-purple-600 focus:ring-purple-500'
-            }),
-            'requires_approval': forms.CheckboxInput(attrs={
-                'class': 'rounded text-purple-600 focus:ring-purple-500'
+            'allowed_edit_teams': forms.SelectMultiple(attrs={
+                'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500',
+                'size': '4'
             }),
         }
 
-    def __init__(self, *args, organization=None, **kwargs):
+    def __init__(self, *args, organization=None, user_profile=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.organization = organization
+        self.user_profile = user_profile
         
         if organization:
             # Filter templates available to this organization
             self.fields['template'].queryset = WorkflowTemplate.objects.filter(
                 models.Q(is_public=True) | models.Q(created_by_org=organization)
             )
-
-
+            
+            # Filter teams to only those in the organization
+            organization_teams = Team.objects.filter(organization=organization)
+            self.fields['owner_team'].queryset = organization_teams
+            self.fields['allowed_view_teams'].queryset = organization_teams
+            self.fields['allowed_edit_teams'].queryset = organization_teams
+            
+            # Set required field
+            self.fields['owner_team'].required = True
+            
+    def clean_owner_team(self):
+        """Validate owner team selection"""
+        owner_team = self.cleaned_data.get('owner_team')
+        if not owner_team:
+            raise ValidationError("Owner team is required")
+        
+        # Check if user has permission to set this team as owner
+        if self.user_profile and not self.user_profile.is_organization_admin:
+            user_teams = self.user_profile.teams.all()
+            if owner_team not in user_teams:
+                raise ValidationError("You can only set teams you belong to as the owner")
+        
+        return owner_team
+        
 class WorkflowStepForm(forms.ModelForm):
     """Form for creating and editing workflow steps"""
     
@@ -1065,10 +1048,20 @@ class CustomFieldForm(forms.ModelForm):
 class TeamForm(forms.ModelForm):
     """Form for creating and editing teams"""
     
+    parent_team = forms.ModelChoiceField(
+        queryset=Team.objects.none(),
+        required=False,
+        empty_label="--- Top-level team (no parent) ---",
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500'
+        }),
+        help_text="Select a parent team to create a sub-team, or leave empty for a top-level team"
+    )
+    
     class Meta:
         model = Team
         fields = [
-            'name', 'description', 'default_capacity', 'color', 'is_active'
+            'name', 'description', 'parent_team', 'default_capacity', 'color', 'is_active'
         ]
         widgets = {
             'name': forms.TextInput(attrs={
@@ -1097,6 +1090,32 @@ class TeamForm(forms.ModelForm):
             'default_capacity': 'Default number of team members available for scheduling',
             'color': 'Team color for visual identification in calendars and reports',
         }
+
+    def __init__(self, *args, **kwargs):
+        organization = kwargs.pop('organization', None)
+        current_team = kwargs.pop('current_team', None)
+        super().__init__(*args, **kwargs)
+        
+        if organization:
+            # Get teams that can be parent teams (exclude current team and its descendants to prevent circular references)
+            potential_parents = Team.objects.filter(organization=organization, is_active=True)
+            
+            if current_team:
+                # Exclude current team and its descendants to prevent circular references
+                excluded_teams = [current_team.id]
+                excluded_teams.extend([team.id for team in current_team.get_all_sub_teams(include_self=False)])
+                potential_parents = potential_parents.exclude(id__in=excluded_teams)
+            
+            # Order by hierarchy for better display
+            potential_parents = potential_parents.order_by('name')
+            
+            # Create choices with hierarchy indication
+            choices = [(team.id, team.full_hierarchy_name) for team in potential_parents]
+            self.fields['parent_team'].choices = [('', '--- Top-level team (no parent) ---')] + choices
+        
+        # Set initial value if editing
+        if self.instance and self.instance.pk and self.instance.parent_team:
+            self.fields['parent_team'].initial = self.instance.parent_team.id
 
     def __init__(self, *args, organization=None, **kwargs):
         super().__init__(*args, **kwargs)

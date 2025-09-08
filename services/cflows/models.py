@@ -42,6 +42,26 @@ class Workflow(models.Model):
     # Template relationship
     template = models.ForeignKey(WorkflowTemplate, on_delete=models.SET_NULL, null=True, blank=True, related_name='workflows')
     
+    # Team-based access control
+    owner_team = models.ForeignKey(
+        'core.Team',
+        on_delete=models.CASCADE,
+        related_name='owned_workflows',
+        help_text="The team that owns and manages this workflow"
+    )
+    allowed_view_teams = models.ManyToManyField(
+        Team,
+        blank=True,
+        related_name='viewable_workflows',
+        help_text="Teams that can view this workflow and its work items"
+    )
+    allowed_edit_teams = models.ManyToManyField(
+        Team,
+        blank=True,
+        related_name='editable_workflows', 
+        help_text="Teams that can edit this workflow and create work items"
+    )
+    
     # Workflow metadata
     is_active = models.BooleanField(default=True)
     version = models.PositiveIntegerField(default=1)
@@ -67,6 +87,94 @@ class Workflow(models.Model):
     
     def __str__(self):
         return f"{self.name} ({self.organization.name})"
+    
+    def can_user_view(self, user_profile):
+        """Check if a user can view this workflow"""
+        # Owner team members can always view
+        if user_profile in self.owner_team.members.all():
+            return True
+        
+        # Check if user is in any allowed view teams (includes sub-teams)
+        user_teams = user_profile.teams.all()
+        for team in user_teams:
+            # Check direct team access
+            if team in self.allowed_view_teams.all():
+                return True
+            # Check if any parent team has access
+            current_team = team
+            while current_team.parent_team:
+                current_team = current_team.parent_team
+                if current_team in self.allowed_view_teams.all():
+                    return True
+        
+        # Check if user is in any allowed edit teams (edit implies view)
+        for team in user_teams:
+            if team in self.allowed_edit_teams.all():
+                return True
+            # Check parent teams for edit access
+            current_team = team
+            while current_team.parent_team:
+                current_team = current_team.parent_team
+                if current_team in self.allowed_edit_teams.all():
+                    return True
+        
+        # Organization admins can always view
+        if user_profile.is_organization_admin:
+            return True
+            
+        return False
+    
+    def can_user_edit(self, user_profile):
+        """Check if a user can edit this workflow"""
+        # Owner team members can always edit
+        if user_profile in self.owner_team.members.all():
+            return True
+        
+        # Check if user is in any allowed edit teams (includes sub-teams)
+        user_teams = user_profile.teams.all()
+        for team in user_teams:
+            # Check direct team access
+            if team in self.allowed_edit_teams.all():
+                return True
+            # Check if any parent team has access
+            current_team = team
+            while current_team.parent_team:
+                current_team = current_team.parent_team
+                if current_team in self.allowed_edit_teams.all():
+                    return True
+        
+        # Organization admins can always edit
+        if user_profile.is_organization_admin:
+            return True
+            
+        return False
+    
+    def can_user_manage(self, user_profile):
+        """Check if a user can manage this workflow (change permissions, delete, etc.)"""
+        # Only owner team members and org admins can manage
+        if user_profile in self.owner_team.members.all():
+            return True
+        
+        if user_profile.is_organization_admin:
+            return True
+            
+        return False
+    
+    def get_accessible_teams_for_user(self, user_profile):
+        """Get all teams that this workflow gives access to for the user"""
+        accessible_teams = set()
+        
+        # Add owner team if user is member
+        if user_profile in self.owner_team.members.all():
+            accessible_teams.add(self.owner_team)
+        
+        # Add teams user has view/edit access to
+        user_teams = user_profile.teams.all()
+        for team in user_teams:
+            if team in self.allowed_view_teams.all() or team in self.allowed_edit_teams.all():
+                accessible_teams.add(team)
+        
+        return list(accessible_teams)
     
     def get_active_fields(self):
         """Get configuration for which fields should be shown/hidden/replaced"""

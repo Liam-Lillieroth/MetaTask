@@ -1,0 +1,161 @@
+{% extends 'cflows/cflows_base.html' %}
+
+{% block title %}Create Workflow - CFlows{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="bg-white shadow-lg rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h1 class="text-2xl font-bold text-gray-900">Create New Workflow</h1>
+            <p class="mt-2 text-sm text-gray-600">
+                Define a custom business process for your organization with team-based access control
+            </p>
+        </div>
+        
+        <form method="post" class="px-6 py-8">
+            {% csrf_token %}
+            
+            <div class="space-y-6">
+                <!-- Basic Information -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="{{ form.name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Workflow Name *
+                        </label>
+                        {{ form.name }}
+                        {% if form.name.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <div>
+                        <label for="{{ form.template.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Template (Optional)
+                        </label>
+                        {{ form.template }}
+                        {% if form.template.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.template.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div>
+                    <label for="{{ form.description.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        Description
+                    </label>
+                    {{ form.description }}
+                    {% if form.description.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.description.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Team Access Control -->
+                <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Team Access Control</h3>
+                    <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <h4 class="text-sm font-medium text-blue-800">Access Control Explained</h4>
+                                <div class="mt-2 text-sm text-blue-700">
+                                    <ul class="list-disc pl-5 space-y-1">
+                                        <li><strong>Owner Team:</strong> Full control - can manage, edit, and view the workflow</li>
+                                        <li><strong>View Teams:</strong> Can see and work with workflow items but cannot modify the workflow</li>
+                                        <li><strong>Edit Teams:</strong> Can view and modify the workflow structure</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div>
+                            <label for="{{ form.owner_team.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                Owner Team *
+                            </label>
+                            {{ form.owner_team }}
+                            {% if form.owner_team.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.owner_team.errors.0 }}</p>
+                            {% endif %}
+                            <p class="mt-1 text-xs text-gray-500">Team that owns and manages this workflow</p>
+                        </div>
+                        
+                        <div>
+                            <label for="{{ form.allowed_view_teams.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                Teams with View Access
+                            </label>
+                            {{ form.allowed_view_teams }}
+                            {% if form.allowed_view_teams.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.allowed_view_teams.errors.0 }}</p>
+                            {% endif %}
+                            <p class="mt-1 text-xs text-gray-500">Teams that can view and work with this workflow</p>
+                        </div>
+                        
+                        <div>
+                            <label for="{{ form.allowed_edit_teams.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                Teams with Edit Access
+                            </label>
+                            {{ form.allowed_edit_teams }}
+                            {% if form.allowed_edit_teams.errors %}
+                                <p class="mt-1 text-sm text-red-600">{{ form.allowed_edit_teams.errors.0 }}</p>
+                            {% endif %}
+                            <p class="mt-1 text-xs text-gray-500">Teams that can modify this workflow</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Workflow Options -->
+                <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Workflow Options</h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="flex items-center">
+                            {{ form.is_shared }}
+                            <label for="{{ form.is_shared.id_for_label }}" class="ml-2 block text-sm text-gray-700">
+                                Shared Workflow
+                            </label>
+                        </div>
+                        
+                        <div class="flex items-center">
+                            {{ form.auto_assign }}
+                            <label for="{{ form.auto_assign.id_for_label }}" class="ml-2 block text-sm text-gray-700">
+                                Auto-assign Work Items
+                            </label>
+                        </div>
+                        
+                        <div class="flex items-center">
+                            {{ form.requires_approval }}
+                            <label for="{{ form.requires_approval.id_for_label }}" class="ml-2 block text-sm text-gray-700">
+                                Requires Approval
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="mt-8 flex items-center justify-between pt-6 border-t border-gray-200">
+                <a href="{% url 'cflows:workflow_list' %}" 
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                    </svg>
+                    Cancel
+                </a>
+                
+                <button type="submit"
+                        class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                    Create Workflow
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

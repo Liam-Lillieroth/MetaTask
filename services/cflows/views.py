@@ -168,12 +168,15 @@ def create_workflow(request):
         return render(request, 'cflows/no_profile.html')
     
     if request.method == 'POST':
-        form = WorkflowForm(request.POST, organization=profile.organization)
+        form = WorkflowForm(request.POST, organization=profile.organization, user_profile=profile)
         if form.is_valid():
             workflow = form.save(commit=False)
             workflow.organization = profile.organization
             workflow.created_by = profile
             workflow.save()
+            
+            # Save many-to-many fields
+            form.save_m2m()
             
             # If created from template, apply template structure
             if workflow.template:
@@ -182,7 +185,7 @@ def create_workflow(request):
             messages.success(request, f'Workflow "{workflow.name}" created successfully!')
             return redirect('cflows:workflow_detail', workflow_id=workflow.id)
     else:
-        form = WorkflowForm(organization=profile.organization)
+        form = WorkflowForm(organization=profile.organization, user_profile=profile)
     
     # Get available templates
     templates = WorkflowTemplate.objects.filter(
@@ -930,17 +933,35 @@ def teams_list(request):
         messages.error(request, "You don't have permission to manage teams.")
         return redirect('cflows:index')
     
-    # Get teams with member count
-    teams = Team.objects.filter(
+    # Get teams with member count, organized by hierarchy
+    all_teams = Team.objects.filter(
         organization=profile.organization
-    ).prefetch_related('members__user').annotate(
+    ).prefetch_related('members__user', 'sub_teams').annotate(
         members_count=models.Count('members')
     ).order_by('name')
+    
+    # Separate top-level teams and organize into hierarchy
+    top_level_teams = all_teams.filter(parent_team__isnull=True)
+    
+    # Create a hierarchical structure for display
+    def build_team_hierarchy(team):
+        team_data = {
+            'team': team,
+            'sub_teams': []
+        }
+        for sub_team in team.sub_teams.all():
+            team_data['sub_teams'].append(build_team_hierarchy(sub_team))
+        return team_data
+    
+    hierarchical_teams = [build_team_hierarchy(team) for team in top_level_teams]
     
     context = {
         'profile': profile,
         'organization': profile.organization,
-        'teams': teams,
+        'teams': all_teams,  # Keep for backward compatibility
+        'hierarchical_teams': hierarchical_teams,
+        'total_teams': all_teams.count(),
+        'top_level_teams_count': top_level_teams.count(),
     }
     
     return render(request, 'cflows/teams_list.html', context)
@@ -959,6 +980,19 @@ def create_team(request):
         messages.error(request, "You don't have permission to create teams.")
         return redirect('cflows:index')
     
+    # Get parent team if specified
+    parent_team_id = request.GET.get('parent')
+    parent_team = None
+    if parent_team_id:
+        try:
+            parent_team = Team.objects.get(
+                id=parent_team_id,
+                organization=profile.organization
+            )
+        except Team.DoesNotExist:
+            messages.error(request, "Parent team not found.")
+            return redirect('cflows:teams_list')
+    
     if request.method == 'POST':
         form = TeamForm(request.POST, organization=profile.organization)
         if form.is_valid():
@@ -967,16 +1001,21 @@ def create_team(request):
             team.created_by = profile
             team.save()
             
-            messages.success(request, f"Team '{team.name}' created successfully!")
+            team_type = "sub-team" if team.parent_team else "team"
+            messages.success(request, f"{team_type.title()} '{team.name}' created successfully!")
             return redirect('cflows:teams_list')
     else:
-        form = TeamForm(organization=profile.organization)
+        initial_data = {}
+        if parent_team:
+            initial_data['parent_team'] = parent_team
+        form = TeamForm(organization=profile.organization, initial=initial_data)
     
     context = {
         'profile': profile,
         'organization': profile.organization,
         'form': form,
-        'title': 'Create Team'
+        'parent_team': parent_team,
+        'title': f'Create {"Sub-team" if parent_team else "Team"}' + (f' under {parent_team.name}' if parent_team else '')
     }
     
     return render(request, 'cflows/team_form.html', context)
@@ -1002,13 +1041,13 @@ def edit_team(request, team_id):
     )
     
     if request.method == 'POST':
-        form = TeamForm(request.POST, instance=team, organization=profile.organization)
+        form = TeamForm(request.POST, instance=team, organization=profile.organization, current_team=team)
         if form.is_valid():
             form.save()
             messages.success(request, f"Team '{team.name}' updated successfully!")
             return redirect('cflows:teams_list')
     else:
-        form = TeamForm(instance=team, organization=profile.organization)
+        form = TeamForm(instance=team, organization=profile.organization, current_team=team)
     
     context = {
         'profile': profile,

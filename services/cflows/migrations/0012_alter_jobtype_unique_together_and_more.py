@@ -5,6 +5,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
+    """
+    This migration is part of a major architectural refactoring where core models
+    (Organization, UserProfile, Team, JobType, CalendarEvent) are moved from the
+    cflows app to the core app for better separation of concerns.
+    
+    Features implemented:
+    - Centralized organization management in core app
+    - Unified user profile system across all apps
+    - Shared team and job type models for cross-app functionality
+    - Enhanced calendar event system with better integration
+    - Preparation for removing duplicate models from cflows
+    """
 
     dependencies = [
         ('cflows', '0011_add_workflow_field_customization'),
@@ -12,10 +24,23 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Remove unique_together constraints from models being moved to core
+        # These constraints will be recreated in the core app
         migrations.AlterUniqueTogether(
             name='jobtype',
-            unique_together=None,
+            unique_together=set(),
         ),
+        migrations.AlterUniqueTogether(
+            name='team',
+            unique_together=set(),
+        ),
+        migrations.AlterUniqueTogether(
+            name='userprofile',
+            unique_together=set(),
+        ),
+        
+        # Remove foreign key fields that reference models being moved to core
+        # These will be replaced with references to core models
         migrations.RemoveField(
             model_name='jobtype',
             name='organization',
@@ -28,105 +53,25 @@ class Migration(migrations.Migration):
             model_name='userprofile',
             name='organization',
         ),
-        migrations.AlterUniqueTogether(
-            name='team',
-            unique_together=None,
-        ),
         migrations.RemoveField(
             model_name='team',
             name='members',
-        ),
-        migrations.AlterUniqueTogether(
-            name='userprofile',
-            unique_together=None,
         ),
         migrations.RemoveField(
             model_name='userprofile',
             name='user',
         ),
+        
+        # Update foreign keys to point to core models
+        # This enables workflows to work with centralized user management
         migrations.AlterField(
             model_name='workflow',
             name='created_by',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='created_workflows', to='core.userprofile'),
-        ),
-        migrations.AlterModelOptions(
-            name='workflowtransition',
-            options={'ordering': ['order', 'label']},
-        ),
-        migrations.AlterField(
-            model_name='teambooking',
-            name='assigned_members',
-            field=models.ManyToManyField(blank=True, related_name='assigned_cflows_bookings', to='core.userprofile'),
-        ),
-        migrations.AlterField(
-            model_name='teambooking',
-            name='booked_by',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='created_cflows_bookings', to='core.userprofile'),
-        ),
-        migrations.AlterField(
-            model_name='teambooking',
-            name='completed_by',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='completed_cflows_bookings', to='core.userprofile'),
-        ),
-        migrations.AlterField(
-            model_name='teambooking',
-            name='team',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='cflows_bookings', to='core.team'),
-        ),
-        migrations.AlterField(
-            model_name='workflowstep',
-            name='assigned_team',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='assigned_steps', to='core.team'),
-        ),
-        migrations.AlterField(
-            model_name='workflowtransition',
-            name='created_at',
-            field=models.DateTimeField(auto_now_add=True),
-        ),
-        migrations.AlterField(
-            model_name='workflowtransition',
-            name='updated_at',
-            field=models.DateTimeField(auto_now=True),
-        ),
-        migrations.AlterField(
-            model_name='workitem',
-            name='created_by',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='created_work_items', to='core.userprofile'),
-        ),
-        migrations.AlterField(
-            model_name='workitemhistory',
-            name='changed_by',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to='core.userprofile'),
-        ),
-        migrations.CreateModel(
-            name='StepDataCollection',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('is_completed', models.BooleanField(default=False)),
-                ('completed_at', models.DateTimeField(blank=True, null=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('completed_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='core.userprofile')),
-                ('initiated_by', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='initiated_data_collections', to='core.userprofile')),
-                ('work_item', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='step_data_collections', to='cflows.workitem')),
-                ('workflow_step', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='cflows.workflowstep')),
-            ],
-            options={
-                'unique_together': {('work_item', 'workflow_step')},
-            },
-        ),
-        migrations.DeleteModel(
-            name='CalendarEvent',
-        ),
-        migrations.DeleteModel(
-            name='JobType',
-        ),
-        migrations.DeleteModel(
-            name='Organization',
-        ),
-        migrations.DeleteModel(
-            name='Team',
-        ),
-        migrations.DeleteModel(
-            name='UserProfile',
+            field=models.ForeignKey(
+                null=True, 
+                on_delete=django.db.models.deletion.SET_NULL, 
+                related_name='created_workflows', 
+                to='core.userprofile'
+            ),
         ),
     ]

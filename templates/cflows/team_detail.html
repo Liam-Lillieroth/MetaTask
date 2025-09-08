@@ -10,11 +10,27 @@
             <nav class="flex" aria-label="Breadcrumb">
                 <ol class="flex items-center space-x-2 text-sm text-gray-500">
                     <li><a href="{% url 'cflows:teams_list' %}" class="hover:text-indigo-600">Teams</a></li>
-                    <li><i class="fas fa-chevron-right text-xs"></i></li>
-                    <li class="text-gray-900">{{ team.name }}</li>
+                    
+                    <!-- Show team hierarchy in breadcrumb -->
+                    {% for team_in_path in team.get_team_path %}
+                        <li><i class="fas fa-chevron-right text-xs"></i></li>
+                        {% if forloop.last %}
+                            <li class="text-gray-900">{{ team_in_path.name }}</li>
+                        {% else %}
+                            <li><a href="{% url 'cflows:team_detail' team_in_path.id %}" class="hover:text-indigo-600">{{ team_in_path.name }}</a></li>
+                        {% endif %}
+                    {% endfor %}
                 </ol>
             </nav>
-            <h1 class="text-3xl font-bold text-gray-900 mt-2">{{ team.name }}</h1>
+            <div class="flex items-center mt-2">
+                <h1 class="text-3xl font-bold text-gray-900">{{ team.name }}</h1>
+                {% if team.parent_team %}
+                    <span class="ml-3 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        <i class="fas fa-sitemap mr-1"></i>
+                        Sub-team of {{ team.parent_team.name }}
+                    </span>
+                {% endif %}
+            </div>
             <div class="flex items-center mt-2 space-x-4">
                 {% if team.is_active %}
                 <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -28,6 +44,9 @@
                 </span>
                 {% endif %}
                 <span class="text-sm text-gray-500">{{ stats.member_count }} member{{ stats.member_count|pluralize }}</span>
+                {% if team.is_parent_team %}
+                    <span class="text-sm text-gray-500">{{ team.sub_teams.count }} sub-team{{ team.sub_teams.count|pluralize }}</span>
+                {% endif %}
             </div>
         </div>
         {% if can_manage %}
@@ -179,6 +198,74 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Sub-teams Section -->
+{% if team.is_parent_team %}
+<div class="bg-white rounded-lg border border-gray-200 p-6">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-900">Sub-teams</h2>
+            <p class="text-sm text-gray-600">Teams under {{ team.name }}</p>
+        </div>
+        {% if can_manage %}
+        <a href="{% url 'cflows:create_team' %}?parent={{ team.id }}" 
+           class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+            <i class="fas fa-plus mr-2"></i>
+            Add Sub-team
+        </a>
+        {% endif %}
+    </div>
+    
+    {% if team.sub_teams.exists %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {% for sub_team in team.sub_teams.all %}
+        <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mr-3"
+                         style="background-color: {{ sub_team.color|default:'#007bff' }}15;">
+                        <i class="fas fa-users" style="color: {{ sub_team.color|default:'#007bff' }};"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-medium text-gray-900">
+                            <a href="{% url 'cflows:team_detail' sub_team.id %}" class="hover:text-indigo-600">
+                                {{ sub_team.name }}
+                            </a>
+                        </h3>
+                        <div class="flex items-center space-x-4 text-sm text-gray-500">
+                            <span>{{ sub_team.member_count }} member{{ sub_team.member_count|pluralize }}</span>
+                            {% if sub_team.sub_teams.exists %}
+                                <span>{{ sub_team.sub_teams.count }} sub-team{{ sub_team.sub_teams.count|pluralize }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% if can_manage %}
+                <a href="{% url 'cflows:edit_team' sub_team.id %}" 
+                   class="text-gray-400 hover:text-indigo-600" 
+                   title="Edit Sub-team">
+                    <i class="fas fa-edit"></i>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-8">
+        <i class="fas fa-sitemap text-gray-400 text-3xl mb-3"></i>
+        <p class="text-gray-500">No sub-teams yet.</p>
+        {% if can_manage %}
+        <a href="{% url 'cflows:create_team' %}?parent={{ team.id }}" 
+           class="mt-3 inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+            <i class="fas fa-plus mr-2"></i>
+            Create First Sub-team
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
 
 <!-- Add Member Modal -->
 {% if can_manage and available_users %}

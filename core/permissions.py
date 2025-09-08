@@ -234,7 +234,7 @@ class RolePermission(models.Model):
 class UserRoleAssignment(models.Model):
     """Assign roles to users with context and time limits"""
     user_profile = models.ForeignKey(
-        'accounts.UserProfile', 
+        'core.UserProfile', 
         on_delete=models.CASCADE, 
         related_name='role_assignments'
     )

@@ -25,62 +25,20 @@
         {% endif %}
     </div>
 
-    <!-- Teams Grid -->
-    {% if teams %}
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {% for team in teams %}
-        <div class="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
-            <div class="flex items-start justify-between">
-                <div class="flex-1">
-                    <div class="flex items-center">
-                        <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center mr-3">
-                            <i class="fas fa-users text-indigo-600"></i>
-                        </div>
-                        <div>
-                            <h3 class="text-lg font-medium text-gray-900">
-                                <a href="{% url 'cflows:team_detail' team.id %}" class="hover:text-indigo-600">
-                                    {{ team.name }}
-                                </a>
-                            </h3>
-                            {% if not team.is_active %}
-                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                Inactive
-                            </span>
-                            {% endif %}
-                        </div>
-                    </div>
-                    
-                    {% if team.description %}
-                    <p class="mt-3 text-sm text-gray-600">
-                        {{ team.description|truncatewords:15 }}
-                    </p>
-                    {% endif %}
-                    
-                    <!-- Team Stats -->
-                    <div class="mt-4 flex items-center justify-between text-sm text-gray-500">
-                        <div class="flex items-center">
-                            <i class="fas fa-user mr-1"></i>
-                            {{ team.members_count }} member{{ team.members_count|pluralize }}
-                        </div>
-                        <div class="flex items-center">
-                            <i class="fas fa-users mr-1"></i>
-                            Capacity: {{ team.default_capacity }}
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Actions -->
-                {% if profile.is_organization_admin or profile.has_staff_panel_access %}
-                <div class="flex items-center space-x-2 ml-4">
-                    <a href="{% url 'cflows:edit_team' team.id %}" 
-                       class="text-gray-400 hover:text-indigo-600" 
-                       title="Edit Team">
-                        <i class="fas fa-edit"></i>
-                    </a>
-                </div>
-                {% endif %}
+    <!-- Teams Hierarchy -->
+    {% if hierarchical_teams %}
+    <div class="space-y-6">
+        <!-- Summary Stats -->
+        <div class="bg-white rounded-lg border border-gray-200 p-4">
+            <div class="flex items-center justify-between text-sm text-gray-600">
+                <span><strong>{{ total_teams }}</strong> total teams</span>
+                <span><strong>{{ top_level_teams_count }}</strong> top-level teams</span>
             </div>
         </div>
+        
+        <!-- Hierarchical Team Display -->
+        {% for team_data in hierarchical_teams %}
+            {% include 'cflows/team_tree_item.html' with team_data=team_data level=0 %}
         {% endfor %}
     </div>
     {% else %}

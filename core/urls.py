@@ -10,4 +10,10 @@ urlpatterns = [
     
     # Role Management
     path('roles/', include('core.role_urls')),
+    
+    # User Management
+    path('users/', include('core.user_management_urls', namespace='user_management')),
+    
+    # Staff Panel
+    path('staff-panel/', include('core.staff_panel_urls')),
 ]
