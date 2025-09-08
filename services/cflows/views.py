@@ -707,7 +707,15 @@ def complete_booking(request, booking_id):
         booking.completed_at = timezone.now()
         booking.completed_by = profile
         booking.save()
-        
+
+        if(
+            booking.source_service == 'cflows' and
+            booking.source_object_type.lower() == 'teambooking'
+        ):
+            from .integrations import get_service_integrations  # local import to avoid circulars
+            integration = get_service_integrations(booking.organization)
+            integration.mark_completed(request, [booking])
+
         # If linked to workflow step, progress the work item
         if booking.work_item and booking.workflow_step:
             # This could trigger workflow progression logic

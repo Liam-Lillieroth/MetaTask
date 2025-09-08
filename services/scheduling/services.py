@@ -353,6 +353,8 @@ class SchedulingService:
     
     def complete_booking(self, booking: BookingRequest, completed_by) -> bool:
         """Mark booking as completed"""
+
+        from services.cflows.signals import booking_status_changed
         
         if booking.status not in ['confirmed', 'in_progress']:
             return False
@@ -365,7 +367,10 @@ class SchedulingService:
         if not booking.actual_start:
             booking.actual_start = booking.requested_start
         
+
         booking.save()
+
+        booking_status_changed.sent(sender=BookingRequest, booking=booking, event='completed')
         
         # Notify source service
         self._notify_source_service(booking, 'completed')

@@ -289,7 +289,43 @@ class CFlowsIntegration(ServiceIntegration):
             )
         except SchedulableResource.DoesNotExist:
             return []
+    
+    def mark_completed(self, request, queryset):
+        from django.utils import timezone
+        from services.cflows.models import TeamBooking
 
+        # Handle both QuerySet and list inputs
+        if isinstance(queryset, list):
+            bookings = queryset
+            # Update individual bookings
+            for booking in bookings:
+                if booking.status in ['confirmed', 'in_progress']:
+                    booking.status = 'completed'
+                    booking.completed_at = timezone.now()
+                    booking.save()
+        else:
+            # Handle QuerySet
+            updates = queryset.filter(status__in=['confirmed', 'in_progress']).update(
+                status='completed',
+                completed_at=timezone.now()
+            )
+            bookings = list(queryset)
+
+        for booking in bookings:
+            if (booking.source_service == 'cflows' and 
+                booking.source_object_type.lower() in ['teambooking', 'team_booking']):
+                try:
+                    team_booking = TeamBooking.objects.get(id=booking.source_object_id)
+                    team_booking.is_completed = True
+                    team_booking.completed_at = timezone.now()
+                    team_booking.completed_by = request.user.userprofile if hasattr(request.user, 'userprofile') else None
+                    team_booking.save()
+                except TeamBooking.DoesNotExist:
+                    pass
+        
+        # Only message_user if we have a proper admin request (not called from view)
+        if hasattr(self, 'message_user') and hasattr(request, 'META'):
+            self.message_user(request, f'{len(bookings)} bookings marked as completed.')
 
 class DefaultIntegration(ServiceIntegration):
     """Default integration implementation for unknown services"""

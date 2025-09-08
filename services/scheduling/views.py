@@ -833,6 +833,13 @@ def complete_booking(request, booking_uuid):
             booking.custom_data['completed_at'] = booking.completed_at.isoformat()
         
         booking.save()
+
+        # Sync to CFlows if booking originated from CFlows TeamBooking (case-insensitive)
+        if (booking.source_service == 'cflows' and 
+            booking.source_object_type.lower() in ['teambooking', 'team_booking']):
+            from .integrations import get_service_integration
+            integration = get_service_integration(booking.organization, 'cflows')
+            integration.mark_completed(request, [booking])
         
         messages.success(request, f'Booking "{booking.title}" completed successfully.')
         
