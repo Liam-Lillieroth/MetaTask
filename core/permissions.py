@@ -273,7 +273,7 @@ class UserRoleAssignment(models.Model):
     # Metadata
     assigned_at = models.DateTimeField(auto_now_add=True)
     assigned_by = models.ForeignKey(
-        'accounts.UserProfile', 
+        'core.UserProfile', 
         on_delete=models.SET_NULL, 
         null=True, 
         related_name='assigned_roles'

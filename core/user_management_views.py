@@ -10,6 +10,7 @@ from django.contrib.auth import get_user_model
 from core.models import UserProfile, Organization, Team
 from core.permissions import Role, UserRoleAssignment
 from core.views import require_organization_access
+from core.decorators import require_permission
 from accounts.forms import UserCreationForm
 
 
@@ -29,6 +30,7 @@ def get_user_profile(request):
 
 @login_required
 @require_organization_access
+@require_permission('user.view')
 def user_management(request):
     """User management dashboard for HR managers"""
     profile = get_user_profile(request)

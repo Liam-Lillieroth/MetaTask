@@ -5,13 +5,16 @@ Permission decorators for view protection in RBAC system
 from functools import wraps
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.shortcuts import get_object_or_404
-from django.http import Http404
+from django.shortcuts import get_object_or_404, redirect
+from django.contrib import messages
+from django.http import Http404, JsonResponse
+from django.urls import reverse
 from typing import Union, List, Callable, Any
+from core.services.permission_service import PermissionService
 
 
 def require_permission(permission_codename: str, resource_param: str = None, 
-                      resource_class=None, raise_404: bool = False):
+                      resource_class=None, raise_404: bool = False, ajax_response: bool = False):
     """
     Decorator to require specific permission for view access
     
@@ -20,16 +23,23 @@ def require_permission(permission_codename: str, resource_param: str = None,
         resource_param: URL parameter name for resource (e.g., 'workflow_id')
         resource_class: Model class for resource-scoped permissions
         raise_404: If True, raise 404 instead of 403 for better security
+        ajax_response: If True, return JSON response for AJAX requests
     """
     def decorator(view_func):
         @wraps(view_func)
         @login_required
         def _wrapped_view(request, *args, **kwargs):
-            user_profile = getattr(request.user, 'profile', None)
+            user_profile = getattr(request.user, 'mediap_profile', None)
             if not user_profile:
+                if ajax_response:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'User profile not found'
+                    }, status=403)
                 if raise_404:
                     raise Http404()
-                raise PermissionDenied("User profile not found")
+                messages.error(request, 'User profile not found')
+                return redirect('core:dashboard')
             
             resource = None
             if resource_param and resource_class:
@@ -38,11 +48,22 @@ def require_permission(permission_codename: str, resource_param: str = None,
                 if resource_id:
                     resource = get_object_or_404(resource_class, id=resource_id)
             
-            # Check permission
-            if not user_profile.has_permission(permission_codename, resource):
+            # Check permission using permission service
+            permission_service = PermissionService(user_profile.organization)
+            if not permission_service.has_permission(user_profile, permission_codename, resource):
+                error_message = permission_service.get_missing_permission_message(permission_codename)
+                
+                if ajax_response:
+                    return JsonResponse({
+                        'success': False,
+                        'error': error_message
+                    }, status=403)
+                
                 if raise_404:
                     raise Http404()
-                raise PermissionDenied(f"Permission denied: {permission_codename}")
+                
+                messages.error(request, error_message)
+                return redirect('core:dashboard')
             
             # Add resource to request for easy access in view
             if resource:

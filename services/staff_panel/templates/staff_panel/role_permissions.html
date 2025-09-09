@@ -1,0 +1,543 @@
+{% extends 'staff_panel/base.html' %}
+
+{% block title %}Roles & Permissions{% endblock %}
+
+{% block staff_panel_content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="border-b border-gray-200 pb-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">
+                    <i class="fas fa-user-shield mr-2"></i>Roles & Permissions
+                </h1>
+                <p class="mt-1 text-sm text-gray-500">
+                    Manage organizational roles and access permissions
+                </p>
+            </div>
+            <div class="flex space-x-3">
+                <button type="button" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    <i class="fas fa-shield-alt mr-2"></i>
+                    Audit Log
+                </button>
+                <button type="button" onclick="openCreateRoleModal()" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+                    <i class="fas fa-plus mr-2"></i>
+                    Create Role
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="stat-card bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-user-shield text-white"></i>
+                        </div>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Total Roles</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ roles.count|default:0 }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-key text-white"></i>
+                        </div>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Permissions</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ permissions.count|default:0 }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-users text-white"></i>
+                        </div>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Users Assigned</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ total_users|default:0 }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 bg-yellow-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-list text-white"></i>
+                        </div>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Categories</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ permission_categories.keys|length|default:0 }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Roles Management -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Organization Roles</h3>
+            <button type="button" onclick="openCreateRoleModal()" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                <i class="fas fa-plus mr-1"></i>
+                Create Role
+            </button>
+        </div>
+        
+        {% if roles %}
+            <div class="overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Permissions</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Users</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for role in roles %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <div class="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center mr-3">
+                                            <i class="fas fa-user-shield text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <div class="text-sm font-medium text-gray-900">{{ role.name }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="text-sm text-gray-900">{{ role.description|default:"No description"|truncatechars:50 }}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                        {{ role.permission_count|default:0 }} permissions
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                        {{ role.user_count|default:0 }} users
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <div class="flex space-x-2">
+                                        <button type="button" class="edit-role-btn text-indigo-600 hover:text-indigo-900" 
+                                                data-role-id="{{ role.id }}" 
+                                                data-role-name="{{ role.name }}" 
+                                                data-role-description="{{ role.description|default:'' }}"
+                                                title="Edit Role">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button type="button" class="manage-permissions-btn text-blue-600 hover:text-blue-900" 
+                                                data-role-id="{{ role.id }}" 
+                                                data-role-name="{{ role.name }}"
+                                                title="Manage Permissions">
+                                            <i class="fas fa-key"></i>
+                                        </button>
+                                        <button type="button" class="delete-role-btn text-red-600 hover:text-red-900" 
+                                                data-role-id="{{ role.id }}" 
+                                                data-role-name="{{ role.name }}" 
+                                                data-user-count="{{ role.user_count|default:0 }}"
+                                                title="Delete Role">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-12">
+                <i class="fas fa-user-shield text-4xl text-gray-400 mb-4"></i>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No roles created yet</h3>
+                <p class="text-gray-500 mb-6">Create your first role to get started with permission management.</p>
+                <button type="button" onclick="openCreateRoleModal()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                    <i class="fas fa-plus mr-2"></i>
+                    Create First Role
+                </button>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Permission Categories -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Permission Categories</h3>
+            <p class="mt-1 text-sm text-gray-500">Available permissions organized by category</p>
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {% for category, perms in permission_categories.items %}
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="flex items-center mb-3">
+                            <i class="fas fa-folder text-gray-500 mr-2"></i>
+                            <h4 class="font-semibold text-gray-900">{{ category }}</h4>
+                        </div>
+                        <div class="space-y-2">
+                            {% for permission in perms|slice:":5" %}
+                                <div class="flex items-center text-sm text-gray-600">
+                                    <i class="fas fa-key text-xs text-gray-400 mr-2"></i>
+                                    {{ permission.name }}
+                                </div>
+                            {% endfor %}
+                            {% if perms|length > 5 %}
+                                <div class="text-xs text-gray-500">
+                                    +{{ perms|length|add:"-5" }} more permissions
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="col-span-full text-center py-8">
+                        <i class="fas fa-key text-3xl text-gray-400 mb-2"></i>
+                        <p class="text-gray-500">No permission categories configured</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Role Modal -->
+<div id="createRoleModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Create New Role</h3>
+                <button type="button" onclick="closeModal('createRoleModal')" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="createRoleForm" method="post" action="{% url 'staff_panel:role_permissions' %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create_role">
+                <div class="mb-4">
+                    <label for="roleName" class="block text-sm font-medium text-gray-700 mb-2">Role Name</label>
+                    <input type="text" id="roleName" name="role_name" required 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div class="mb-4">
+                    <label for="roleDescription" class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                    <textarea id="roleDescription" name="role_description" rows="3" 
+                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('createRoleModal')" 
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-md">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md">
+                        Create Role
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Role Modal -->
+<div id="editRoleModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Edit Role</h3>
+                <button type="button" onclick="closeModal('editRoleModal')" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="editRoleForm" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="edit_role">
+                <input type="hidden" id="editRoleId" name="role_id">
+                <div class="mb-4">
+                    <label for="editRoleName" class="block text-sm font-medium text-gray-700 mb-2">Role Name</label>
+                    <input type="text" id="editRoleName" name="role_name" required 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div class="mb-4">
+                    <label for="editRoleDescription" class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                    <textarea id="editRoleDescription" name="description" rows="3" 
+                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('editRoleModal')" 
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-md">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md">
+                        Update Role
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Role Modal -->
+<div id="deleteRoleModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-red-600">Delete Role</h3>
+                <button type="button" onclick="closeModal('deleteRoleModal')" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="mb-4">
+                <p class="text-gray-700">Are you sure you want to delete the role <strong id="deleteRoleName"></strong>?</p>
+                <div id="deleteRoleWarning" class="mt-2 p-3 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 hidden">
+                    <p class="text-sm">This role is assigned to <span id="deleteUserCount"></span> user(s). They will lose these permissions.</p>
+                </div>
+            </div>
+            <form id="deleteRoleForm" method="post">
+                {% csrf_token %}
+                <input type="hidden" id="deleteRoleId" name="role_id">
+                <input type="hidden" name="action" value="delete">
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('deleteRoleModal')" 
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-md">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md">
+                        Delete Role
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Manage Permissions Modal -->
+<div id="managePermissionsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50">
+    <div class="relative top-10 mx-auto p-5 border w-4/5 max-w-4xl shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Manage Permissions - <span id="permissionRoleName"></span></h3>
+                <button type="button" onclick="closeModal('managePermissionsModal')" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="managePermissionsForm" method="post">
+                {% csrf_token %}
+                <input type="hidden" id="permissionRoleId" name="role_id">
+                <input type="hidden" name="action" value="manage_permissions">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                    {% for category, perms in permission_categories.items %}
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <div class="flex items-center mb-3">
+                                <input type="checkbox" id="category_{{ forloop.counter }}" class="category-checkbox mr-2"
+                                       data-category="{{ forloop.counter }}"
+                                       onchange="toggleCategoryPermissions('{{ forloop.counter }}')">
+                                <label for="category_{{ forloop.counter }}" class="font-semibold text-gray-900">{{ category }}</label>
+                            </div>
+                            <div class="space-y-2 ml-4">
+                                {% for permission in perms %}
+                                    <div class="flex items-center">
+                                        <input type="checkbox" id="perm_{{ permission.id }}" name="permissions" value="{{ permission.id }}"
+                                               class="permission-checkbox category-{{ forloop.parentloop.counter }} mr-2">
+                                        <label for="perm_{{ permission.id }}" class="text-sm text-gray-700">{{ permission.name }}</label>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('managePermissionsModal')" 
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-md">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md">
+                        Save Permissions
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Modal functions
+function openModal(modalId) {
+    document.getElementById(modalId).classList.remove('hidden');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.add('hidden');
+}
+
+function openCreateRoleModal() {
+    document.getElementById('createRoleForm').reset();
+    openModal('createRoleModal');
+}
+
+// Event listeners for role buttons
+document.addEventListener('DOMContentLoaded', function() {
+    // Create role button
+    document.querySelectorAll('.create-role-btn').forEach(btn => {
+        btn.addEventListener('click', openCreateRoleModal);
+    });
+
+    // Edit role buttons
+    document.querySelectorAll('.edit-role-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const roleId = this.dataset.roleId;
+            const roleName = this.dataset.roleName;
+            const roleDescription = this.dataset.roleDescription;
+            
+            document.getElementById('editRoleId').value = roleId;
+            document.getElementById('editRoleName').value = roleName;
+            document.getElementById('editRoleDescription').value = roleDescription;
+            document.getElementById('editRoleForm').action = `{% url 'staff_panel:role_permissions' %}`;
+            
+            openModal('editRoleModal');
+        });
+    });
+
+    // Delete role buttons
+    document.querySelectorAll('.delete-role-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const roleId = this.dataset.roleId;
+            const roleName = this.dataset.roleName;
+            const userCount = parseInt(this.dataset.userCount) || 0;
+            
+            document.getElementById('deleteRoleId').value = roleId;
+            document.getElementById('deleteRoleName').textContent = roleName;
+            document.getElementById('deleteUserCount').textContent = userCount;
+            document.getElementById('deleteRoleForm').action = `{% url 'staff_panel:role_permissions' %}`;
+            
+            const warningDiv = document.getElementById('deleteRoleWarning');
+            if (userCount > 0) {
+                warningDiv.classList.remove('hidden');
+            } else {
+                warningDiv.classList.add('hidden');
+            }
+            
+            openModal('deleteRoleModal');
+        });
+    });
+
+    // Manage permissions buttons
+    document.querySelectorAll('.manage-permissions-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const roleId = this.dataset.roleId;
+            const roleName = this.dataset.roleName;
+            
+            document.getElementById('permissionRoleId').value = roleId;
+            document.getElementById('permissionRoleName').textContent = roleName;
+            document.getElementById('managePermissionsForm').action = `{% url 'staff_panel:role_permissions' %}`;
+            
+            // Load current permissions for this role
+            loadRolePermissions(roleId);
+            
+            openModal('managePermissionsModal');
+        });
+    });
+});
+
+// Load role permissions
+function loadRolePermissions(roleId) {
+    // Clear all checkboxes first
+    document.querySelectorAll('.permission-checkbox').forEach(cb => cb.checked = false);
+    document.querySelectorAll('.category-checkbox').forEach(cb => cb.checked = false);
+    
+    // Fetch current permissions for this role
+    fetch(`/services/staff-panel/roles/${roleId}/permissions/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Check the permissions that belong to this role
+                data.permission_ids.forEach(permissionId => {
+                    const checkbox = document.querySelector(`input[name="permissions"][value="${permissionId}"]`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
+                
+                // Update category checkboxes based on selected permissions
+                updateCategoryCheckboxes();
+            } else {
+                console.error('Error loading permissions:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching permissions:', error);
+        });
+}
+
+// Update category checkboxes based on selected permissions
+function updateCategoryCheckboxes() {
+    document.querySelectorAll('.category-checkbox').forEach(categoryCheckbox => {
+        const categoryClass = categoryCheckbox.dataset.category;
+        const categoryPermissions = document.querySelectorAll(`.category-${categoryClass} .permission-checkbox`);
+        const checkedPermissions = document.querySelectorAll(`.category-${categoryClass} .permission-checkbox:checked`);
+        
+        if (checkedPermissions.length === categoryPermissions.length && categoryPermissions.length > 0) {
+            categoryCheckbox.checked = true;
+        } else {
+            categoryCheckbox.checked = false;
+        }
+    });
+}
+
+// Toggle category permissions
+function toggleCategoryPermissions(categoryId) {
+    const categoryCheckbox = document.getElementById(`category_${categoryId}`);
+    const permissionCheckboxes = document.querySelectorAll(`.category-${categoryId}`);
+    
+    permissionCheckboxes.forEach(cb => {
+        cb.checked = categoryCheckbox.checked;
+    });
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modals = ['createRoleModal', 'editRoleModal', 'deleteRoleModal', 'managePermissionsModal'];
+    modals.forEach(modalId => {
+        const modal = document.getElementById(modalId);
+        if (event.target === modal) {
+            closeModal(modalId);
+        }
+    });
+}
+</script>
+
+{% endblock %}

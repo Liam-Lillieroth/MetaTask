@@ -1,0 +1,441 @@
+{% extends 'staff_panel/base.html' %}
+
+{% block title %}Team Management{% endblock %}
+
+{% block staff_panel_content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-users me-2"></i>Team Management</h2>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importTeamsModal">
+                        <i class="fas fa-file-import me-1"></i>Import Teams
+                    </button>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTeamModal">
+                        <i class="fas fa-plus me-1"></i>Create Team
+                    </button>
+                </div>
+            </div>
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-users fa-2x me-3"></i>
+                                <div>
+                                    <h5 class="card-title">{{ teams.count }}</h5>
+                                    <p class="card-text">Total Teams</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-user fa-2x me-3"></i>
+                                <div>
+                                    <h5 class="card-title">{{ total_members }}</h5>
+                                    <p class="card-text">Team Members</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-crown fa-2x me-3"></i>
+                                <div>
+                                    <h5 class="card-title">{{ team_leads }}</h5>
+                                    <p class="card-text">Team Leads</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-project-diagram fa-2x me-3"></i>
+                                <div>
+                                    <h5 class="card-title">{{ active_projects }}</h5>
+                                    <p class="card-text">Active Projects</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Teams Grid -->
+            {% if teams %}
+                <div class="row">
+                    {% for team in teams %}
+                        <div class="col-lg-4 col-md-6 mb-4">
+                            <div class="card h-100">
+                                <div class="card-header bg-{{ team.color|default:'primary' }}">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h5 class="card-title text-white mb-0">
+                                            <i class="fas {{ team.icon|default:'fa-users' }} me-2"></i>
+                                            {{ team.name }}
+                                        </h5>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-link text-white" type="button" data-bs-toggle="dropdown">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="#" onclick="editTeam('{{ team.id }}')">
+                                                    <i class="fas fa-edit me-2"></i>Edit Team</a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="manageMembers('{{ team.id }}')">
+                                                    <i class="fas fa-users me-2"></i>Manage Members</a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="teamSettings('{{ team.id }}')">
+                                                    <i class="fas fa-cog me-2"></i>Settings</a></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><a class="dropdown-item text-danger" href="#" onclick="deleteTeam('{{ team.id }}', '{{ team.name }}')">
+                                                    <i class="fas fa-trash me-2"></i>Delete Team</a></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text">{{ team.description|default:"No description available" }}</p>
+                                    
+                                    <div class="row text-center mb-3">
+                                        <div class="col-4">
+                                            <div class="border-end">
+                                                <h6 class="mb-0">{{ team.member_count }}</h6>
+                                                <small class="text-muted">Members</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="border-end">
+                                                <h6 class="mb-0">{{ team.project_count|default:0 }}</h6>
+                                                <small class="text-muted">Projects</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <h6 class="mb-0">{{ team.completion_rate|default:0 }}%</h6>
+                                            <small class="text-muted">Completion</small>
+                                        </div>
+                                    </div>
+
+                                    {% if team.lead %}
+                                        <div class="d-flex align-items-center mb-2">
+                                            <strong class="me-2">Lead:</strong>
+                                            <div class="d-flex align-items-center">
+                                                <div class="avatar-sm me-2">
+                                                    <span class="badge bg-secondary rounded-pill">{{ team.lead.get_full_name|slice:":2"|upper }}</span>
+                                                </div>
+                                                {{ team.lead.get_full_name }}
+                                            </div>
+                                        </div>
+                                    {% endif %}
+
+                                    <div class="d-flex align-items-center">
+                                        <strong class="me-2">Members:</strong>
+                                        <div class="avatar-group">
+                                            {% for member in team.members.all|slice:":5" %}
+                                                <span class="badge bg-primary rounded-pill me-1" title="{{ member.get_full_name }}">
+                                                    {{ member.get_full_name|slice:":2"|upper }}
+                                                </span>
+                                            {% endfor %}
+                                            {% if team.member_count > 5 %}
+                                                <span class="badge bg-secondary rounded-pill">+{{ team.member_count|add:"-5" }}</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-footer">
+                                    <div class="btn-group w-100">
+                                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="viewTeam('{{ team.id }}')">
+                                            <i class="fas fa-eye"></i> View
+                                        </button>
+                                        <button type="button" class="btn btn-outline-success btn-sm" onclick="manageMembers('{{ team.id }}')">
+                                            <i class="fas fa-users"></i> Members
+                                        </button>
+                                        <button type="button" class="btn btn-outline-info btn-sm" onclick="teamStats('{{ team.id }}')">
+                                            <i class="fas fa-chart-bar"></i> Stats
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-users fa-4x text-muted mb-3"></i>
+                    <h4>No teams created yet</h4>
+                    <p class="text-muted">Create your first team to organize your workforce efficiently.</p>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTeamModal">
+                        <i class="fas fa-plus me-1"></i>Create First Team
+                    </button>
+                </div>
+            {% endif %}
+
+            <!-- Teams Table View -->
+            {% if teams %}
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Team Directory</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Team Name</th>
+                                        <th>Lead</th>
+                                        <th>Members</th>
+                                        <th>Projects</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for team in teams %}
+                                        <tr>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <i class="fas {{ team.icon|default:'fa-users' }} text-{{ team.color|default:'primary' }} me-2"></i>
+                                                    <div>
+                                                        <strong>{{ team.name }}</strong>
+                                                        <br><small class="text-muted">{{ team.description|truncatechars:50 }}</small>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                {% if team.lead %}
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="badge bg-secondary rounded-pill me-2">{{ team.lead.get_full_name|slice:":2"|upper }}</span>
+                                                        {{ team.lead.get_full_name }}
+                                                    </div>
+                                                {% else %}
+                                                    <span class="text-muted">No lead assigned</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-info">{{ team.member_count }} members</span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-success">{{ team.project_count|default:0 }} projects</span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-{{ team.status_color|default:'success' }}">{{ team.status|default:'Active' }}</span>
+                                            </td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm">
+                                                    <button type="button" class="btn btn-outline-primary" onclick="viewTeam('{{ team.id }}')">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-success" onclick="editTeam('{{ team.id }}')">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-danger" onclick="deleteTeam('{{ team.id }}', '{{ team.name }}')">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Create Team Modal -->
+<div class="modal fade" id="createTeamModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Team</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create_team">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="team_name" class="form-label">Team Name *</label>
+                                <input type="text" class="form-control" id="team_name" name="team_name" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="team_color" class="form-label">Team Color</label>
+                                <select class="form-select" id="team_color" name="team_color">
+                                    <option value="primary">Primary (Blue)</option>
+                                    <option value="success">Success (Green)</option>
+                                    <option value="danger">Danger (Red)</option>
+                                    <option value="warning">Warning (Yellow)</option>
+                                    <option value="info">Info (Cyan)</option>
+                                    <option value="dark">Dark (Black)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="team_description" class="form-label">Description</label>
+                        <textarea class="form-control" id="team_description" name="team_description" rows="3"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="team_lead" class="form-label">Team Lead</label>
+                                <select class="form-select" id="team_lead" name="team_lead">
+                                    <option value="">Select team lead...</option>
+                                    {% for user in users %}
+                                        <option value="{{ user.id }}">{{ user.get_full_name }} ({{ user.email }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="team_icon" class="form-label">Team Icon</label>
+                                <select class="form-select" id="team_icon" name="team_icon">
+                                    <option value="fa-users">Users (Default)</option>
+                                    <option value="fa-code">Code (Development)</option>
+                                    <option value="fa-bullhorn">Marketing</option>
+                                    <option value="fa-palette">Design</option>
+                                    <option value="fa-cog">Operations</option>
+                                    <option value="fa-chart-line">Analytics</option>
+                                    <option value="fa-shield-alt">Security</option>
+                                    <option value="fa-handshake">Sales</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="team_members" class="form-label">Team Members</label>
+                        <select class="form-select" id="team_members" name="team_members" multiple>
+                            {% for user in users %}
+                                <option value="{{ user.id }}">{{ user.get_full_name }} ({{ user.email }})</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Hold Ctrl/Cmd to select multiple members</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Team</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Team Modal -->
+<div class="modal fade" id="editTeamModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Team</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="edit_team">
+                <input type="hidden" name="team_id" id="edit_team_id">
+                <div class="modal-body">
+                    <!-- Similar form fields as create, populated with existing data -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_team_name" class="form-label">Team Name *</label>
+                                <input type="text" class="form-control" id="edit_team_name" name="team_name" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_team_color" class="form-label">Team Color</label>
+                                <select class="form-select" id="edit_team_color" name="team_color">
+                                    <option value="primary">Primary (Blue)</option>
+                                    <option value="success">Success (Green)</option>
+                                    <option value="danger">Danger (Red)</option>
+                                    <option value="warning">Warning (Yellow)</option>
+                                    <option value="info">Info (Cyan)</option>
+                                    <option value="dark">Dark (Black)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_team_description" class="form-label">Description</label>
+                        <textarea class="form-control" id="edit_team_description" name="team_description" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Team</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function editTeam(teamId) {
+    // TODO: Load team data via AJAX and populate edit form
+    document.getElementById('edit_team_id').value = teamId;
+    new bootstrap.Modal(document.getElementById('editTeamModal')).show();
+}
+
+function manageMembers(teamId) {
+    // TODO: Open member management modal or redirect to member management page
+    alert('Member management for team ' + teamId + ' - Feature coming soon!');
+}
+
+function viewTeam(teamId) {
+    // TODO: Redirect to team detail view
+    window.location.href = '/staff-panel/teams/' + teamId + '/';
+}
+
+function teamStats(teamId) {
+    // TODO: Show team statistics modal
+    alert('Team statistics for team ' + teamId + ' - Feature coming soon!');
+}
+
+function teamSettings(teamId) {
+    // TODO: Show team settings modal
+    alert('Team settings for team ' + teamId + ' - Feature coming soon!');
+}
+
+function deleteTeam(teamId, teamName) {
+    if (confirm(`Are you sure you want to delete the team "${teamName}"? This action cannot be undone.`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.innerHTML = `
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete_team">
+            <input type="hidden" name="team_id" value="${teamId}">
+        `;
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
+{% endblock %}

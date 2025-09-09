@@ -1,0 +1,710 @@
+{% extends 'staff_panel/base.html' %}
+
+{% block title %}System Logs{% endblock %}
+
+{% block staff_panel_content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-file-alt me-2"></i>System Logs</h2>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-secondary" onclick="exportLogs()">
+                        <i class="fas fa-download me-1"></i>Export
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" onclick="refreshLogs()">
+                        <i class="fas fa-sync me-1"></i>Refresh
+                    </button>
+                    <button type="button" class="btn btn-outline-danger" onclick="clearLogs()">
+                        <i class="fas fa-trash me-1"></i>Clear Old
+                    </button>
+                </div>
+            </div>
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-file-alt fa-2x me-3"></i>
+                                <div>
+                                    <h5 class="card-title">{{ total_logs }}</h5>
+                                    <p class="card-text">Total Logs</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-check-circle fa-2x me-3"></i>
+                                <div>
+                                    <h5 class="card-title">{{ info_logs }}</h5>
+                                    <p class="card-text">Info Logs</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+                                <div>
+                                    <h5 class="card-title">{{ warning_logs }}</h5>
+                                    <p class="card-text">Warnings</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-danger text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-times-circle fa-2x me-3"></i>
+                                <div>
+                                    <h5 class="card-title">{{ error_logs }}</h5>
+                                    <p class="card-text">Errors</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-filter me-2"></i>Filter Logs
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="get" id="filterForm">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label for="log_level" class="form-label">Log Level</label>
+                                    <select class="form-select" name="log_level" id="log_level">
+                                        <option value="">All Levels</option>
+                                        <option value="DEBUG" {% if request.GET.log_level == 'DEBUG' %}selected{% endif %}>Debug</option>
+                                        <option value="INFO" {% if request.GET.log_level == 'INFO' %}selected{% endif %}>Info</option>
+                                        <option value="WARNING" {% if request.GET.log_level == 'WARNING' %}selected{% endif %}>Warning</option>
+                                        <option value="ERROR" {% if request.GET.log_level == 'ERROR' %}selected{% endif %}>Error</option>
+                                        <option value="CRITICAL" {% if request.GET.log_level == 'CRITICAL' %}selected{% endif %}>Critical</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label for="source" class="form-label">Source</label>
+                                    <select class="form-select" name="source" id="source">
+                                        <option value="">All Sources</option>
+                                        <option value="auth" {% if request.GET.source == 'auth' %}selected{% endif %}>Authentication</option>
+                                        <option value="workflow" {% if request.GET.source == 'workflow' %}selected{% endif %}>Workflow</option>
+                                        <option value="integration" {% if request.GET.source == 'integration' %}selected{% endif %}>Integrations</option>
+                                        <option value="api" {% if request.GET.source == 'api' %}selected{% endif %}>API</option>
+                                        <option value="database" {% if request.GET.source == 'database' %}selected{% endif %}>Database</option>
+                                        <option value="system" {% if request.GET.source == 'system' %}selected{% endif %}>System</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label for="date_from" class="form-label">From Date</label>
+                                    <input type="date" class="form-control" name="date_from" id="date_from" 
+                                           value="{{ request.GET.date_from }}">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label for="date_to" class="form-label">To Date</label>
+                                    <input type="date" class="form-control" name="date_to" id="date_to" 
+                                           value="{{ request.GET.date_to }}">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="user_filter" class="form-label">User</label>
+                                    <select class="form-select" name="user_filter" id="user_filter">
+                                        <option value="">All Users</option>
+                                        {% for user in users %}
+                                            <option value="{{ user.id }}" {% if request.GET.user_filter == user.id|stringformat:"s" %}selected{% endif %}>
+                                                {{ user.get_full_name }} ({{ user.email }})
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="search" class="form-label">Search Message</label>
+                                    <input type="text" class="form-control" name="search" id="search" 
+                                           placeholder="Search in log messages..." value="{{ request.GET.search }}">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-search me-1"></i>Apply Filters
+                                </button>
+                                <a href="?" class="btn btn-outline-secondary">
+                                    <i class="fas fa-times me-1"></i>Clear Filters
+                                </a>
+                            </div>
+                            <div>
+                                <button type="button" class="btn btn-outline-success" onclick="exportFilteredLogs()">
+                                    <i class="fas fa-file-excel me-1"></i>Export Filtered
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Logs Table -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Recent Activity</h5>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="autoRefresh">
+                        <label class="form-check-label" for="autoRefresh">Auto-refresh</label>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if logs %}
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 140px;">Timestamp</th>
+                                        <th style="width: 80px;">Level</th>
+                                        <th style="width: 120px;">Source</th>
+                                        <th style="width: 150px;">User</th>
+                                        <th>Message</th>
+                                        <th style="width: 100px;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for log in logs %}
+                                        <tr class="log-row log-{{ log.level|lower }}">
+                                            <td class="text-nowrap">
+                                                <small>{{ log.created_at|date:"M d, H:i:s" }}</small>
+                                            </td>
+                                            <td>
+                                                {% if log.level == 'ERROR' or log.level == 'CRITICAL' %}
+                                                    <span class="badge bg-danger">{{ log.level }}</span>
+                                                {% elif log.level == 'WARNING' %}
+                                                    <span class="badge bg-warning">{{ log.level }}</span>
+                                                {% elif log.level == 'INFO' %}
+                                                    <span class="badge bg-info">{{ log.level }}</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">{{ log.level }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-light text-dark">{{ log.source|default:'system' }}</span>
+                                            </td>
+                                            <td>
+                                                {% if log.user %}
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="badge bg-secondary rounded-pill me-1">
+                                                            {{ log.user.get_full_name|slice:":2"|upper }}
+                                                        </span>
+                                                        <small>{{ log.user.username }}</small>
+                                                    </div>
+                                                {% else %}
+                                                    <span class="text-muted">System</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <div class="log-message">
+                                                    {{ log.message|truncatechars:100 }}
+                                                    {% if log.message|length > 100 %}
+                                                        <button class="btn btn-link btn-sm p-0" onclick="showFullMessage('{{ log.id }}')">
+                                                            <small>...more</small>
+                                                        </button>
+                                                    {% endif %}
+                                                </div>
+                                                {% if log.details %}
+                                                    <div class="mt-1">
+                                                        <button class="btn btn-outline-secondary btn-sm" onclick="showLogDetails('{{ log.id }}')">
+                                                            <i class="fas fa-info-circle me-1"></i>Details
+                                                        </button>
+                                                    </div>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm">
+                                                    <button type="button" class="btn btn-outline-primary" onclick="viewLogDetails('{{ log.id }}')">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                    {% if log.level == 'ERROR' or log.level == 'CRITICAL' %}
+                                                        <button type="button" class="btn btn-outline-warning" onclick="reportIssue('{{ log.id }}')">
+                                                            <i class="fas fa-bug"></i>
+                                                        </button>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination -->
+                        {% if logs.has_other_pages %}
+                            <div class="card-footer">
+                                <nav aria-label="Logs pagination">
+                                    <ul class="pagination justify-content-center mb-0">
+                                        {% if logs.has_previous %}
+                                            <li class="page-item">
+                                                <a class="page-link" href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}page={{ logs.previous_page_number }}">Previous</a>
+                                            </li>
+                                        {% endif %}
+                                        
+                                        {% for num in logs.paginator.page_range %}
+                                            {% if logs.number == num %}
+                                                <li class="page-item active">
+                                                    <span class="page-link">{{ num }}</span>
+                                                </li>
+                                            {% elif num > logs.number|add:'-3' and num < logs.number|add:'3' %}
+                                                <li class="page-item">
+                                                    <a class="page-link" href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}page={{ num }}">{{ num }}</a>
+                                                </li>
+                                            {% endif %}
+                                        {% endfor %}
+                                        
+                                        {% if logs.has_next %}
+                                            <li class="page-item">
+                                                <a class="page-link" href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}page={{ logs.next_page_number }}">Next</a>
+                                            </li>
+                                        {% endif %}
+                                    </ul>
+                                </nav>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                            <h5>No logs found</h5>
+                            <p class="text-muted">No logs match your current filters. Try adjusting your search criteria.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Log Details Modal -->
+<div class="modal fade" id="logDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Log Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="logDetailsContent">
+                    <!-- Content will be loaded via AJAX -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="downloadLogDetails()">
+                    <i class="fas fa-download me-1"></i>Download
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.log-row.log-error {
+    border-left: 4px solid #dc3545;
+}
+.log-row.log-warning {
+    border-left: 4px solid #ffc107;
+}
+.log-row.log-info {
+    border-left: 4px solid #0dcaf0;
+}
+.log-row.log-debug {
+    border-left: 4px solid #6c757d;
+}
+.log-message {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+</style>
+
+<script>
+let autoRefreshInterval;
+
+document.getElementById('autoRefresh').addEventListener('change', function() {
+    if (this.checked) {
+        autoRefreshInterval = setInterval(refreshLogs, 30000); // Refresh every 30 seconds
+    } else {
+        clearInterval(autoRefreshInterval);
+    }
+});
+
+function refreshLogs() {
+    location.reload();
+}
+
+function exportLogs() {
+    window.open('/staff-panel/system-logs/export/', '_blank');
+}
+
+function exportFilteredLogs() {
+    const form = document.getElementById('filterForm');
+    const params = new URLSearchParams(new FormData(form));
+    window.open('/staff-panel/system-logs/export/?' + params.toString(), '_blank');
+}
+
+function clearLogs() {
+    if (confirm('This will permanently delete logs older than 90 days. Continue?')) {
+        fetch('/staff-panel/system-logs/clear/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message);
+            if (data.success) {
+                location.reload();
+            }
+        });
+    }
+}
+
+function viewLogDetails(logId) {
+    fetch(`/staff-panel/system-logs/details/${logId}/`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('logDetailsContent').innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>Timestamp:</strong><br>
+                        ${data.created_at}<br><br>
+                        <strong>Level:</strong><br>
+                        <span class="badge bg-${data.level_color}">${data.level}</span><br><br>
+                        <strong>Source:</strong><br>
+                        ${data.source}<br><br>
+                        <strong>User:</strong><br>
+                        ${data.user || 'System'}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>IP Address:</strong><br>
+                        ${data.ip_address || 'N/A'}<br><br>
+                        <strong>User Agent:</strong><br>
+                        ${data.user_agent || 'N/A'}<br><br>
+                        <strong>Request ID:</strong><br>
+                        ${data.request_id || 'N/A'}
+                    </div>
+                </div>
+                <hr>
+                <strong>Message:</strong><br>
+                <div class="bg-light p-3 rounded">
+                    <code>${data.message}</code>
+                </div>
+                ${data.details ? `
+                    <hr>
+                    <strong>Additional Details:</strong><br>
+                    <div class="bg-light p-3 rounded">
+                        <pre><code>${JSON.stringify(data.details, null, 2)}</code></pre>
+                    </div>
+                ` : ''}
+                ${data.stack_trace ? `
+                    <hr>
+                    <strong>Stack Trace:</strong><br>
+                    <div class="bg-light p-3 rounded">
+                        <pre><code>${data.stack_trace}</code></pre>
+                    </div>
+                ` : ''}
+            `;
+            new bootstrap.Modal(document.getElementById('logDetailsModal')).show();
+        })
+        .catch(error => {
+            alert('Failed to load log details: ' + error.message);
+        });
+}
+
+function showFullMessage(logId) {
+    // Simple implementation - in production you might want to fetch full message via AJAX
+    viewLogDetails(logId);
+}
+
+function showLogDetails(logId) {
+    viewLogDetails(logId);
+}
+
+function reportIssue(logId) {
+    if (confirm('Create a bug report for this error?')) {
+        fetch(`/staff-panel/system-logs/report-issue/${logId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message);
+        });
+    }
+}
+
+function downloadLogDetails() {
+    // Implementation for downloading log details
+    alert('Download functionality will be implemented');
+}
+</script>
+{% endblock %}
+                        <div class="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-check-circle text-white"></i>
+                        </div>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Today</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ today_logs|default:0 }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 bg-yellow-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-exclamation-triangle text-white"></i>
+                        </div>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Warnings</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ warning_logs|default:0 }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 bg-red-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-times-circle text-white"></i>
+                        </div>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Errors</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ error_logs|default:0 }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Log Filters -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Filter Logs</h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                    <label for="log-level" class="block text-sm font-medium text-gray-700">Log Level</label>
+                    <select id="log-level" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                        <option>All Levels</option>
+                        <option>INFO</option>
+                        <option>WARNING</option>
+                        <option>ERROR</option>
+                        <option>CRITICAL</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label for="log-service" class="block text-sm font-medium text-gray-700">Service</label>
+                    <select id="log-service" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                        <option>All Services</option>
+                        <option>Core</option>
+                        <option>CFlows</option>
+                        <option>Scheduling</option>
+                        <option>Staff Panel</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label for="date-from" class="block text-sm font-medium text-gray-700">From Date</label>
+                    <input type="date" id="date-from" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                
+                <div>
+                    <label for="date-to" class="block text-sm font-medium text-gray-700">To Date</label>
+                    <input type="date" id="date-to" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+            </div>
+            
+            <div class="mt-4 flex space-x-3">
+                <button type="button" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+                    <i class="fas fa-search mr-2"></i>
+                    Apply Filters
+                </button>
+                <button type="button" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    <i class="fas fa-times mr-2"></i>
+                    Clear Filters
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Logs -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Recent Activity</h3>
+            
+            <div class="flow-root">
+                <ul class="-mb-8">
+                    <li>
+                        <div class="relative pb-8">
+                            <span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true"></span>
+                            <div class="relative flex space-x-3">
+                                <div>
+                                    <span class="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center ring-8 ring-white">
+                                        <i class="fas fa-user text-white text-sm"></i>
+                                    </span>
+                                </div>
+                                <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                                    <div>
+                                        <p class="text-sm text-gray-500">User <span class="font-medium text-gray-900">john.doe</span> logged in</p>
+                                    </div>
+                                    <div class="text-right text-sm whitespace-nowrap text-gray-500">
+                                        <time datetime="2025-09-09T15:30:00">2 minutes ago</time>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                    
+                    <li>
+                        <div class="relative pb-8">
+                            <span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true"></span>
+                            <div class="relative flex space-x-3">
+                                <div>
+                                    <span class="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center ring-8 ring-white">
+                                        <i class="fas fa-cog text-white text-sm"></i>
+                                    </span>
+                                </div>
+                                <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                                    <div>
+                                        <p class="text-sm text-gray-500">System configuration updated by <span class="font-medium text-gray-900">admin</span></p>
+                                    </div>
+                                    <div class="text-right text-sm whitespace-nowrap text-gray-500">
+                                        <time datetime="2025-09-09T15:25:00">7 minutes ago</time>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                    
+                    <li>
+                        <div class="relative pb-8">
+                            <span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true"></span>
+                            <div class="relative flex space-x-3">
+                                <div>
+                                    <span class="h-8 w-8 rounded-full bg-yellow-500 flex items-center justify-center ring-8 ring-white">
+                                        <i class="fas fa-exclamation-triangle text-white text-sm"></i>
+                                    </span>
+                                </div>
+                                <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                                    <div>
+                                        <p class="text-sm text-gray-500">WARNING: High memory usage detected in CFlows service</p>
+                                    </div>
+                                    <div class="text-right text-sm whitespace-nowrap text-gray-500">
+                                        <time datetime="2025-09-09T15:20:00">12 minutes ago</time>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                    
+                    <li>
+                        <div class="relative pb-8">
+                            <span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true"></span>
+                            <div class="relative flex space-x-3">
+                                <div>
+                                    <span class="h-8 w-8 rounded-full bg-purple-500 flex items-center justify-center ring-8 ring-white">
+                                        <i class="fas fa-database text-white text-sm"></i>
+                                    </span>
+                                </div>
+                                <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                                    <div>
+                                        <p class="text-sm text-gray-500">Database backup completed successfully</p>
+                                    </div>
+                                    <div class="text-right text-sm whitespace-nowrap text-gray-500">
+                                        <time datetime="2025-09-09T15:00:00">32 minutes ago</time>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                    
+                    <li>
+                        <div class="relative">
+                            <div class="relative flex space-x-3">
+                                <div>
+                                    <span class="h-8 w-8 rounded-full bg-red-500 flex items-center justify-center ring-8 ring-white">
+                                        <i class="fas fa-times-circle text-white text-sm"></i>
+                                    </span>
+                                </div>
+                                <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                                    <div>
+                                        <p class="text-sm text-gray-500">ERROR: Failed to sync with external API</p>
+                                    </div>
+                                    <div class="text-right text-sm whitespace-nowrap text-gray-500">
+                                        <time datetime="2025-09-09T14:45:00">47 minutes ago</time>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="mt-6 text-center">
+                <button type="button" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    Load More Logs
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

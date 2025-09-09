@@ -1,0 +1,204 @@
+{% extends "staff_panel/base.html" %}
+
+{% block title %}Configure {{ integration_name|title }} Integration{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-plug me-2"></i>Configure {{ integration_name|title }} Integration</h2>
+                <a href="{% url 'staff_panel:integrations' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>Back to Integrations
+                </a>
+            </div>
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Configuration Settings</h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="save_config">
+                                
+                                <div class="mb-3">
+                                    <label for="webhook_url" class="form-label">Webhook URL</label>
+                                    <input type="url" class="form-control" id="webhook_url" name="webhook_url" 
+                                           value="{{ integration.webhook_url|default:'' }}"
+                                           placeholder="https://your-app.com/webhooks/{{ integration_name }}">
+                                    <div class="form-text">The URL where {{ integration_name }} will send notifications</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="api_key" class="form-label">API Key / Token</label>
+                                    <input type="password" class="form-control" id="api_key" name="api_key" 
+                                           value="{{ integration.api_key|default:'' }}"
+                                           placeholder="Enter your {{ integration_name }} API key">
+                                    <div class="form-text">Your {{ integration_name }} API authentication token</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="channel" class="form-label">Channel / Destination</label>
+                                    <input type="text" class="form-control" id="channel" name="channel" 
+                                           value="{{ integration.config.channel|default:'' }}"
+                                           placeholder="#general">
+                                    <div class="form-text">Default channel or destination for notifications</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="send_notifications" name="send_notifications" 
+                                               {% if integration.send_notifications %}checked{% endif %}>
+                                        <label class="form-check-label" for="send_notifications">
+                                            Enable Notifications
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="sync_enabled" name="sync_enabled" 
+                                               {% if integration.config.settings.sync_enabled %}checked{% endif %}>
+                                        <label class="form-check-label" for="sync_enabled">
+                                            Enable Data Sync
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save me-1"></i>Save Configuration
+                                    </button>
+                                    {% if integration %}
+                                        <button type="button" class="btn btn-outline-success" onclick="testIntegration()">
+                                            <i class="fas fa-flask me-1"></i>Test Connection
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">Integration Status</h6>
+                        </div>
+                        <div class="card-body">
+                            {% if integration %}
+                                <div class="d-flex align-items-center mb-3">
+                                    <span class="badge bg-{{ integration.status|yesno:'success,warning,danger' }} me-2">
+                                        {{ integration.get_status_display }}
+                                    </span>
+                                    <small class="text-muted">{{ integration.updated_at }}</small>
+                                </div>
+                                
+                                <div class="row text-center">
+                                    <div class="col-6">
+                                        <div class="border-end">
+                                            <div class="h5 mb-0">{{ integration.sync_count }}</div>
+                                            <small class="text-muted">Syncs</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="h5 mb-0">{{ integration.error_count }}</div>
+                                        <small class="text-muted">Errors</small>
+                                    </div>
+                                </div>
+
+                                {% if integration.last_sync %}
+                                    <hr>
+                                    <small class="text-muted">
+                                        Last sync: {{ integration.last_sync|date:"M d, Y H:i" }}
+                                    </small>
+                                {% endif %}
+                            {% else %}
+                                <p class="text-muted">Not configured yet</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if recent_logs %}
+                        <div class="card mt-3">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">Recent Activity</h6>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="list-group list-group-flush">
+                                    {% for log in recent_logs|slice:":5" %}
+                                        <div class="list-group-item">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <span class="badge bg-{{ log.level|yesno:'success,warning,danger' }} badge-sm me-2">
+                                                        {{ log.level }}
+                                                    </span>
+                                                    <small>{{ log.message }}</small>
+                                                </div>
+                                                <small class="text-muted">{{ log.created_at|date:"M d H:i" }}</small>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function testIntegration() {
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Testing...';
+    btn.disabled = true;
+    
+    fetch('{% url "staff_panel:test_integration" integration_name=integration_name %}')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                btn.innerHTML = '<i class="fas fa-check me-1"></i>Test Successful';
+                btn.className = 'btn btn-success';
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.className = 'btn btn-outline-success';
+                    btn.disabled = false;
+                }, 3000);
+            } else {
+                btn.innerHTML = '<i class="fas fa-times me-1"></i>Test Failed';
+                btn.className = 'btn btn-danger';
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.className = 'btn btn-outline-success';
+                    btn.disabled = false;
+                }, 3000);
+            }
+        })
+        .catch(error => {
+            btn.innerHTML = '<i class="fas fa-times me-1"></i>Test Failed';
+            btn.className = 'btn btn-danger';
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.className = 'btn btn-outline-success';
+                btn.disabled = false;
+            }, 3000);
+        });
+}
+</script>
+{% endblock %}

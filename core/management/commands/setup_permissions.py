@@ -4,7 +4,7 @@ Management command to set up default permissions and roles for organizations
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
-from core.models import Organization
+from core.models import Organization, UserProfile
 from core.services.permission_service import PermissionService
 
 
@@ -86,25 +86,39 @@ class Command(BaseCommand):
                     self.style.SUCCESS(f"✓ Created/verified roles: {', '.join(role_names)}")
                 )
                 
-                # Assign organization owner admin role
-                if organization.owner and hasattr(organization.owner, 'profile'):
+                # Assign organization admin role to organization creator or existing admin
+                # First try to find existing organization admin
+                org_admin_profile = organization.members.filter(is_organization_admin=True, is_active=True).first()
+                
+                # If no admin exists, use the organization creator
+                if not org_admin_profile and organization.created_by:
+                    try:
+                        org_admin_profile = organization.created_by.mediap_profile
+                        if org_admin_profile.organization == organization:
+                            # Make them organization admin if they aren't already
+                            if not org_admin_profile.is_organization_admin:
+                                org_admin_profile.is_organization_admin = True
+                                org_admin_profile.save()
+                        else:
+                            org_admin_profile = None
+                    except UserProfile.DoesNotExist:
+                        org_admin_profile = None
+                
+                if org_admin_profile:
                     admin_role = next((r for r in roles if 'Administrator' in r.name), None)
                     if admin_role:
                         permission_service.assign_role_to_user(
-                            user_profile=organization.owner.profile,
+                            user_profile=org_admin_profile,
                             role=admin_role,
-                            assigned_by=organization.owner.profile,
-                            notes="Auto-assigned to organization owner"
+                            assigned_by=org_admin_profile,
+                            notes="Auto-assigned to organization admin",
+                            skip_permission_check=True
                         )
                         self.stdout.write(
                             self.style.SUCCESS(
-                                f"✓ Assigned admin role to organization owner: {organization.owner.username}"
+                                f"✓ Assigned admin role to organization admin: {org_admin_profile.user.username}"
                             )
                         )
-                    
-                    # Set organization admin flag
-                    organization.owner.profile.is_organization_admin = True
-                    organization.owner.profile.save()
                 
                 self.stdout.write(
                     self.style.SUCCESS(f"✓ Completed setup for {organization.name}\n")

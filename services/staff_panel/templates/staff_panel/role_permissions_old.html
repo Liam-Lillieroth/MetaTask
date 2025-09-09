@@ -1,0 +1,464 @@
+{% extends 'staff_panel/base.html' %}
+
+{% block title %}Roles & Permissions{% endblock %}
+
+{% block staff_panel_content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-user-shield me-2"></i>Roles & Permissions</h2>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createRoleModal">
+                    <i class="fas fa-plus me-1"></i>Create Role
+                </button>
+            </div>
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-user-shield fa-2x me-3"></i>
+                                <div>
+                                    <h5 class="card-title">{{ roles.count }}</h5>
+                                    <p class="card-text">Total Roles</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-key fa-2x me-3"></i>
+                                <div>
+                                    <h5 class="card-title">{{ permissions.count }}</h5>
+                                    <p class="card-text">Permissions</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-users fa-2x me-3"></i>
+                                <div>
+                                    <h5 class="card-title">
+                                        {% for role in roles %}{{ role.user_count|add:0 }}{% if not forloop.last %}+{% endif %}{% endfor %}
+                                    </h5>
+                                    <p class="card-text">Users Assigned</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-list fa-2x me-3"></i>
+                                <div>
+                                    <h5 class="card-title">{{ permission_categories.keys|length }}</h5>
+                                    <p class="card-text">Categories</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Roles Table -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Organization Roles</h5>
+                </div>
+                <div class="card-body">
+                    {% if roles %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Role Name</th>
+                                        <th>Description</th>
+                                        <th>Permissions</th>
+                                        <th>Users</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for role in roles %}
+                                        <tr>
+                                            <td>
+                                                <strong>{{ role.name }}</strong>
+                                            </td>
+                                            <td>{{ role.description|default:"No description" }}</td>
+                                            <td>
+                                                <span class="badge bg-primary">{{ role.permission_count }} permissions</span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-info">{{ role.user_count }} users</span>
+                                            </td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm" role="group">
+                                                    <button type="button" class="btn btn-outline-primary" 
+                                                            data-bs-toggle="modal" data-bs-target="#editRoleModal"
+                                                            onclick="editRole('{{ role.id }}', '{{ role.name }}', '{{ role.description }}')">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-success" 
+                                                            data-bs-toggle="modal" data-bs-target="#permissionsModal"
+                                                            onclick="managePermissions('{{ role.id }}', '{{ role.name }}')">
+                                                        <i class="fas fa-key"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-danger" 
+                                                            onclick="deleteRole('{{ role.id }}', '{{ role.name }}', {{ role.user_count }})">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-user-shield fa-3x text-muted mb-3"></i>
+                            <h5>No roles created yet</h5>
+                            <p class="text-muted">Create your first role to get started with permission management.</p>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createRoleModal">
+                                <i class="fas fa-plus me-1"></i>Create First Role
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Role Modal -->
+<div class="modal fade" id="createRoleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Role</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create_role">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="role_name" class="form-label">Role Name *</label>
+                        <input type="text" class="form-control" id="role_name" name="role_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="role_description" class="form-label">Description</label>
+                        <textarea class="form-control" id="role_description" name="role_description" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Role</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Role Modal -->
+<div class="modal fade" id="editRoleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Role</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="edit_role">
+                <input type="hidden" name="role_id" id="edit_role_id">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_role_name" class="form-label">Role Name *</label>
+                        <input type="text" class="form-control" id="edit_role_name" name="role_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_role_description" class="form-label">Description</label>
+                        <textarea class="form-control" id="edit_role_description" name="role_description" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Role</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Permissions Modal -->
+<div class="modal fade" id="permissionsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Manage Permissions: <span id="permissions_role_name"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="assign_permissions">
+                <input type="hidden" name="role_id" id="permissions_role_id">
+                <div class="modal-body">
+                    {% for category, perms in permission_categories.items %}
+                        <div class="mb-4">
+                            <h6 class="border-bottom pb-2">{{ category }}</h6>
+                            <div class="row">
+                                {% for permission in perms %}
+                                    <div class="col-md-6 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="permissions" value="{{ permission.id }}" 
+                                                   id="perm_{{ permission.id }}">
+                                            <label class="form-check-label" for="perm_{{ permission.id }}">
+                                                {{ permission.name }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Permissions</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function editRole(roleId, roleName, roleDescription) {
+    document.getElementById('edit_role_id').value = roleId;
+    document.getElementById('edit_role_name').value = roleName;
+    document.getElementById('edit_role_description').value = roleDescription;
+}
+
+function managePermissions(roleId, roleName) {
+    document.getElementById('permissions_role_id').value = roleId;
+    document.getElementById('permissions_role_name').textContent = roleName;
+    
+    // Clear all checkboxes first
+    document.querySelectorAll('#permissionsModal input[type="checkbox"]').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    
+    // TODO: Load current permissions for this role via AJAX
+}
+
+function deleteRole(roleId, roleName, userCount) {
+    if (userCount > 0) {
+        alert(`Cannot delete role "${roleName}" - it has ${userCount} users assigned.`);
+        return;
+    }
+    
+    if (confirm(`Are you sure you want to delete the role "${roleName}"? This action cannot be undone.`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.innerHTML = `
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete_role">
+            <input type="hidden" name="role_id" value="${roleId}">
+        `;
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
+{% endblock %}
+                        <div class="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-check-circle text-white"></i>
+                        </div>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Active Roles</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ active_roles|default:0 }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 bg-yellow-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-key text-white"></i>
+                        </div>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Permissions</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ total_permissions|default:0 }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card bg-white overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-users text-white"></i>
+                        </div>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">Role Assignments</dt>
+                            <dd class="text-lg font-medium text-gray-900">{{ total_assignments|default:0 }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Roles Grid -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Organizational Roles</h3>
+            
+            {% if roles %}
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {% for role in roles %}
+                    <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow duration-200">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center">
+                                <div class="w-3 h-3 rounded-full mr-3" style="background-color: {{ role.color|default:'#6B7280' }}"></div>
+                                <h4 class="text-lg font-semibold text-gray-900">{{ role.name }}</h4>
+                            </div>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                         {% if role.role_type == 'system' %}bg-blue-100 text-blue-800{% else %}bg-green-100 text-green-800{% endif %}">
+                                {{ role.get_role_type_display }}
+                            </span>
+                        </div>
+                        
+                        {% if role.description %}
+                        <p class="text-sm text-gray-600 mb-3">{{ role.description|truncatewords:15 }}</p>
+                        {% endif %}
+                        
+                        <div class="flex items-center justify-between text-sm text-gray-500 mb-3">
+                            <span>{{ role.user_assignments.count }} user{{ role.user_assignments.count|pluralize }}</span>
+                            <span>{{ role.permissions.count }} permission{{ role.permissions.count|pluralize }}</span>
+                        </div>
+                        
+                        {% if role.is_default %}
+                        <div class="flex items-center mb-3">
+                            <i class="fas fa-star text-amber-500 mr-1"></i>
+                            <span class="text-xs text-amber-600 font-medium">Default Role</span>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="flex space-x-2">
+                            <button class="flex-1 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-100 transition-colors duration-200">
+                                View Permissions
+                            </button>
+                            <button class="flex-1 bg-gray-50 text-gray-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-100 transition-colors duration-200">
+                                Edit Role
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-8">
+                    <i class="fas fa-user-tag text-4xl text-gray-300 mb-4"></i>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">No roles found</h3>
+                    <p class="text-sm text-gray-500 mb-4">Get started by creating your first organizational role.</p>
+                    <button type="button" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+                        <i class="fas fa-plus mr-2"></i>
+                        Create First Role
+                    </button>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Permissions Overview -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Permission Categories</h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="flex items-center mb-2">
+                        <i class="fas fa-users text-blue-500 mr-2"></i>
+                        <h4 class="font-semibold text-gray-900">User Management</h4>
+                    </div>
+                    <p class="text-sm text-gray-600">Create, edit, and manage user accounts</p>
+                </div>
+                
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="flex items-center mb-2">
+                        <i class="fas fa-project-diagram text-indigo-500 mr-2"></i>
+                        <h4 class="font-semibold text-gray-900">Workflow Management</h4>
+                    </div>
+                    <p class="text-sm text-gray-600">Create and manage workflows and processes</p>
+                </div>
+                
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="flex items-center mb-2">
+                        <i class="fas fa-calendar text-green-500 mr-2"></i>
+                        <h4 class="font-semibold text-gray-900">Scheduling</h4>
+                    </div>
+                    <p class="text-sm text-gray-600">Resource scheduling and booking management</p>
+                </div>
+                
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="flex items-center mb-2">
+                        <i class="fas fa-cog text-purple-500 mr-2"></i>
+                        <h4 class="font-semibold text-gray-900">System Administration</h4>
+                    </div>
+                    <p class="text-sm text-gray-600">System settings and configuration</p>
+                </div>
+                
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="flex items-center mb-2">
+                        <i class="fas fa-chart-bar text-orange-500 mr-2"></i>
+                        <h4 class="font-semibold text-gray-900">Analytics & Reporting</h4>
+                    </div>
+                    <p class="text-sm text-gray-600">View reports and analytics data</p>
+                </div>
+                
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="flex items-center mb-2">
+                        <i class="fas fa-shield-alt text-red-500 mr-2"></i>
+                        <h4 class="font-semibold text-gray-900">Security</h4>
+                    </div>
+                    <p class="text-sm text-gray-600">Security settings and access control</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

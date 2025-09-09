@@ -90,6 +90,9 @@ INSTALLED_APPS = [
     'api',
     
     # Services
+    'services.staff_panel',
+    
+    # Services
     'services.cflows',
     'services.scheduling',
 ]

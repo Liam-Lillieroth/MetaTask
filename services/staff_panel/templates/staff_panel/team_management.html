@@ -1,0 +1,716 @@
+{% extends 'staff_panel/base.html' %}
+{% load permission_tags %}
+
+{% block title %}Team Management{% endblock %}
+
+{% block staff_panel_content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="border-b border-gray-200 pb-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">
+                    <i class="fas fa-users mr-2"></i>Team Management
+                </h1>
+                <p class="mt-1 text-sm text-gray-500">
+                    Organize users into teams for efficient workflow management
+                </p>
+            </div>
+            <div class="flex space-x-3">
+                <button type="button" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    <i class="fas fa-file-export mr-2"></i>
+                    Export
+                </button>
+                {% permission_button 'team.create' %}
+                    <button type="button" onclick="openCreateTeamModal()" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+                        <i class="fas fa-plus mr-2"></i>
+                        Create Team
+                    </button>
+                {% endpermission_button %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Team Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for team in top_level_teams %}
+            <div class="team-card bg-white overflow-hidden shadow rounded-lg">
+                <div class="p-6">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-users text-white text-lg"></i>
+                            </div>
+                            <div class="ml-4">
+                                <h3 class="text-lg font-medium text-gray-900">{{ team.name }}</h3>
+                                <p class="text-sm text-gray-500">{{ team.members_count }} member{{ team.members_count|pluralize }}</p>
+                                {% if team.manager %}
+                                    <p class="text-xs text-gray-400">Manager: {{ team.manager.user.get_full_name }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="relative inline-block text-left">
+                            <button type="button" onclick="toggleTeamDropdown('team{{ team.id }}')" class="text-gray-400 hover:text-gray-600">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <div id="team{{ team.id }}-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
+                                <div class="py-1">
+                                    <button type="button" class="edit-team-card-btn block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                            data-team-id="{{ team.id }}" 
+                                            data-team-name="{{ team.name }}" 
+                                            data-team-description="{{ team.description|default:'' }}">
+                                        <i class="fas fa-edit mr-2"></i>Edit Team
+                                    </button>
+                                    <button type="button" class="manage-team-card-btn block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                            data-team-id="{{ team.id }}" 
+                                            data-team-name="{{ team.name }}">
+                                        <i class="fas fa-users mr-2"></i>Manage Members
+                                    </button>
+                                    <button type="button" class="delete-team-card-btn block w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+                                            data-team-id="{{ team.id }}" 
+                                            data-team-name="{{ team.name }}" 
+                                            data-member-count="{{ team.members_count }}">
+                                        <i class="fas fa-trash mr-2"></i>Delete Team
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        {% if team.description %}
+                            <p class="text-sm text-gray-600 mb-3">{{ team.description }}</p>
+                        {% endif %}
+                        
+                        <!-- Show subteams count -->
+                        {% with subteams_count=team.team_set.count %}
+                            {% if subteams_count > 0 %}
+                                <div class="flex items-center justify-between text-sm">
+                                    <span class="text-gray-500">Sub-teams</span>
+                                    <span class="font-medium">{{ subteams_count }}</span>
+                                </div>
+                            {% endif %}
+                        {% endwith %}
+                    </div>
+                    
+                    <!-- Team members avatars -->
+                    <div class="mt-4 flex -space-x-2">
+                        {% for member in team.members.all|slice:":4" %}
+                            <span class="inline-flex items-center justify-center h-8 w-8 rounded-full ring-2 ring-white bg-indigo-500 text-xs font-medium text-white" 
+                                  title="{{ member.user.get_full_name }}">
+                                {% if member.user.first_name and member.user.last_name %}
+                                    {{ member.user.first_name.0 }}{{ member.user.last_name.0 }}
+                                {% else %}
+                                    {{ member.user.username.0|upper }}
+                                {% endif %}
+                            </span>
+                        {% endfor %}
+                        {% if team.members_count > 4 %}
+                            <span class="inline-flex items-center justify-center h-8 w-8 rounded-full ring-2 ring-white bg-gray-500 text-xs font-medium text-white">
+                                +{{ team.members_count|add:"-4" }}
+                            </span>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Show subteams if any -->
+                    {% with subteams=team.team_set.all %}
+                        {% if subteams %}
+                            <div class="mt-4 pt-4 border-t border-gray-200">
+                                <p class="text-xs font-medium text-gray-500 mb-2">Sub-teams:</p>
+                                <div class="flex flex-wrap gap-1">
+                                    {% for subteam in subteams|slice:":3" %}
+                                        <span class="inline-flex px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-md">
+                                            {{ subteam.name }}
+                                        </span>
+                                    {% endfor %}
+                                    {% if subteams.count > 3 %}
+                                        <span class="inline-flex px-2 py-1 text-xs font-medium bg-gray-100 text-gray-500 rounded-md">
+                                            +{{ subteams.count|add:"-3" }} more
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endwith %}
+                </div>
+            </div>
+        {% empty %}
+            <div class="col-span-full text-center py-12">
+                <i class="fas fa-users text-4xl text-gray-400 mb-4"></i>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No teams created yet</h3>
+                <p class="text-gray-500 mb-6">Create your first team to get started with team management.</p>
+                <button type="button" onclick="openCreateTeamModal()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                    <i class="fas fa-plus mr-2"></i>
+                    Create First Team
+                </button>
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- Team List Table -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Team Directory</h3>
+        </div>
+        <div class="overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lead</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Members</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for team in teams %}
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                                        <i class="fas fa-users text-white"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <div class="text-sm font-medium text-gray-900">{{ team.name }}</div>
+                                        <div class="text-sm text-gray-500">
+                                            {% if team.description %}
+                                                {{ team.description|truncatechars:50 }}
+                                            {% elif team.parent_team %}
+                                                Sub-team of {{ team.parent_team.name }}
+                                            {% else %}
+                                                Team
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if team.manager %}
+                                    <div class="flex items-center">
+                                        <span class="h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-medium">
+                                            {% if team.manager.user.first_name and team.manager.user.last_name %}
+                                                {{ team.manager.user.first_name.0 }}{{ team.manager.user.last_name.0 }}
+                                            {% else %}
+                                                {{ team.manager.user.username.0|upper }}
+                                            {% endif %}
+                                        </span>
+                                        <div class="ml-3">
+                                            <div class="text-sm font-medium text-gray-900">{{ team.manager.user.get_full_name|default:team.manager.user.username }}</div>
+                                            <div class="text-sm text-gray-500">Team Manager</div>
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <span class="text-sm text-gray-500">No manager assigned</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ team.members_count }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Active</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <div class="flex space-x-2">
+                                    {% if user|has_permission:'team.edit' %}
+                                        <button type="button" class="edit-team-btn text-indigo-600 hover:text-indigo-900" 
+                                                data-team-id="{{ team.id }}" 
+                                                data-team-name="{{ team.name }}" 
+                                                data-team-description="{{ team.description|default:'' }}">Edit</button>
+                                    {% endif %}
+                                    {% if user|has_permission:'team.manage_members' %}
+                                        <button type="button" class="manage-team-btn text-gray-600 hover:text-gray-900" 
+                                                data-team-id="{{ team.id }}" 
+                                                data-team-name="{{ team.name }}">Manage</button>
+                                    {% endif %}
+                                    {% if user|has_permission:'team.delete' %}
+                                        <button type="button" class="delete-team-btn text-red-600 hover:text-red-900" 
+                                                data-team-id="{{ team.id }}" 
+                                                data-team-name="{{ team.name }}" 
+                                                data-member-count="{{ team.members_count }}">Delete</button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="5" class="px-6 py-12 text-center">
+                                <i class="fas fa-users text-3xl text-gray-400 mb-4"></i>
+                                <h3 class="text-lg font-medium text-gray-900 mb-2">No teams found</h3>
+                                <p class="text-gray-500">Create your first team to get started.</p>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Create Team Modal -->
+<div id="createTeamModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Create New Team</h3>
+                <button type="button" onclick="closeModal('createTeamModal')" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="createTeamForm" method="post" action="{% url 'staff_panel:team_management' %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create_team">
+                <div class="mb-4">
+                    <label for="teamName" class="block text-sm font-medium text-gray-700 mb-2">Team Name</label>
+                    <input type="text" id="teamName" name="team_name" required 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                           placeholder="e.g., Development Team">
+                </div>
+                <div class="mb-4">
+                    <label for="teamDescription" class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                    <textarea id="teamDescription" name="team_description" rows="3" 
+                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                              placeholder="Brief description of the team's purpose..."></textarea>
+                </div>
+                <div class="mb-4">
+                    <label for="parentTeam" class="block text-sm font-medium text-gray-700 mb-2">Parent Team (Optional)</label>
+                    <select id="parentTeam" name="parent_team" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">Select parent team (for sub-teams)</option>
+                        {% for team in top_level_teams %}
+                            <option value="{{ team.id }}">{{ team.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Leave empty to create a top-level team, or select a parent to create a sub-team.</p>
+                </div>
+                <div class="mb-4">
+                    <label for="teamManager" class="block text-sm font-medium text-gray-700 mb-2">Team Manager (Optional)</label>
+                    <select id="teamManager" name="manager" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">Select team manager</option>
+                        {% for member in organization_members %}
+                            <option value="{{ member.id }}">{{ member.user.get_full_name|default:member.user.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('createTeamModal')" 
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-md">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md">
+                        Create Team
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Team Modal -->
+<div id="editTeamModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Edit Team</h3>
+                <button type="button" onclick="closeModal('editTeamModal')" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="editTeamForm" method="post">
+                {% csrf_token %}
+                <input type="hidden" id="editTeamId" name="team_id">
+                <input type="hidden" name="action" value="edit_team">
+                <div class="mb-4">
+                    <label for="editTeamName" class="block text-sm font-medium text-gray-700 mb-2">Team Name</label>
+                    <input type="text" id="editTeamName" name="team_name" required 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div class="mb-4">
+                    <label for="editTeamDescription" class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                    <textarea id="editTeamDescription" name="team_description" rows="3" 
+                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                </div>
+                <div class="mb-4">
+                    <label for="editParentTeam" class="block text-sm font-medium text-gray-700 mb-2">Parent Team (Optional)</label>
+                    <select id="editParentTeam" name="parent_team" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">No parent team (top-level)</option>
+                        {% for team in top_level_teams %}
+                            <option value="{{ team.id }}">{{ team.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label for="editTeamManager" class="block text-sm font-medium text-gray-700 mb-2">Team Manager (Optional)</label>
+                    <select id="editTeamManager" name="manager" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">No manager assigned</option>
+                        {% for member in organization_members %}
+                            <option value="{{ member.id }}">{{ member.user.get_full_name|default:member.user.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('editTeamModal')" 
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-md">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md">
+                        Update Team
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Team Modal -->
+<div id="deleteTeamModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-red-600">Delete Team</h3>
+                <button type="button" onclick="closeModal('deleteTeamModal')" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="mb-4">
+                <p class="text-gray-700">Are you sure you want to delete the team <strong id="deleteTeamName"></strong>?</p>
+                <div id="deleteTeamWarning" class="mt-2 p-3 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700">
+                    <p class="text-sm">This team has <span id="deleteMemberCount"></span> member(s). They will be removed from the team.</p>
+                </div>
+            </div>
+            <form id="deleteTeamForm" method="post">
+                {% csrf_token %}
+                <input type="hidden" id="deleteTeamId" name="team_id">
+                <input type="hidden" name="action" value="delete">
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('deleteTeamModal')" 
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-md">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md">
+                        Delete Team
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Manage Team Members Modal -->
+<div id="manageTeamModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50">
+    <div class="relative top-10 mx-auto p-5 border w-4/5 max-w-4xl shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Manage Team Members - <span id="manageTeamName"></span></h3>
+                <button type="button" onclick="closeModal('manageTeamModal')" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h4 class="text-md font-medium text-gray-900">Add Members</h4>
+                    <div class="flex space-x-2">
+                        <input type="text" id="memberSearch" placeholder="Search users..." 
+                               class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <button type="button" onclick="searchUsers()" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="userSearchResults" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-60 overflow-y-auto">
+                    <!-- Search results will be populated here -->
+                </div>
+            </div>
+            
+            <div>
+                <h4 class="text-md font-medium text-gray-900 mb-4">Current Members</h4>
+                <div id="currentMembers" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Current members will be populated here -->
+                </div>
+            </div>
+            
+            <div class="flex justify-end mt-6">
+                <button type="button" onclick="closeModal('manageTeamModal')" 
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-md">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Modal functions
+function openModal(modalId) {
+    document.getElementById(modalId).classList.remove('hidden');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.add('hidden');
+}
+
+function openCreateTeamModal() {
+    document.getElementById('createTeamForm').reset();
+    openModal('createTeamModal');
+}
+
+// Event listeners for team management
+document.addEventListener('DOMContentLoaded', function() {
+    // Edit team buttons (from table)
+    document.querySelectorAll('.edit-team-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const teamId = this.dataset.teamId;
+            const teamName = this.dataset.teamName;
+            const teamDescription = this.dataset.teamDescription;
+            
+            document.getElementById('editTeamId').value = teamId;
+            document.getElementById('editTeamName').value = teamName;
+            document.getElementById('editTeamDescription').value = teamDescription || '';
+            document.getElementById('editTeamForm').action = `{% url 'staff_panel:team_management' %}`;
+            
+            openModal('editTeamModal');
+        });
+    });
+
+    // Edit team buttons (from cards)
+    document.querySelectorAll('.edit-team-card-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const teamId = this.dataset.teamId;
+            const teamName = this.dataset.teamName;
+            const teamDescription = this.dataset.teamDescription;
+            
+            document.getElementById('editTeamId').value = teamId;
+            document.getElementById('editTeamName').value = teamName;
+            document.getElementById('editTeamDescription').value = teamDescription || '';
+            document.getElementById('editTeamForm').action = `{% url 'staff_panel:team_management' %}`;
+            
+            // Close dropdown
+            document.getElementById(`team${teamId}-dropdown`).classList.add('hidden');
+            
+            openModal('editTeamModal');
+        });
+    });
+
+    // Delete team buttons (from table)
+    document.querySelectorAll('.delete-team-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const teamId = this.dataset.teamId;
+            const teamName = this.dataset.teamName;
+            const memberCount = parseInt(this.dataset.memberCount) || 0;
+            
+            document.getElementById('deleteTeamId').value = teamId;
+            document.getElementById('deleteTeamName').textContent = teamName;
+            document.getElementById('deleteMemberCount').textContent = memberCount;
+            document.getElementById('deleteTeamForm').action = `{% url 'staff_panel:team_management' %}`;
+            
+            openModal('deleteTeamModal');
+        });
+    });
+
+    // Delete team buttons (from cards)
+    document.querySelectorAll('.delete-team-card-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const teamId = this.dataset.teamId;
+            const teamName = this.dataset.teamName;
+            const memberCount = parseInt(this.dataset.memberCount) || 0;
+            
+            document.getElementById('deleteTeamId').value = teamId;
+            document.getElementById('deleteTeamName').textContent = teamName;
+            document.getElementById('deleteMemberCount').textContent = memberCount;
+            document.getElementById('deleteTeamForm').action = `{% url 'staff_panel:team_management' %}`;
+            
+            // Close dropdown
+            document.getElementById(`team${teamId}-dropdown`).classList.add('hidden');
+            
+            openModal('deleteTeamModal');
+        });
+    });
+
+    // Manage team buttons (from table)
+    document.querySelectorAll('.manage-team-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const teamId = this.dataset.teamId;
+            const teamName = this.dataset.teamName;
+            
+            document.getElementById('manageTeamName').textContent = teamName;
+            loadTeamMembers(teamId);
+            
+            openModal('manageTeamModal');
+        });
+    });
+
+    // Manage team buttons (from cards)
+    document.querySelectorAll('.manage-team-card-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const teamId = this.dataset.teamId;
+            const teamName = this.dataset.teamName;
+            
+            document.getElementById('manageTeamName').textContent = teamName;
+            loadTeamMembers(teamId);
+            
+            // Close dropdown
+            document.getElementById(`team${teamId}-dropdown`).classList.add('hidden');
+            
+            openModal('manageTeamModal');
+        });
+    });
+});
+
+// Team management functions
+function loadTeamMembers(teamId) {
+    // This would typically make an AJAX call to get team members
+    // For now, we'll show placeholder content
+    const currentMembers = document.getElementById('currentMembers');
+    currentMembers.innerHTML = `
+        <div class="bg-gray-50 p-4 rounded-lg">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 bg-indigo-500 rounded-full flex items-center justify-center text-white font-medium">JD</div>
+                    <div class="ml-3">
+                        <p class="text-sm font-medium text-gray-900">John Doe</p>
+                        <p class="text-xs text-gray-500">john@example.com</p>
+                    </div>
+                </div>
+                <button type="button" onclick="removeTeamMember(${teamId}, 1)" class="text-red-600 hover:text-red-800">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <div class="bg-gray-50 p-4 rounded-lg">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white font-medium">AS</div>
+                    <div class="ml-3">
+                        <p class="text-sm font-medium text-gray-900">Alice Smith</p>
+                        <p class="text-xs text-gray-500">alice@example.com</p>
+                    </div>
+                </div>
+                <button type="button" onclick="removeTeamMember(${teamId}, 2)" class="text-red-600 hover:text-red-800">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function searchUsers() {
+    const searchTerm = document.getElementById('memberSearch').value;
+    const resultsContainer = document.getElementById('userSearchResults');
+    
+    if (searchTerm.length < 2) {
+        resultsContainer.innerHTML = '<div class="col-span-full text-center text-gray-500">Enter at least 2 characters to search</div>';
+        return;
+    }
+    
+    // This would typically make an AJAX call to search users
+    // For now, we'll show placeholder results
+    resultsContainer.innerHTML = `
+        <div class="bg-white border border-gray-200 p-4 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="addTeamMember(1, 3)">
+            <div class="flex items-center">
+                <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium">MD</div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-900">Mike Davis</p>
+                    <p class="text-xs text-gray-500">mike@example.com</p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white border border-gray-200 p-4 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="addTeamMember(1, 4)">
+            <div class="flex items-center">
+                <div class="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center text-white font-medium">SJ</div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-900">Sarah Johnson</p>
+                    <p class="text-xs text-gray-500">sarah@example.com</p>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function addTeamMember(teamId, userId) {
+    // This would make an AJAX call to add the user to the team
+    console.log(`Adding user ${userId} to team ${teamId}`);
+    // Reload team members after adding
+    loadTeamMembers(teamId);
+}
+
+function removeTeamMember(teamId, userId) {
+    // This would make an AJAX call to remove the user from the team
+    console.log(`Removing user ${userId} from team ${teamId}`);
+    // Reload team members after removing
+    loadTeamMembers(teamId);
+}
+
+// Team card dropdown functions
+function toggleTeamDropdown(teamId) {
+    const dropdown = document.getElementById(`${teamId}-dropdown`);
+    const isHidden = dropdown.classList.contains('hidden');
+    
+    // Close all other dropdowns
+    document.querySelectorAll('[id$="-dropdown"]').forEach(d => d.classList.add('hidden'));
+    
+    // Toggle current dropdown
+    if (isHidden) {
+        dropdown.classList.remove('hidden');
+    } else {
+        dropdown.classList.add('hidden');
+    }
+}
+
+function editTeamFromCard(teamId, teamName, teamDescription) {
+    document.getElementById('editTeamId').value = teamId;
+    document.getElementById('editTeamName').value = teamName;
+    document.getElementById('editTeamDescription').value = teamDescription || '';
+    document.getElementById('editTeamForm').action = `{% url 'staff_panel:team_management' %}`;
+    
+    // Close dropdown
+    document.getElementById(`team${teamId}-dropdown`).classList.add('hidden');
+    
+    openModal('editTeamModal');
+}
+
+function manageTeamFromCard(teamId, teamName) {
+    document.getElementById('manageTeamName').textContent = teamName;
+    loadTeamMembers(teamId);
+    
+    // Close dropdown
+    document.getElementById(`team${teamId}-dropdown`).classList.add('hidden');
+    
+    openModal('manageTeamModal');
+}
+
+function deleteTeamFromCard(teamId, teamName, memberCount) {
+    document.getElementById('deleteTeamId').value = teamId;
+    document.getElementById('deleteTeamName').textContent = teamName;
+    document.getElementById('deleteMemberCount').textContent = memberCount;
+    document.getElementById('deleteTeamForm').action = `{% url 'staff_panel:team_management' %}`;
+    
+    // Close dropdown
+    document.getElementById(`team${teamId}-dropdown`).classList.add('hidden');
+    
+    openModal('deleteTeamModal');
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modals = ['createTeamModal', 'editTeamModal', 'deleteTeamModal', 'manageTeamModal'];
+    modals.forEach(modalId => {
+        const modal = document.getElementById(modalId);
+        if (event.target === modal) {
+            closeModal(modalId);
+        }
+    });
+    
+    // Close dropdowns when clicking outside
+    if (!event.target.closest('.relative')) {
+        document.querySelectorAll('[id$="-dropdown"]').forEach(d => d.classList.add('hidden'));
+    }
+}
+</script>
+
+{% endblock %}

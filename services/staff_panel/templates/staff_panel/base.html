@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Staff Panel - {{ organization.name }}{% endblock %}</title>
+    
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Alpine.js for interactive components -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Chart.js for analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    {% block extra_head %}{% endblock %}
+    
+    <style>
+        /* Staff Panel theme colors */
+        :root {
+            --staff-primary: #667eea;
+            --staff-secondary: #764ba2;
+            --staff-success: #10b981;
+            --staff-warning: #f59e0b;
+            --staff-danger: #ef4444;
+        }
+        
+        .staff-panel-gradient {
+            background: linear-gradient(135deg, var(--staff-primary) 0%, var(--staff-secondary) 100%);
+        }
+        
+        .staff-panel-sidebar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .nav-item.active {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border-radius: 12px;
+            color: white;
+        }
+        
+        .stat-card.secondary {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        
+        .stat-card.tertiary {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+        
+        .stat-card.quaternary {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+        
+        .sidebar-transition {
+            transition: transform 0.3s ease-in-out;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 font-sans" x-data="{ sidebarOpen: false }">
+    <!-- Staff Panel Header -->
+    <header class="staff-panel-gradient shadow-lg sticky top-0 z-40">
+        <div class="flex justify-between items-center h-16 px-4">
+            <!-- Mobile Menu Button & Logo -->
+            <div class="flex items-center space-x-4">
+                <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden text-white hover:text-gray-200 focus:outline-none">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+                
+                <!-- Logo and Title -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
+                        <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-4m-5 0H3m2 0h4M9 7h6m-6 4h6m-6 4h6"></path>
+                        </svg>
+                    </div>
+                    <div class="hidden md:block">
+                        <h1 class="text-lg font-bold text-white">Staff Panel</h1>
+                        <p class="text-xs text-purple-200 -mt-1">{{ organization.name }}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- User Menu -->
+            <div class="flex items-center space-x-4">
+                <!-- User Profile -->
+                <div class="flex items-center space-x-3 text-white">
+                    <div class="hidden md:block text-right">
+                        <p class="text-sm font-medium">{{ profile.user.get_full_name }}</p>
+                        <p class="text-xs text-purple-200">{{ profile.title|default:"Staff Member" }}</p>
+                    </div>
+                    <div class="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                        <span class="text-xs font-medium">{{ profile.user.first_name|first }}{{ profile.user.last_name|first }}</span>
+                    </div>
+                </div>
+                
+                <!-- Quick Actions -->
+                <div class="flex items-center space-x-2">
+                    <a href="{% url 'dashboard:dashboard' %}" class="text-white hover:text-gray-200 text-sm">
+                        <i class="fas fa-home mr-1"></i>
+                        <span class="hidden md:inline">Dashboard</span>
+                    </a>
+                    <a href="{% url 'accounts:logout' %}" class="text-white hover:text-gray-200 text-sm">
+                        <i class="fas fa-sign-out-alt mr-1"></i>
+                        <span class="hidden md:inline">Logout</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Messages -->
+    {% if messages %}
+        <div class="bg-white border-b border-gray-200 px-4 py-3">
+            {% for message in messages %}
+                <div class="max-w-7xl mx-auto">
+                    <div class="bg-{{ message.tags }}-100 border border-{{ message.tags }}-400 text-{{ message.tags }}-700 px-4 py-3 rounded mb-2">
+                        {{ message }}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Main Layout -->
+    <div class="flex min-h-screen bg-gray-50">
+        <!-- Sidebar -->
+        <div class="staff-panel-sidebar w-64 shadow-xl sidebar-transition lg:translate-x-0" 
+             :class="{ '-translate-x-full': !sidebarOpen, 'translate-x-0': sidebarOpen }"
+             class="fixed lg:static inset-y-0 left-0 z-30 lg:z-auto">
+            
+            <!-- Sidebar Content -->
+            <div class="flex flex-col h-full pt-20 lg:pt-6">
+                <!-- Navigation -->
+                <nav class="flex-1 px-6 pb-6">
+                    <ul class="space-y-2">
+                        <li>
+                            <a href="{% url 'staff_panel:dashboard' %}" 
+                               class="nav-item flex items-center space-x-3 text-white hover:bg-white hover:bg-opacity-10 px-4 py-3 rounded-lg transition-colors
+                                      {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5v4"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 5v4"></path>
+                                </svg>
+                                <span>Dashboard</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'staff_panel:organization_settings' %}" 
+                               class="nav-item flex items-center space-x-3 text-white hover:bg-white hover:bg-opacity-10 px-4 py-3 rounded-lg transition-colors
+                                      {% if request.resolver_match.url_name == 'organization_settings' %}active{% endif %}">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                </svg>
+                                <span>Organization</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'staff_panel:user_analytics' %}" 
+                               class="nav-item flex items-center space-x-3 text-white hover:bg-white hover:bg-opacity-10 px-4 py-3 rounded-lg transition-colors
+                                      {% if request.resolver_match.url_name == 'user_analytics' %}active{% endif %}">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                </svg>
+                                <span>Analytics</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'staff_panel:team_management' %}" 
+                               class="nav-item flex items-center space-x-3 text-white hover:bg-white hover:bg-opacity-10 px-4 py-3 rounded-lg transition-colors
+                                      {% if request.resolver_match.url_name == 'team_management' %}active{% endif %}">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                </svg>
+                                <span>Teams</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'staff_panel:role_permissions' %}" 
+                               class="nav-item flex items-center space-x-3 text-white hover:bg-white hover:bg-opacity-10 px-4 py-3 rounded-lg transition-colors
+                                      {% if request.resolver_match.url_name == 'role_permissions' %}active{% endif %}">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                </svg>
+                                <span>Roles & Permissions</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'staff_panel:subscription_plans' %}" 
+                               class="nav-item flex items-center space-x-3 text-white hover:bg-white hover:bg-opacity-10 px-4 py-3 rounded-lg transition-colors
+                                      {% if request.resolver_match.url_name == 'subscription_plans' %}active{% endif %}">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                                </svg>
+                                <span>Subscription</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'staff_panel:system_logs' %}" 
+                               class="nav-item flex items-center space-x-3 text-white hover:bg-white hover:bg-opacity-10 px-4 py-3 rounded-lg transition-colors
+                                      {% if request.resolver_match.url_name == 'system_logs' %}active{% endif %}">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                <span>System Logs</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'staff_panel:integrations' %}" 
+                               class="nav-item flex items-center space-x-3 text-white hover:bg-white hover:bg-opacity-10 px-4 py-3 rounded-lg transition-colors
+                                      {% if request.resolver_match.url_name == 'integrations' %}active{% endif %}">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+                                </svg>
+                                <span>Integrations</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+        
+        <!-- Mobile Sidebar Overlay -->
+        <div x-show="sidebarOpen" 
+             @click="sidebarOpen = false"
+             class="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
+             x-transition:enter="transition-opacity ease-linear duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition-opacity ease-linear duration-300"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"></div>
+        
+        <!-- Main Content -->
+        <div class="flex-1 overflow-hidden">
+            <div class="h-full overflow-y-auto">
+                <div class="p-6">
+                    {% block staff_panel_content %}
+                    {% endblock %}
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

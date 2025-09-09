@@ -187,13 +187,15 @@ class PermissionService:
         resource=None,
         valid_from=None,
         valid_until=None,
-        notes=""
+        notes="",
+        skip_permission_check=False
     ) -> UserRoleAssignment:
         """Assign a role to a user with optional constraints"""
         
-        # Check if assigner has permission
-        if not assigned_by.can_manage_roles():
-            raise PermissionError("User does not have permission to assign roles")
+        # Check if assigner has permission (skip for administrative setup)
+        if not skip_permission_check and hasattr(assigned_by, 'can_manage_roles'):
+            if not assigned_by.can_manage_roles():
+                raise PermissionError("User does not have permission to assign roles")
         
         # Check role capacity
         if role.max_users and role.get_user_count() >= role.max_users:
@@ -268,3 +270,55 @@ class PermissionService:
                 assigned_by=user_profile,  # Self-assigned for new users
                 notes="Default role assignment for new user"
             )
+    
+    def has_permission(self, user_profile: UserProfile, permission_codename: str, resource=None) -> bool:
+        """
+        Check if user has a specific permission
+        
+        Args:
+            user_profile: UserProfile instance
+            permission_codename: String like 'workflow.create'
+            resource: Optional resource for context-specific checks
+        
+        Returns:
+            bool: True if user has permission
+        """
+        # Organization admins have all permissions
+        if user_profile.is_organization_admin:
+            return True
+        
+        # Staff panel access gives many permissions
+        if user_profile.has_staff_panel_access and permission_codename in [
+            'workflow.create', 'workflow.edit', 'workflow.configure',
+            'team.create', 'team.edit', 'user.view', 'reports.view'
+        ]:
+            return True
+        
+        # Check role-based permissions
+        user_roles = self.get_user_roles(user_profile)
+        for role in user_roles:
+            if role.permissions.filter(codename=permission_codename).exists():
+                return True
+        
+        return False
+
+    def get_missing_permission_message(self, permission_codename: str) -> str:
+        """Get user-friendly message for missing permission"""
+        permission_messages = {
+            'workflow.create': 'You need permission to create workflows. Contact your administrator to get the "Workflow Manager" role.',
+            'workflow.edit': 'You need permission to edit workflows. Contact your administrator for access.',
+            'workflow.configure': 'You need permission to configure workflow settings. Contact your administrator for access.',
+            'team.create': 'You need permission to create teams. Contact your administrator for the "Team Lead" role.',
+            'team.edit': 'You need permission to edit teams. Contact your administrator for access.',
+            'user.invite': 'You need permission to invite users. Contact your administrator for the "HR Manager" role.',
+            'user.manage_roles': 'You need permission to manage user roles. Contact your administrator for access.',
+            'workitem.create': 'You need permission to create work items. Contact your administrator for access.',
+            'workitem.edit': 'You need permission to edit work items. Contact your administrator for access.',
+            'booking.create': 'You need permission to create bookings. Contact your administrator for access.',
+            'reports.view': 'You need permission to view reports. Contact your administrator for access.',
+        }
+        
+        return permission_messages.get(
+            permission_codename, 
+            f'You need the "{permission_codename}" permission. Contact your administrator for access.'
+        )

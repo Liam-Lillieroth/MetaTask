@@ -9,6 +9,7 @@ from django.views.decorators.http import require_POST, require_http_methods
 from django.db import transaction, models
 from core.models import Organization, UserProfile, Team, JobType, CalendarEvent
 from core.views import require_organization_access, require_business_organization
+from core.decorators import require_permission
 from .models import (
     Workflow, WorkflowStep, WorkflowTransition, WorkflowTemplate,
     WorkItem, WorkItemHistory, WorkItemComment, WorkItemAttachment,
@@ -160,6 +161,9 @@ def workflows_list(request):
 
 @login_required
 @require_organization_access
+@login_required
+@require_organization_access
+@require_permission('workflow.create')
 def create_workflow(request):
     """Create new workflow with enhanced form"""
     profile = get_user_profile(request)
@@ -203,6 +207,9 @@ def create_workflow(request):
 
 @login_required
 @require_organization_access
+@login_required
+@require_organization_access
+@require_permission('workflow.view')
 def workflow_detail(request, workflow_id):
     """Detailed view of a workflow with steps and statistics"""
     profile = get_user_profile(request)
@@ -247,6 +254,7 @@ def workflow_detail(request, workflow_id):
 
 @login_required
 @require_organization_access
+@require_permission('workflow.configure')
 def workflow_field_config(request, workflow_id):
     """Configure which fields are shown/hidden/replaced for work items in this workflow"""
     profile = get_user_profile(request)
@@ -404,6 +412,9 @@ def work_items_list(request):
 
 @login_required
 @require_organization_access
+@login_required
+@require_organization_access
+@require_permission('workitem.create')
 def create_work_item(request, workflow_id):
     """Create a new work item in a workflow"""
     profile = get_user_profile(request)
@@ -779,7 +790,8 @@ def custom_fields_list(request):
 
 
 @login_required
-@require_business_organization  
+@require_business_organization
+@require_permission('customfields.manage')
 def create_custom_field(request):
     """Create a new custom field"""
     profile = get_user_profile(request)
@@ -815,6 +827,7 @@ def create_custom_field(request):
 
 @login_required
 @require_business_organization
+@require_permission('customfields.manage')
 def edit_custom_field(request, field_id):
     """Edit an existing custom field"""
     profile = get_user_profile(request)
@@ -855,6 +868,7 @@ def edit_custom_field(request, field_id):
 @login_required
 @require_business_organization
 @require_POST
+@require_permission('customfields.manage')
 def delete_custom_field(request, field_id):
     """Delete a custom field"""
     profile = get_user_profile(request)
@@ -969,6 +983,7 @@ def teams_list(request):
 
 @login_required
 @require_business_organization
+@require_permission('team.create')
 def create_team(request):
     """Create a new team"""
     profile = get_user_profile(request)
@@ -1023,6 +1038,7 @@ def create_team(request):
 
 @login_required
 @require_business_organization
+@require_permission('team.edit')
 def edit_team(request, team_id):
     """Edit an existing team"""
     profile = get_user_profile(request)

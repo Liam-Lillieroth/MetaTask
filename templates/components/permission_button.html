@@ -1,0 +1,20 @@
+{% load static %}
+
+<!-- Permission Button Component -->
+{% if has_permission %}
+    <a href="{{ button_url }}" class="{{ button_class }} transition-colors">
+        {% if button_icon %}
+            <i class="{{ button_icon }} mr-2"></i>
+        {% endif %}
+        {{ button_text }}
+    </a>
+{% else %}
+    <button onclick="showPermissionNotification('{{ permission_message|escapejs }}')"
+            class="bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed opacity-60 transition-colors"
+            title="{{ permission_message }}">
+        {% if button_icon %}
+            <i class="{{ button_icon }} mr-2"></i>
+        {% endif %}
+        {{ button_text }}
+    </button>
+{% endif %}
