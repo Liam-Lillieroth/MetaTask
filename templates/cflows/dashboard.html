@@ -206,7 +206,7 @@
     <div class="bg-white rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {% permission_button 'workflow.create' %}
+            {% if profile|has_permission:'workflow.create' %}
                 <a href="{% url 'cflows:create_workflow' %}" class="flex items-center p-4 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
                     <div class="flex-shrink-0">
                         <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -218,7 +218,19 @@
                         <p class="text-xs text-indigo-700">Set up a new process</p>
                     </div>
                 </a>
-            {% endpermission_button %}
+            {% else %}
+                <div class="flex items-center p-4 bg-gray-50 rounded-lg opacity-50 cursor-not-allowed">
+                    <div class="flex-shrink-0">
+                        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm font-medium text-gray-500">Create Workflow</p>
+                        <p class="text-xs text-gray-400">No permission</p>
+                    </div>
+                </div>
+            {% endif %}
             
             <a href="{% url 'cflows:work_items_list' %}?assignee=me" class="flex items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
                 <div class="flex-shrink-0">

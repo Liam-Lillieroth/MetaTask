@@ -119,6 +119,9 @@ class License(models.Model):
     license_type = models.ForeignKey(LicenseType, on_delete=models.CASCADE)
     organization = models.ForeignKey('core.Organization', on_delete=models.CASCADE, related_name='licenses')
     
+    # Link to custom license (for custom licenses created by customer support)
+    custom_license = models.OneToOneField('CustomLicense', on_delete=models.CASCADE, null=True, blank=True, related_name='license_instance')
+    
     # Account classification
     account_type = models.CharField(max_length=20, choices=ACCOUNT_TYPE_CHOICES, default='organization')
     is_personal_free = models.BooleanField(default=False, help_text="Is this a personal free account")
@@ -296,3 +299,151 @@ class LicenseUsageLog(models.Model):
     
     def __str__(self):
         return f"{self.license} usage at {self.recorded_at}"
+
+
+class UserLicenseAssignment(models.Model):
+    """
+    Assignment of license seats to individual users within an organization
+    """
+    license = models.ForeignKey(License, on_delete=models.CASCADE, related_name='user_assignments')
+    user_profile = models.ForeignKey('core.UserProfile', on_delete=models.CASCADE, related_name='license_assignments')
+    
+    # Assignment details
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    assigned_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='assigned_licenses')
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='revoked_licenses')
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+    
+    # Usage tracking
+    last_access = models.DateTimeField(null=True, blank=True)
+    total_sessions = models.PositiveIntegerField(default=0)
+    
+    class Meta:
+        unique_together = ['license', 'user_profile']
+        indexes = [
+            models.Index(fields=['license', 'is_active']),
+            models.Index(fields=['user_profile', 'is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user_profile} - {self.license.license_type.service.name}"
+    
+    def revoke(self, revoked_by_user):
+        """Revoke this license assignment"""
+        self.is_active = False
+        self.revoked_at = timezone.now()
+        self.revoked_by = revoked_by_user
+        self.save()
+
+
+class CustomLicense(models.Model):
+    """
+    Custom licenses created by customer support/superusers for specific organizations
+    """
+    name = models.CharField(max_length=200, help_text="Custom license name")
+    organization = models.ForeignKey('core.Organization', on_delete=models.CASCADE, related_name='custom_licenses')
+    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='custom_licenses')
+    
+    # License details
+    max_users = models.PositiveIntegerField(help_text="Maximum number of users allowed")
+    description = models.TextField(blank=True)
+    
+    # Validity period
+    start_date = models.DateTimeField()
+    end_date = models.DateTimeField(null=True, blank=True, help_text="Leave blank for unlimited duration")
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    
+    # Features and restrictions (JSON for flexibility)
+    included_features = models.JSONField(default=list, help_text="List of included features")
+    restrictions = models.JSONField(default=dict, help_text="Custom restrictions")
+    
+    # Metadata
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, help_text="Customer support user who created this")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    notes = models.TextField(blank=True, help_text="Internal notes for customer support")
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['organization', 'service', 'is_active']),
+            models.Index(fields=['end_date']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} - {self.organization.name} ({self.service.name})"
+    
+    def is_valid(self):
+        """Check if the custom license is currently valid"""
+        if not self.is_active:
+            return False
+        
+        now = timezone.now()
+        if now < self.start_date:
+            return False
+        
+        if self.end_date and now > self.end_date:
+            return False
+        
+        return True
+    
+    def remaining_seats(self):
+        """Calculate remaining license seats"""
+        assigned_count = UserLicenseAssignment.objects.filter(
+            license__custom_license=self,
+            is_active=True
+        ).count()
+        return max(0, self.max_users - assigned_count)
+    
+    def can_assign_user(self):
+        """Check if there are available seats to assign"""
+        return self.remaining_seats() > 0 and self.is_valid()
+
+
+class LicenseAuditLog(models.Model):
+    """
+    Audit log for license-related actions
+    """
+    ACTION_CHOICES = [
+        ('create', 'License Created'),
+        ('assign', 'User Assigned'),
+        ('revoke', 'User Revoked'),
+        ('modify', 'License Modified'),
+        ('expire', 'License Expired'),
+        ('extend', 'License Extended'),
+        ('suspend', 'License Suspended'),
+        ('reactivate', 'License Reactivated'),
+    ]
+    
+    license = models.ForeignKey(License, on_delete=models.CASCADE, related_name='audit_logs', null=True, blank=True)
+    custom_license = models.ForeignKey(CustomLicense, on_delete=models.CASCADE, related_name='audit_logs', null=True, blank=True)
+    user_assignment = models.ForeignKey(UserLicenseAssignment, on_delete=models.CASCADE, related_name='audit_logs', null=True, blank=True)
+    
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    performed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    affected_user = models.ForeignKey('core.UserProfile', on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # Details
+    description = models.TextField()
+    old_values = models.JSONField(default=dict, blank=True)
+    new_values = models.JSONField(default=dict, blank=True)
+    
+    timestamp = models.DateTimeField(auto_now_add=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['license', 'timestamp']),
+            models.Index(fields=['custom_license', 'timestamp']),
+            models.Index(fields=['performed_by', 'timestamp']),
+        ]
+    
+    def __str__(self):
+        return f"{self.action} - {self.timestamp}"

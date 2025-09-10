@@ -14,6 +14,8 @@ from core.models import Organization, UserProfile, Team, AuditLog, SystemConfigu
 from core.permissions import Role, Permission, UserRoleAssignment
 from core.views import require_organization_access
 from core.decorators import require_permission
+from licensing.models import Service, License, CustomLicense, UserLicenseAssignment, LicenseAuditLog, LicenseType
+from licensing.services import LicensingService
 from datetime import timedelta, datetime
 import json
 
@@ -649,7 +651,7 @@ def role_permissions(request):
                         name=role_name,
                         description=role_description,
                         organization=organization,
-                        created_by=request.user
+                        created_by=profile
                     )
                     
                     log_audit_action(
@@ -1546,3 +1548,238 @@ def test_integration(request, integration_name):
             'message': f'Integration test failed: {str(e)}',
             'error': str(e)
         })
+
+
+@login_required
+@require_organization_access
+@require_staff_access
+def license_management(request):
+    """License management for organizations"""
+    profile = get_user_profile(request)
+    organization = profile.organization
+    
+    # Get organization license summary
+    summary = LicensingService.get_organization_license_summary(organization)
+    
+    # Get organization members for assignment
+    organization_members = UserProfile.objects.filter(
+        organization=organization,
+        is_active=True
+    ).select_related('user').order_by('user__first_name', 'user__last_name')
+    
+    # Get current assignments
+    current_assignments = UserLicenseAssignment.objects.filter(
+        license__organization=organization,
+        is_active=True
+    ).select_related(
+        'user_profile__user', 
+        'license__license_type__service', 
+        'license__custom_license__service'
+    ).order_by('user_profile__user__first_name')
+    
+    # Get available services
+    services = Service.objects.filter(is_active=True).order_by('name')
+    
+    # Get audit logs for this organization
+    audit_logs = LicenseAuditLog.objects.filter(
+        Q(license__organization=organization) | 
+        Q(custom_license__organization=organization)
+    ).select_related(
+        'performed_by', 
+        'affected_user__user'
+    ).order_by('-timestamp')[:50]
+    
+    context = {
+        'profile': profile,
+        'organization': organization,
+        'summary': summary,
+        'organization_members': organization_members,
+        'current_assignments': current_assignments,
+        'services': services,
+        'audit_logs': audit_logs,
+    }
+    
+    return render(request, 'staff_panel/license_management.html', context)
+
+
+@login_required
+@require_organization_access
+@require_staff_access
+def assign_user_license(request):
+    """Assign a license to a user"""
+    if request.method != 'POST':
+        messages.error(request, 'Invalid request method.')
+        return redirect('staff_panel:license_management')
+    
+    profile = get_user_profile(request)
+    organization = profile.organization
+    
+    try:
+        license_id = request.POST.get('license_id')
+        user_profile_id = request.POST.get('user_profile_id')
+        
+        # Get the license (can be standard or custom)
+        license = License.objects.get(id=license_id, organization=organization)
+        target_user_profile = UserProfile.objects.get(
+            id=user_profile_id, 
+            organization=organization,
+            is_active=True
+        )
+        
+        # Use licensing service to assign
+        success, result = LicensingService.assign_user_to_license(
+            license, target_user_profile, request.user
+        )
+        
+        if success:
+            service_name = (license.custom_license.service.name 
+                          if license.custom_license 
+                          else license.license_type.service.name)
+            messages.success(
+                request, 
+                f'License for {service_name} assigned to {target_user_profile.user.get_full_name()}.'
+            )
+        else:
+            messages.error(request, result)
+            
+    except (License.DoesNotExist, UserProfile.DoesNotExist) as e:
+        messages.error(request, 'Invalid license or user.')
+    except Exception as e:
+        messages.error(request, f'Error assigning license: {str(e)}')
+    
+    return redirect('staff_panel:license_management')
+
+
+@login_required
+@require_organization_access
+@require_staff_access
+def revoke_user_license(request):
+    """Revoke a license from a user"""
+    if request.method != 'POST':
+        messages.error(request, 'Invalid request method.')
+        return redirect('staff_panel:license_management')
+    
+    profile = get_user_profile(request)
+    organization = profile.organization
+    
+    try:
+        assignment_id = request.POST.get('assignment_id')
+        reason = request.POST.get('reason', '')
+        
+        assignment = UserLicenseAssignment.objects.get(
+            id=assignment_id,
+            license__organization=organization,
+            is_active=True
+        )
+        
+        # Use licensing service to revoke
+        success, result = LicensingService.revoke_user_license(
+            assignment, request.user, reason
+        )
+        
+        if success:
+            service_name = (assignment.license.custom_license.service.name 
+                          if assignment.license.custom_license 
+                          else assignment.license.license_type.service.name)
+            messages.success(
+                request, 
+                f'License for {service_name} revoked from {assignment.user_profile.user.get_full_name()}.'
+            )
+        else:
+            messages.error(request, result)
+            
+    except UserLicenseAssignment.DoesNotExist:
+        messages.error(request, 'Invalid license assignment.')
+    except Exception as e:
+        messages.error(request, f'Error revoking license: {str(e)}')
+    
+    return redirect('staff_panel:license_management')
+
+
+@login_required
+@require_staff_access
+def create_custom_license(request):
+    """Create a custom license (superuser/customer support only)"""
+    if not (request.user.is_superuser or 
+            (hasattr(request.user, 'mediap_profile') and 
+             request.user.mediap_profile.has_staff_panel_access)):
+        messages.error(request, 'You do not have permission to create custom licenses.')
+        return redirect('staff_panel:license_management')
+    
+    if request.method == 'POST':
+        try:
+            organization_id = request.POST.get('organization_id')
+            service_id = request.POST.get('service_id')
+            
+            organization = get_object_or_404(Organization, id=organization_id)
+            service = get_object_or_404(Service, id=service_id, is_active=True)
+            
+            # Calculate end date
+            duration_days = int(request.POST.get('duration_days', 365))
+            start_date = timezone.now()
+            end_date = None
+            if duration_days > 0:
+                end_date = start_date + timezone.timedelta(days=duration_days)
+            
+            # Create custom license
+            custom_license = CustomLicense.objects.create(
+                name=request.POST.get('name'),
+                organization=organization,
+                service=service,
+                max_users=int(request.POST.get('max_users')),
+                description=request.POST.get('description', ''),
+                start_date=start_date,
+                end_date=end_date,
+                included_features=request.POST.get('features', '').split(',') if request.POST.get('features') else [],
+                created_by=request.user,
+                notes=request.POST.get('notes', '')
+            )
+            
+            # Auto-activate if requested
+            if request.POST.get('auto_activate'):
+                # Create custom license type if needed
+                custom_license_type, _ = LicenseType.objects.get_or_create(
+                    service=service,
+                    name='custom',
+                    defaults={
+                        'display_name': 'Custom License',
+                        'price_monthly': 0,
+                        'price_yearly': 0,
+                        'max_users': None,
+                        'features': ['custom_configuration'],
+                        'is_active': True
+                    }
+                )
+                
+                # Create license instance
+                License.objects.create(
+                    license_type=custom_license_type,
+                    organization=organization,
+                    custom_license=custom_license,
+                    account_type='organization',
+                    status='active',
+                    start_date=start_date,
+                    end_date=end_date,
+                    created_by=request.user
+                )
+            
+            # Create audit log
+            LicenseAuditLog.objects.create(
+                custom_license=custom_license,
+                action='create',
+                performed_by=request.user,
+                description=f'Custom license created: {custom_license.name}',
+                new_values={
+                    'organization': organization.name,
+                    'service': service.name,
+                    'max_users': custom_license.max_users,
+                    'duration_days': duration_days
+                }
+            )
+            
+            messages.success(request, f'Custom license "{custom_license.name}" created successfully.')
+            
+        except Exception as e:
+            messages.error(request, f'Error creating custom license: {str(e)}')
+    
+    return redirect('staff_panel:license_management')

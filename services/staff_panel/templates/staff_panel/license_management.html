@@ -1,0 +1,487 @@
+{% extends 'staff_panel/base.html' %}
+{% load static %}
+
+{% block title %}License Management - Staff Panel{% endblock %}
+
+{% block extra_css %}
+<style>
+    .license-card {
+        transition: all 0.2s ease;
+    }
+    .license-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    }
+    .usage-bar {
+        background-color: #e5e7eb;
+        border-radius: 9999px;
+        overflow: hidden;
+    }
+    .usage-fill {
+        height: 100%;
+        transition: width 0.3s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">License Management</h1>
+                <p class="text-gray-600 mt-1">Manage user licenses and service access for {{ organization.name }}</p>
+            </div>
+            {% if request.user.is_superuser or profile.has_staff_panel_access %}
+            <button type="button" onclick="openModal('createCustomLicenseModal')" 
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium">
+                <i class="fas fa-plus mr-2"></i>Create Custom License
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- License Overview -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Standard Licenses -->
+        {% for license_info in summary.standard_licenses %}
+        <div class="license-card bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                        <i class="fas fa-certificate text-blue-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">{{ license_info.service.name }}</h3>
+                        <p class="text-sm text-gray-500">{{ license_info.license.license_type.display_name }}</p>
+                    </div>
+                </div>
+                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                    {{ license_info.license.status|title }}
+                </span>
+            </div>
+            
+            <div class="space-y-3">
+                <!-- Usage -->
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-gray-600">Users</span>
+                        <span class="font-medium">
+                            {{ license_info.assigned_users }}/{{ license_info.max_users|default:"∞" }}
+                        </span>
+                    </div>
+                    {% if license_info.max_users %}
+                    <div class="usage-bar h-2">
+                        {% with percentage=license_info.assigned_users|mul:100|div:license_info.max_users %}
+                        <div class="usage-fill bg-blue-600" style="width: {{ percentage }}%"></div>
+                        {% endwith %}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Actions -->
+                <div class="flex space-x-2 pt-2">
+                    <button type="button" onclick="openAssignModal({{ license_info.license.id }}, '{{ license_info.service.name }}')"
+                            class="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-2 rounded text-sm font-medium">
+                        <i class="fas fa-user-plus mr-1"></i>Assign User
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- Custom Licenses -->
+        {% for license_info in summary.custom_licenses %}
+        <div class="license-card bg-white rounded-lg shadow p-6 border-l-4 border-indigo-500">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center mr-3">
+                        <i class="fas fa-star text-indigo-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">{{ license_info.service.name }}</h3>
+                        <p class="text-sm text-gray-500">{{ license_info.custom_license.name }}</p>
+                    </div>
+                </div>
+                <span class="px-2 py-1 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-800">
+                    Custom
+                </span>
+            </div>
+            
+            <div class="space-y-3">
+                <!-- Usage -->
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-gray-600">Users</span>
+                        <span class="font-medium">
+                            {{ license_info.assigned_users }}/{{ license_info.max_users }}
+                        </span>
+                    </div>
+                    <div class="usage-bar h-2">
+                        {% with percentage=license_info.assigned_users|mul:100|div:license_info.max_users %}
+                        <div class="usage-fill bg-indigo-600" style="width: {{ percentage }}%"></div>
+                        {% endwith %}
+                    </div>
+                </div>
+                
+                <!-- Validity -->
+                <div class="text-sm text-gray-600">
+                    {% if license_info.custom_license.end_date %}
+                        <i class="fas fa-calendar mr-1"></i>
+                        Expires: {{ license_info.custom_license.end_date|date:"M d, Y" }}
+                    {% else %}
+                        <i class="fas fa-infinity mr-1"></i>
+                        No expiration
+                    {% endif %}
+                </div>
+                
+                <!-- Actions -->
+                {% if license_info.license_instance %}
+                <div class="flex space-x-2 pt-2">
+                    <button type="button" onclick="openAssignModal({{ license_info.license_instance.id }}, '{{ license_info.service.name }}')"
+                            class="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-2 rounded text-sm font-medium">
+                        <i class="fas fa-user-plus mr-1"></i>Assign User
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        
+        <!-- No Licenses Message -->
+        {% if not summary.standard_licenses and not summary.custom_licenses %}
+        <div class="col-span-full bg-gray-50 rounded-lg p-8 text-center">
+            <i class="fas fa-key text-gray-400 text-4xl mb-4"></i>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">No Licenses Found</h3>
+            <p class="text-gray-600 mb-4">This organization doesn't have any active licenses yet.</p>
+            {% if request.user.is_superuser %}
+            <button type="button" onclick="openModal('createCustomLicenseModal')" 
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium">
+                Create Custom License
+            </button>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Current Assignments -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">Current License Assignments</h2>
+        </div>
+        
+        {% if current_assignments %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">License Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Access</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for assignment in current_assignments %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center mr-3">
+                                    <span class="text-sm font-medium text-gray-700">
+                                        {{ assignment.user_profile.user.first_name.0|default:assignment.user_profile.user.username.0 }}
+                                    </span>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-medium text-gray-900">
+                                        {{ assignment.user_profile.user.get_full_name|default:assignment.user_profile.user.username }}
+                                    </div>
+                                    <div class="text-sm text-gray-500">{{ assignment.user_profile.user.email }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                {% if assignment.license.custom_license %}
+                                    {{ assignment.license.custom_license.service.name }}
+                                {% else %}
+                                    {{ assignment.license.license_type.service.name }}
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {% if assignment.license.custom_license %}
+                                Custom License
+                            {% else %}
+                                {{ assignment.license.license_type.display_name }}
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ assignment.assigned_at|date:"M d, Y" }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ assignment.last_access|date:"M d, Y"|default:"Never" }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button type="button" onclick="openRevokeModal({{ assignment.id }}, '{{ assignment.user_profile.user.get_full_name|default:assignment.user_profile.user.username }}')"
+                                    class="text-red-600 hover:text-red-900">
+                                <i class="fas fa-user-minus mr-1"></i>Revoke
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-6 text-center text-gray-500">
+            No license assignments found.
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">Recent License Activity</h2>
+        </div>
+        
+        {% if audit_logs %}
+        <div class="divide-y divide-gray-200">
+            {% for log in audit_logs|slice:":10" %}
+            <div class="px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center mr-3
+                                    {% if log.action == 'assign' %}bg-green-100 text-green-600
+                                    {% elif log.action == 'revoke' %}bg-red-100 text-red-600
+                                    {% elif log.action == 'create' %}bg-blue-100 text-blue-600
+                                    {% else %}bg-gray-100 text-gray-600{% endif %}">
+                            {% if log.action == 'assign' %}
+                                <i class="fas fa-user-plus text-sm"></i>
+                            {% elif log.action == 'revoke' %}
+                                <i class="fas fa-user-minus text-sm"></i>
+                            {% elif log.action == 'create' %}
+                                <i class="fas fa-plus text-sm"></i>
+                            {% else %}
+                                <i class="fas fa-edit text-sm"></i>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-900">{{ log.description }}</p>
+                            <p class="text-sm text-gray-500">
+                                by {{ log.performed_by.get_full_name|default:log.performed_by.username }}
+                                {% if log.affected_user %} • {{ log.affected_user.user.get_full_name }}{% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    <span class="text-sm text-gray-500">{{ log.timestamp|timesince }} ago</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="p-6 text-center text-gray-500">
+            No recent activity.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Assign User Modal -->
+<div id="assignUserModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Assign License</h3>
+                <button type="button" onclick="closeModal('assignUserModal')" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form method="post" action="{% url 'staff_panel:assign_user_license' %}">
+                {% csrf_token %}
+                <input type="hidden" id="assignLicenseId" name="license_id">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Service</label>
+                    <div id="assignServiceName" class="px-3 py-2 bg-gray-50 rounded-md text-sm text-gray-900"></div>
+                </div>
+                <div class="mb-4">
+                    <label for="assignUserId" class="block text-sm font-medium text-gray-700 mb-2">Select User</label>
+                    <select id="assignUserId" name="user_profile_id" required 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">Choose a user...</option>
+                        {% for member in organization_members %}
+                        <option value="{{ member.id }}">
+                            {{ member.user.get_full_name|default:member.user.username }} ({{ member.user.email }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('assignUserModal')" 
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-md">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md">
+                        Assign License
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Revoke License Modal -->
+<div id="revokeUserModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-red-600">Revoke License</h3>
+                <button type="button" onclick="closeModal('revokeUserModal')" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form method="post" action="{% url 'staff_panel:revoke_user_license' %}">
+                {% csrf_token %}
+                <input type="hidden" id="revokeAssignmentId" name="assignment_id">
+                <div class="mb-4">
+                    <p class="text-sm text-gray-700">
+                        Are you sure you want to revoke the license from <strong id="revokeUserName"></strong>?
+                    </p>
+                </div>
+                <div class="mb-4">
+                    <label for="revokeReason" class="block text-sm font-medium text-gray-700 mb-2">Reason (optional)</label>
+                    <textarea id="revokeReason" name="reason" rows="3" 
+                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                              placeholder="Enter reason for revocation..."></textarea>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('revokeUserModal')" 
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-md">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md">
+                        Revoke License
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% if request.user.is_superuser or profile.has_staff_panel_access %}
+<!-- Create Custom License Modal -->
+<div id="createCustomLicenseModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50">
+    <div class="relative top-10 mx-auto p-5 border w-[600px] shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Create Custom License</h3>
+                <button type="button" onclick="closeModal('createCustomLicenseModal')" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form method="post" action="{% url 'staff_panel:create_custom_license' %}">
+                {% csrf_token %}
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="customLicenseName" class="block text-sm font-medium text-gray-700 mb-2">License Name</label>
+                        <input type="text" id="customLicenseName" name="name" required 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                               placeholder="e.g., Special CFlows License">
+                    </div>
+                    <div>
+                        <label for="customLicenseService" class="block text-sm font-medium text-gray-700 mb-2">Service</label>
+                        <select id="customLicenseService" name="service_id" required 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="">Select service...</option>
+                            {% for service in services %}
+                            <option value="{{ service.id }}">{{ service.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <input type="hidden" name="organization_id" value="{{ organization.id }}">
+                
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="customLicenseUsers" class="block text-sm font-medium text-gray-700 mb-2">Max Users</label>
+                        <input type="number" id="customLicenseUsers" name="max_users" required min="1" max="1000"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label for="customLicenseDuration" class="block text-sm font-medium text-gray-700 mb-2">Duration (days)</label>
+                        <input type="number" id="customLicenseDuration" name="duration_days" min="0" value="365"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                               placeholder="0 for unlimited">
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="customLicenseDescription" class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                    <textarea id="customLicenseDescription" name="description" rows="3" 
+                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                              placeholder="Enter license description..."></textarea>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="flex items-center">
+                        <input type="checkbox" name="auto_activate" value="1" checked 
+                               class="mr-2 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <span class="text-sm text-gray-700">Auto-activate license</span>
+                    </label>
+                </div>
+                
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('createCustomLicenseModal')" 
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-md">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md">
+                        Create License
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+function openModal(modalId) {
+    document.getElementById(modalId).classList.remove('hidden');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.add('hidden');
+}
+
+function openAssignModal(licenseId, serviceName) {
+    document.getElementById('assignLicenseId').value = licenseId;
+    document.getElementById('assignServiceName').textContent = serviceName;
+    openModal('assignUserModal');
+}
+
+function openRevokeModal(assignmentId, userName) {
+    document.getElementById('revokeAssignmentId').value = assignmentId;
+    document.getElementById('revokeUserName').textContent = userName;
+    openModal('revokeUserModal');
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modals = ['assignUserModal', 'revokeUserModal', 'createCustomLicenseModal'];
+    modals.forEach(modalId => {
+        const modal = document.getElementById(modalId);
+        if (event.target === modal) {
+            closeModal(modalId);
+        }
+    });
+}
+</script>
+{% endblock %}

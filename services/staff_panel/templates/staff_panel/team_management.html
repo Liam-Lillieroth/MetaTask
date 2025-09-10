@@ -21,12 +21,12 @@
                     <i class="fas fa-file-export mr-2"></i>
                     Export
                 </button>
-                {% permission_button 'team.create' %}
+                {% if profile|has_permission:'team.create' %}
                     <button type="button" onclick="openCreateTeamModal()" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
                         <i class="fas fa-plus mr-2"></i>
                         Create Team
                     </button>
-                {% endpermission_button %}
+                {% endif %}
             </div>
         </div>
     </div>
@@ -210,18 +210,18 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 <div class="flex space-x-2">
-                                    {% if user|has_permission:'team.edit' %}
+                                    {% if profile|has_permission:'team.edit' %}
                                         <button type="button" class="edit-team-btn text-indigo-600 hover:text-indigo-900" 
                                                 data-team-id="{{ team.id }}" 
                                                 data-team-name="{{ team.name }}" 
                                                 data-team-description="{{ team.description|default:'' }}">Edit</button>
                                     {% endif %}
-                                    {% if user|has_permission:'team.manage_members' %}
+                                    {% if profile|has_permission:'team.manage_members' %}
                                         <button type="button" class="manage-team-btn text-gray-600 hover:text-gray-900" 
                                                 data-team-id="{{ team.id }}" 
                                                 data-team-name="{{ team.name }}">Manage</button>
                                     {% endif %}
-                                    {% if user|has_permission:'team.delete' %}
+                                    {% if profile|has_permission:'team.delete' %}
                                         <button type="button" class="delete-team-btn text-red-600 hover:text-red-900" 
                                                 data-team-id="{{ team.id }}" 
                                                 data-team-name="{{ team.name }}" 

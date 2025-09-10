@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Service, LicenseType, License, LicenseUsageLog
+from django.urls import reverse
+from django.utils.safestring import mark_safe
+from .models import Service, LicenseType, License, LicenseUsageLog, UserLicenseAssignment, CustomLicense, LicenseAuditLog
 
 
 @admin.register(Service)
@@ -107,3 +109,166 @@ class LicenseUsageLogAdmin(admin.ModelAdmin):
     
     def has_add_permission(self, request):
         return False  # Usage logs are created automatically
+
+
+@admin.register(CustomLicense)
+class CustomLicenseAdmin(admin.ModelAdmin):
+    list_display = ['name', 'organization', 'service', 'max_users', 'assigned_users', 'remaining_seats', 'is_valid_status', 'created_by', 'created_at']
+    list_filter = ['service', 'is_active', 'created_at', 'end_date']
+    search_fields = ['name', 'organization__name', 'service__name', 'description']
+    raw_id_fields = ['organization', 'created_by']
+    readonly_fields = ['created_at', 'updated_at', 'assigned_users', 'remaining_seats', 'is_valid_status']
+    date_hierarchy = 'created_at'
+    
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'organization', 'service', 'is_active')
+        }),
+        ('License Details', {
+            'fields': ('max_users', 'description', 'assigned_users', 'remaining_seats')
+        }),
+        ('Validity Period', {
+            'fields': ('start_date', 'end_date', 'is_valid_status')
+        }),
+        ('Features & Restrictions', {
+            'fields': ('included_features', 'restrictions'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created_by', 'created_at', 'updated_at', 'notes'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def assigned_users(self, obj):
+        """Display number of assigned users with link to assignments"""
+        count = UserLicenseAssignment.objects.filter(
+            license__custom_license=obj,
+            is_active=True
+        ).count()
+        
+        if count > 0:
+            url = reverse('admin:licensing_userlicenseassignment_changelist')
+            return mark_safe(f'<a href="{url}?license__custom_license={obj.id}&is_active=1">{count} users</a>')
+        return "0 users"
+    assigned_users.short_description = 'Assigned Users'
+    
+    def remaining_seats(self, obj):
+        """Display remaining seats with color coding"""
+        remaining = obj.remaining_seats()
+        total = obj.max_users
+        percentage = (remaining / total) * 100 if total > 0 else 0
+        
+        color = '#dc3545' if percentage < 10 else '#ffc107' if percentage < 25 else '#28a745'
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">{} / {}</span>',
+            color, remaining, total
+        )
+    remaining_seats.short_description = 'Available Seats'
+    
+    def is_valid_status(self, obj):
+        """Display validity status with color"""
+        is_valid = obj.is_valid()
+        color = '#28a745' if is_valid else '#dc3545'
+        status = 'Valid' if is_valid else 'Invalid'
+        return format_html('<span style="color: {}; font-weight: bold;">{}</span>', color, status)
+    is_valid_status.short_description = 'Status'
+
+
+@admin.register(UserLicenseAssignment)
+class UserLicenseAssignmentAdmin(admin.ModelAdmin):
+    list_display = ['user_profile', 'service_name', 'organization', 'assigned_at', 'is_active', 'last_access', 'assigned_by']
+    list_filter = ['is_active', 'license__license_type__service', 'assigned_at', 'license__organization']
+    search_fields = ['user_profile__user__username', 'user_profile__user__email', 'license__organization__name']
+    raw_id_fields = ['user_profile', 'assigned_by', 'revoked_by']
+    readonly_fields = ['assigned_at', 'total_sessions', 'service_name', 'organization']
+    date_hierarchy = 'assigned_at'
+    
+    fieldsets = (
+        (None, {
+            'fields': ('user_profile', 'license', 'is_active')
+        }),
+        ('Assignment Details', {
+            'fields': ('assigned_at', 'assigned_by', 'service_name', 'organization')
+        }),
+        ('Revocation Details', {
+            'fields': ('revoked_at', 'revoked_by'),
+            'classes': ('collapse',)
+        }),
+        ('Usage Tracking', {
+            'fields': ('last_access', 'total_sessions'),
+            'classes': ('collapse',)
+        }),
+        ('Notes', {
+            'fields': ('notes',),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def service_name(self, obj):
+        """Get service name from license"""
+        if obj.license.custom_license:
+            return obj.license.custom_license.service.name
+        return obj.license.license_type.service.name
+    service_name.short_description = 'Service'
+    
+    def organization(self, obj):
+        """Get organization name"""
+        return obj.license.organization.name
+    organization.short_description = 'Organization'
+    
+    actions = ['revoke_assignments']
+    
+    def revoke_assignments(self, request, queryset):
+        """Bulk revoke license assignments"""
+        count = 0
+        for assignment in queryset.filter(is_active=True):
+            assignment.revoke(request.user)
+            count += 1
+        
+        self.message_user(request, f'Successfully revoked {count} license assignments.')
+    revoke_assignments.short_description = 'Revoke selected assignments'
+
+
+@admin.register(LicenseAuditLog)
+class LicenseAuditLogAdmin(admin.ModelAdmin):
+    list_display = ['timestamp', 'action', 'license_info', 'performed_by', 'affected_user', 'description']
+    list_filter = ['action', 'timestamp', 'license__license_type__service']
+    search_fields = ['description', 'performed_by__username', 'affected_user__user__username']
+    raw_id_fields = ['license', 'custom_license', 'user_assignment', 'performed_by', 'affected_user']
+    readonly_fields = ['timestamp', 'license_info']
+    date_hierarchy = 'timestamp'
+    
+    fieldsets = (
+        (None, {
+            'fields': ('action', 'performed_by', 'affected_user', 'timestamp')
+        }),
+        ('License Information', {
+            'fields': ('license', 'custom_license', 'user_assignment', 'license_info')
+        }),
+        ('Details', {
+            'fields': ('description', 'old_values', 'new_values')
+        }),
+        ('Metadata', {
+            'fields': ('ip_address',),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def license_info(self, obj):
+        """Display license information"""
+        if obj.license:
+            return f"{obj.license.organization.name} - {obj.license.license_type.service.name}"
+        elif obj.custom_license:
+            return f"{obj.custom_license.organization.name} - {obj.custom_license.service.name} (Custom)"
+        return "N/A"
+    license_info.short_description = 'License'
+    
+    def has_add_permission(self, request):
+        return False  # Audit logs are created automatically
+    
+    def has_change_permission(self, request, obj=None):
+        return False  # Audit logs should not be modified
+    
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser  # Only superusers can delete audit logs
