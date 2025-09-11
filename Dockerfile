@@ -1,47 +1,32 @@
-FROM python:3.12-slim
+FROM python:3.12-slim as base
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
 
-# Set work directory
 WORKDIR /app
 
-# Install system dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        postgresql-client \
-        build-essential \
-        libpq-dev \
-        curl \
-        git \
+       build-essential libpq-dev postgresql-client curl git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
 COPY requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Copy project
 COPY . /app/
 
-# Create necessary directories
-RUN mkdir -p /app/static /app/media /app/logs
+# Create runtime dirs
+RUN mkdir -p /app/staticfiles /app/media /app/logs \
+    && addgroup --system django && adduser --system --ingroup django django \
+    && chown -R django:django /app
 
-# Collect static files (will be overridden in development)
-RUN python manage.py collectstatic --noinput --settings=mediap.settings || true
-
-# Create a non-root user
-RUN addgroup --system django \
-    && adduser --system --ingroup django django
-
-# Change ownership of the app directory
-RUN chown -R django:django /app
-
-# Switch to non-root user
 USER django
 
-# Expose port
 EXPOSE 8000
 
-# Default command
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "mediap.wsgi:application"]
+# Ensure entrypoint scripts are executable
+RUN chmod +x docker/entrypoint.sh docker/healthcheck.sh || true
+
+ENTRYPOINT ["/app/docker/entrypoint.sh"]
+CMD ["gunicorn", "mediap.wsgi:application"]
