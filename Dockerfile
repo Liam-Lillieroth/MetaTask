@@ -1,4 +1,5 @@
-FROM python:3.12-slim as base
+# syntax=docker/dockerfile:1
+FROM python:3.10-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -6,27 +7,23 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-       build-essential libpq-dev postgresql-client curl git \
-    && rm -rf /var/lib/apt/lists/*
+# System deps (psycopg2, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    netcat-openbsd \
+  && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt /app/
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# Install deps
+COPY requirements.txt /app/requirements.txt
+RUN pip install -r requirements.txt
 
-COPY . /app/
+# Copy project
+COPY . /app
 
-# Create runtime dirs
-RUN mkdir -p /app/staticfiles /app/media /app/logs \
-    && addgroup --system django && adduser --system --ingroup django django \
-    && chown -R django:django /app
-
-USER django
+# Entrypoint runs migrations and collectstatic
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 8000
-
-# Ensure entrypoint scripts are executable
-RUN chmod +x docker/entrypoint.sh docker/healthcheck.sh || true
-
-ENTRYPOINT ["/app/docker/entrypoint.sh"]
-CMD ["gunicorn", "mediap.wsgi:application"]
+ENTRYPOINT ["/entrypoint.sh"]
