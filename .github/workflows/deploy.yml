@@ -56,21 +56,21 @@ jobs:
           script: |
             set -euo pipefail
 
-            # Keep using /opt/metatask, but without sudo now that perms are fixed
             APP_DIR="${APP_DIR:-/opt/metatask}"
             mkdir -p "$APP_DIR"
             cd "$APP_DIR"
 
-            # Clone or update repo (for compose files and Caddyfile)
-            if [ ! -d ".git" ]; then
-              git clone --depth 1 https://github.com/${{ github.repository }} ./
+            # Initialize/update repo in-place (safe for existing .env)
+            [ -d .git ] || git init
+            if git remote | grep -q '^origin$'; then
+              git remote set-url origin https://github.com/${{ github.repository }}
             else
-              git fetch --all
-              git checkout main
-              git pull
+              git remote add origin https://github.com/${{ github.repository }}
             fi
+            git fetch --depth 1 origin main
+            git reset --hard FETCH_HEAD
 
-            # .env must exist (created once on server)
+            # Require .env (should be created once on server)
             if [ ! -f ".env" ]; then
               echo ".env missing in $APP_DIR. Create it from .env.example before deploying."
               exit 1
