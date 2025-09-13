@@ -73,7 +73,29 @@ jobs:
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${OWNER_LC}" --password-stdin
             mkdir -p "$APP_DIR"
             cd "$APP_DIR"
-            test -f .env.production || { echo ".env.production missing in $APP_DIR"; exit 1; }
+            # Create or update .env.production from GitHub Secrets
+            cat > .env.production <<'EOF'
+            SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
+            DEBUG=False
+            ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+            CSRF_TRUSTED_ORIGINS=${{ secrets.CSRF_TRUSTED_ORIGINS }}
+            SECURE_SSL_REDIRECT=True
+            SESSION_COOKIE_SECURE=True
+            CSRF_COOKIE_SECURE=True
+            SECURE_PROXY_SSL_HEADER=HTTP_X_FORWARDED_PROTO,https
+
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            DB_HOST=db
+            DB_PORT=5432
+
+            REDIS_URL=redis://redis:6379/0
+            GUNICORN_WORKERS=3
+            GUNICORN_TIMEOUT=120
+            EOF
+            chmod 600 .env.production
+
             test -f docker-compose.prod.yml
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
