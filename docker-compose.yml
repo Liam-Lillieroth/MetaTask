@@ -1,110 +1,97 @@
-version: '3.9'
+version: "3.9"
+
+# Production stack: Traefik (HTTPS), Web app, Redis, Postgres
+# Customize volumes/paths as needed.
+
 services:
-  db:
-    image: postgres:15
+  traefik:
+    image: traefik:v3.1
     restart: unless-stopped
-    environment:
-      POSTGRES_DB: mediap
-      POSTGRES_USER: mediap
-      POSTGRES_PASSWORD: mediap
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      # HTTP->HTTPS redirect
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      # Let's Encrypt (HTTP challenge)
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
     ports:
-      - "5432:5432"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - traefik_letsencrypt:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [web]
+
+  web:
+    image: ghcr.io/${GHCR_OWNER:-liam-lillieroth}/metatask:latest
+    restart: unless-stopped
+    env_file: [/opt/metatask/.env]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - staticfiles:/app/staticfiles
+      - media:/app/media
+    networks: [web]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.metatask.rule=Host(`metatasks.net`)
+      - traefik.http.routers.metatask.entrypoints=websecure
+      - traefik.http.routers.metatask.tls.certresolver=le
+      - traefik.http.services.metatask.loadbalancer.server.port=8000
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mediap"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/ || exit 1"]
       interval: 30s
-      timeout: 10s
-      retries: 3
+      timeout: 5s
+      retries: 5
+
+  # Optional: Celery worker if you plan to run background tasks
+  # It will reuse the same image; migrations are run by web on startup.
+  celery:
+    image: ghcr.io/${GHCR_OWNER:-liam-lillieroth}/metatask:latest
+    restart: unless-stopped
+    env_file: [/opt/metatask/.env]
+    command: ["bash", "-lc", "celery -A mediap worker -l info"]
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    networks: [web]
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    networks: [web]
 
-  web:
-    build: .
+  postgres:
+    image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      - DEBUG=True
-      - USE_SQLITE=False
-      - DB_HOST=db
-      - REDIS_URL=redis://redis:6379/0
-      - DB_NAME=mediap
-      - DB_USER=mediap
-      - DB_PASSWORD=mediap
-      - GUNICORN_WORKERS=3
-      - GUNICORN_TIMEOUT=60
-      - COLLECT_STATIC=1
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - .:/app
-      - ./logs:/app/logs
-      - static_volume:/app/staticfiles
-      - media_volume:/app/media
-    ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "bash", "docker/healthcheck.sh"]
-      interval: 30s
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-postgres}"]
+      interval: 10s
       timeout: 5s
-      retries: 3
-      start_period: 20s
-
-  celery:
-    build: .
-    restart: unless-stopped
-    environment:
-      - DEBUG=True
-      - USE_SQLITE=False
-      - DB_HOST=db
-      - REDIS_URL=redis://redis:6379/0
-      - DB_NAME=mediap
-      - DB_USER=mediap
-      - DB_PASSWORD=mediap
-    volumes:
-      - .:/app
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: celery -A mediap worker -l info
-
-  celery-beat:
-    build: .
-    restart: unless-stopped
-    environment:
-      - DEBUG=True
-      - USE_SQLITE=False
-      - DB_HOST=db
-      - REDIS_URL=redis://redis:6379/0
-      - DB_NAME=mediap
-      - DB_USER=mediap
-      - DB_PASSWORD=mediap
-    volumes:
-      - .:/app
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: celery -A mediap beat -l info
+      retries: 10
+    networks: [web]
 
 volumes:
+  traefik_letsencrypt:
   postgres_data:
-  redis_data:
-  static_volume:
-  media_volume:
+  staticfiles:
+  media:
+
+networks:
+  web: {}

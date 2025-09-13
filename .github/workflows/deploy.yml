@@ -1,4 +1,4 @@
-name: CI/CD
+name: Build and Deploy
 
 on:
   push:
@@ -9,36 +9,33 @@ permissions:
   contents: read
   packages: write
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
 jobs:
-  build-and-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Extract Docker metadata
+      - name: Extract metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # Image repo (lowercase is safest in GHCR)
+          images: ghcr.io/${{ github.repository_owner }}/metatask
           tags: |
             type=raw,value=latest
-            type=ref,event=branch
             type=sha
 
-      - name: Build and push image
+      - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -46,7 +43,22 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      - name: Deploy to VPS over SSH
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload deploy files
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          source: "deploy/*"
+          target: "/opt/metatask/"
+
+      - name: Deploy on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.PROD_SSH_HOST }}
@@ -56,42 +68,31 @@ jobs:
           script: |
             set -euo pipefail
 
-            APP_DIR="${APP_DIR:-/home/metatask/apps/metatask}"
-            mkdir -p "$APP_DIR"
-            cd "$APP_DIR"
+            # Ensure base dir and permissions
+            sudo mkdir -p /opt/metatask
+            sudo chown -R $USER:$USER /opt/metatask
 
-            # Initialize/update repo in-place (safe for existing .env)
-            [ -d .git ] || git init
-            if git remote | grep -q '^origin$'; then
-              git remote set-url origin https://github.com/${{ github.repository }}
-            else
-              git remote add origin https://github.com/${{ github.repository }}
+            # Install Docker (if not already installed)
+            if ! command -v docker >/dev/null 2>&1; then
+              curl -fsSL https://get.docker.com | sh
+              sudo usermod -aG docker $USER || true
             fi
-            git fetch --depth 1 origin main
-            git reset --hard FETCH_HEAD
-
-            # Require .env (should be created once on server)
-            if [ ! -f ".env" ]; then
-              echo ".env missing in $APP_DIR. Create it from .env.example before deploying."
-              exit 1
+            if ! docker compose version >/dev/null 2>&1; then
+              sudo apt-get update && sudo apt-get install -y docker-compose-plugin || true
             fi
 
-            # Compose detection
-            if docker compose version >/dev/null 2>&1; then
-              DC="docker compose"
-            elif command-v docker-compose >/dev/null 2>&1; then
-              DC="docker-compose"
-            else
-              echo "Docker Compose not found on server. Install docker compose plugin or docker-compose."
-              exit 1
+            # Ensure .env exists
+            if [ ! -f /opt/metatask/.env ]; then
+              cp /opt/metatask/.env.example /opt/metatask/.env || true
+              echo "Created /opt/metatask/.env - please edit with real values."
             fi
 
-            # GHCR login on the server (token needs read:packages)
-            echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+            # Login to GHCR for pulling
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
 
-            # Pull latest images and (re)start services
-            $DC -f docker-compose.prod.yml pull
-            $DC -f docker-compose.prod.yml up -d
+            # Pull latest and restart
+            docker compose -f /opt/metatask/docker-compose.yml pull
+            docker compose -f /opt/metatask/docker-compose.yml up -d
 
-            # Cleanup
+            # Cleanup old images
             docker image prune -f
