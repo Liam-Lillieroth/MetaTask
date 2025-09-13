@@ -1,0 +1,90 @@
+version: "3.9"
+
+services:
+  traefik:
+    image: traefik:v3.1
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - traefik_letsencrypt:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [web]
+
+  web:
+    image: ghcr.io/${GHCR_OWNER:-liam-lillieroth}/metatask:latest
+    restart: unless-stopped
+    env_file: [/opt/metatask/.env]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - staticfiles:/app/staticfiles
+      - media:/app/media
+    networks: [web]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.metatask.rule=Host(`metatasks.net`)
+      - traefik.http.routers.metatask.entrypoints=websecure
+      - traefik.http.routers.metatask.tls.certresolver=le
+      - traefik.http.services.metatask.loadbalancer.server.port=8000
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  celery:
+    image: ghcr.io/${GHCR_OWNER:-liam-lillieroth}/metatask:latest
+    restart: unless-stopped
+    env_file: [/opt/metatask/.env]
+    command: ["bash", "-lc", "celery -A mediap worker -l info"]
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    networks: [web]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks: [web]
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [web]
+
+volumes:
+  traefik_letsencrypt:
+  postgres_data:
+  staticfiles:
+  media:
+
+networks:
+  web: {}
