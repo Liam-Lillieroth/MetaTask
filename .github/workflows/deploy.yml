@@ -51,7 +51,7 @@ jobs:
           target: "/opt/metatask/"
           overwrite: true
 
-      - name: Deploy on VPS
+      - name: Deploy on VPS (no sudo)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.PROD_SSH_HOST }}
@@ -60,25 +60,24 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
-            sudo mkdir -p /opt/metatask
-            sudo chown -R $USER:$USER /opt/metatask
+            BASE_DIR=/opt/metatask
 
-            if ! command -v docker >/dev/null 2>&1; then
-              curl -fsSL https://get.docker.com | sh
-              sudo usermod -aG docker $USER || true
-            fi
-            if ! docker compose version >/dev/null 2>&1; then
-              sudo apt-get update && sudo apt-get install -y docker-compose-plugin || true
+            # Ensure we can write to deployment dir (pre-provisioned)
+            if ! [ -d "$BASE_DIR" ] || ! [ -w "$BASE_DIR" ]; then
+              echo "ERROR: $BASE_DIR not writable by $USER. Run one-time server prep to create and chown it."
+              exit 1
             fi
 
-            if [ ! -f /opt/metatask/.env ]; then
-              cp /opt/metatask/.env.example /opt/metatask/.env || true
-              echo "Created /opt/metatask/.env - please edit with real values."
+            cd "$BASE_DIR"
+
+            # Ensure .env exists
+            if [ ! -f .env ] && [ -f .env.example ]; then
+              cp .env.example .env
+              echo "Created .env - please edit with real values."
             fi
 
+            # Login to GHCR and deploy
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
-
-            docker compose -f /opt/metatask/docker-compose.yml pull
-            docker compose -f /opt/metatask/docker-compose.yml up -d
-
+            docker compose pull
+            docker compose up -d
             docker image prune -f
