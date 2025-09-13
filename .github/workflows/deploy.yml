@@ -21,7 +21,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Build & push image to GHCR using GITHUB_TOKEN (packages: write is granted above)
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -47,7 +46,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      # Deploy to server using your PROD_* secrets
       - name: Deploy to VPS over SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -56,11 +54,14 @@ jobs:
           key: ${{ secrets.PROD_SSH_KEY }}
           script_stop: true
           script: |
-            set -e
-            sudo mkdir -p /opt/metatask
-            sudo chown -R $USER:$USER /opt/metatask
-            cd /opt/metatask
+            set -euo pipefail
 
+            # Keep using /opt/metatask, but without sudo now that perms are fixed
+            APP_DIR="${APP_DIR:-/opt/metatask}"
+            mkdir -p "$APP_DIR"
+            cd "$APP_DIR"
+
+            # Clone or update repo (for compose files and Caddyfile)
             if [ ! -d ".git" ]; then
               git clone --depth 1 https://github.com/${{ github.repository }} ./
             else
@@ -69,15 +70,28 @@ jobs:
               git pull
             fi
 
+            # .env must exist (created once on server)
             if [ ! -f ".env" ]; then
-              echo ".env missing in /opt/metatask. Create it from .env.example before deploying."
+              echo ".env missing in $APP_DIR. Create it from .env.example before deploying."
               exit 1
             fi
 
-            # Log in to GHCR on the server to pull images
+            # Compose detection
+            if docker compose version >/dev/null 2>&1; then
+              DC="docker compose"
+            elif command -v docker-compose >/dev/null 2>&1; then
+              DC="docker-compose"
+            else
+              echo "Docker Compose not found on server. Install docker compose plugin or docker-compose."
+              exit 1
+            fi
+
+            # GHCR login on the server (token needs read:packages)
             echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
 
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d
+            # Pull latest images and (re)start services
+            $DC -f docker-compose.prod.yml pull
+            $DC -f docker-compose.prod.yml up -d
 
+            # Cleanup
             docker image prune -f
