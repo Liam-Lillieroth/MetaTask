@@ -15,20 +15,14 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set owner lowercase
+      - name: Lowercase owner
         id: owner
-        run: |
-          owner="${{ github.repository_owner }}"
-          echo "lc_owner=${owner,,}" >> "$GITHUB_OUTPUT"
+        run: echo "lc_owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -37,7 +31,7 @@ jobs:
           username: ${{ steps.owner.outputs.lc_owner }}
           password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push image
         run: |
           IMAGE="ghcr.io/${{ steps.owner.outputs.lc_owner }}/${{ env.IMAGE_NAME }}"
           SHA_TAG="${GITHUB_SHA::12}"
@@ -53,6 +47,17 @@ jobs:
     needs: build-and-push
     if: github.ref == 'refs/heads/main'
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload compose file
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          source: "docker-compose.prod.yml"
+          target: "${{ secrets.PROD_APP_DIR }}/"
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -62,15 +67,14 @@ jobs:
           script_stop: true
           script: |
             set -e
-            export APP_DIR="${{ secrets.PROD_APP_DIR }}"
-            export OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
-            export IMAGE="ghcr.io/${OWNER_LC}/${{ env.IMAGE_NAME }}"
-            # Login to GHCR using a token with read:packages
+            APP_DIR="${{ secrets.PROD_APP_DIR }}"
+            OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+            IMAGE="ghcr.io/${OWNER_LC}/${{ env.IMAGE_NAME }}"
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${OWNER_LC}" --password-stdin
+            mkdir -p "$APP_DIR"
             cd "$APP_DIR"
-            # Ensure prod compose file exists locally
+            test -f .env.production || { echo ".env.production missing in $APP_DIR"; exit 1; }
             test -f docker-compose.prod.yml
-            # Pull latest image tags and roll out
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
             docker image prune -f
