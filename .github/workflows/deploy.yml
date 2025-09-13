@@ -14,20 +14,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GHCR_TOKEN }}
-      - uses: docker/metadata-action@v5
+
+      - name: Extract metadata (tags, labels)
         id: meta
+        uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/metatask
           tags: |
             type=raw,value=latest
             type=sha
-      - uses: docker/build-push-action@v6
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
@@ -50,6 +58,7 @@ jobs:
           source: "deploy/**"
           target: "/opt/metatask/"
           overwrite: true
+          strip_components: 1  # <— flattens deploy/ into /opt/metatask
 
       - name: Deploy on VPS (no sudo)
         uses: appleboy/ssh-action@v1.0.3
@@ -61,6 +70,7 @@ jobs:
           script: |
             set -euo pipefail
             BASE_DIR=/opt/metatask
+            ls -la "$BASE_DIR" || true
 
             # Ensure we can write to deployment dir (pre-provisioned)
             if ! [ -d "$BASE_DIR" ] || ! [ -w "$BASE_DIR" ]; then
@@ -68,16 +78,17 @@ jobs:
               exit 1
             fi
 
-            cd "$BASE_DIR"
-
             # Ensure .env exists
-            if [ ! -f .env ] && [ -f .env.example ]; then
-              cp .env.example .env
-              echo "Created .env - please edit with real values."
+            if [ ! -f "$BASE_DIR/.env" ] && [ -f "$BASE_DIR/.env.example" ]; then
+              cp "$BASE_DIR/.env.example" "$BASE_DIR/.env"
+              echo "Created $BASE_DIR/.env - please edit with real values."
             fi
 
             # Login to GHCR and deploy
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
-            docker compose pull
-            docker compose up -d
+
+            # Use explicit compose file to avoid cwd ambiguity
+            docker compose -f "$BASE_DIR/docker-compose.yml" pull
+            docker compose -f "$BASE_DIR/docker-compose.yml" up -d
+
             docker image prune -f
