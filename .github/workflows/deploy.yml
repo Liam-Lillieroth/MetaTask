@@ -1,59 +1,76 @@
-name: Deploy to VPS
+name: CI/CD
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
+  workflow_dispatch:
 
-permissions:
-  contents: read
-  packages: write
+env:
+  IMAGE_NAME: metatask
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.meta.outputs.version }}
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - uses: actions/checkout@v4
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/metatask
-          tags: |
-            type=raw,value=latest
-            type=sha
-      - name: Login to GHCR
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set owner lowercase
+        id: owner
+        run: |
+          owner="${{ github.repository_owner }}"
+          echo "lc_owner=${owner,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ steps.owner.outputs.lc_owner }}
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+
       - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+        run: |
+          IMAGE="ghcr.io/${{ steps.owner.outputs.lc_owner }}/${{ env.IMAGE_NAME }}"
+          SHA_TAG="${GITHUB_SHA::12}"
+          docker buildx build \
+            --platform linux/amd64 \
+            -t "$IMAGE:$SHA_TAG" \
+            -t "$IMAGE:latest" \
+            --push \
+            .
 
   deploy:
-    needs: build-and-push
     runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
     steps:
-      - name: SSH deploy (pull, migrate, up)
-        uses: appleboy/ssh-action@v1.2.0
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script_stop: true
           script: |
             set -e
-            cd ${{ secrets.VPS_PROJECT_DIR }}
-            export REPO_OWNER="${{ github.repository_owner }}"
-            export IMAGE_TAG="latest"
+            export APP_DIR="${{ secrets.PROD_APP_DIR }}"
+            export OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+            export IMAGE="ghcr.io/${OWNER_LC}/${{ env.IMAGE_NAME }}"
+            # Login to GHCR using a token with read:packages
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${OWNER_LC}" --password-stdin
+            cd "$APP_DIR"
+            # Ensure prod compose file exists locally
+            test -f docker-compose.prod.yml
+            # Pull latest image tags and roll out
             docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml run --rm web python manage.py migrate
             docker compose -f docker-compose.prod.yml up -d
             docker image prune -f

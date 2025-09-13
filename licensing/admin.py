@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django import forms
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
@@ -14,8 +15,50 @@ class ServiceAdmin(admin.ModelAdmin):
     ordering = ['sort_order', 'name']
 
 
+class LicenseTypeAdminForm(forms.ModelForm):
+    restrictions_csv = forms.CharField(
+        label='Restrictions (comma-separated)',
+        required=False,
+        help_text='Enter restrictions separated by commas, e.g., No team collaboration, Limited integrations'
+    )
+
+    class Meta:
+        model = LicenseType
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Initialize CSV field from instance JSON list
+        if self.instance and self.instance.pk and isinstance(self.instance.restrictions, list):
+            self.fields['restrictions_csv'].initial = ', '.join(self.instance.restrictions)
+
+    def clean(self):
+        cleaned = super().clean()
+        csv = cleaned.get('restrictions_csv')
+        items = [s.strip() for s in (csv.split(',') if csv else []) if s.strip()]
+        # Require at least one restriction on create
+        if not self.instance.pk and not items:
+            raise forms.ValidationError('Please provide at least one restriction for the license type.')
+        cleaned['restrictions_parsed'] = items
+        return cleaned
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        items = self.cleaned_data.get('restrictions_parsed', [])
+        # If editing and CSV was left blank, keep existing restrictions; otherwise set parsed
+        if self.instance.pk and not self.cleaned_data.get('restrictions_csv'):
+            pass  # keep existing instance.restrictions
+        else:
+            instance.restrictions = items
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
+
+
 @admin.register(LicenseType)
 class LicenseTypeAdmin(admin.ModelAdmin):
+    form = LicenseTypeAdminForm
     list_display = ['display_name', 'service', 'name', 'price_monthly', 'price_yearly', 'max_users', 'max_workflows', 'is_active']
     list_filter = ['service', 'name', 'is_active', 'is_personal_only', 'requires_organization']
     search_fields = ['display_name', 'service__name']
@@ -32,7 +75,7 @@ class LicenseTypeAdmin(admin.ModelAdmin):
             'fields': ('max_users', 'max_projects', 'max_workflows', 'max_storage_gb', 'max_api_calls_per_day')
         }),
         ('Features & Restrictions', {
-            'fields': ('features', 'restrictions'),
+            'fields': ('features', 'restrictions_csv'),
             'classes': ('collapse',)
         }),
         ('Account Types', {

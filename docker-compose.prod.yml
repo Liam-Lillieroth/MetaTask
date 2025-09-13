@@ -1,0 +1,85 @@
+services:
+  db:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-mediap}
+      POSTGRES_USER: ${DB_USER:-mediap}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-mediap}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-mediap}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  web:
+    image: ghcr.io/liam-lillieroth/metatask:latest
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DB_HOST: db
+      REDIS_URL: redis://redis:6379/0
+      GUNICORN_WORKERS: 3
+      GUNICORN_TIMEOUT: 120
+    volumes:
+      - ./logs:/app/logs
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery:
+    image: ghcr.io/liam-lillieroth/metatask:latest
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DB_HOST: db
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A mediap worker -l info
+
+  celery-beat:
+    image: ghcr.io/liam-lillieroth/metatask:latest
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DB_HOST: db
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A mediap beat -l info
+
+volumes:
+  postgres_data:
+  redis_data:
+  static_volume:
+  media_volume:
