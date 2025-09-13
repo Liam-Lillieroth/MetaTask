@@ -1,0 +1,26 @@
+metatasks.net, www.metatasks.net {
+  encode gzip
+
+  tls {$TLS_EMAIL}
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "strict-origin-when-cross-origin"
+  }
+
+  @static path /static/*
+  handle @static {
+    root * /srv/staticfiles
+    file_server
+  }
+
+  @media path /media/*
+  handle @media {
+    root * /srv/media
+    file_server
+  }
+
+  reverse_proxy web:8000
+}

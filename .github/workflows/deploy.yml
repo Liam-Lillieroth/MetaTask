@@ -5,60 +5,50 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: write
+
 env:
-  IMAGE_NAME: metatask
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Lowercase owner
-        id: owner
-        run: echo "lc_owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
-
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-
+      # Build & push image to GHCR using GITHUB_TOKEN (packages: write is granted above)
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ steps.owner.outputs.lc_owner }}
-          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=ref,event=branch
+            type=sha
 
       - name: Build and push image
-        run: |
-          IMAGE="ghcr.io/${{ steps.owner.outputs.lc_owner }}/${{ env.IMAGE_NAME }}"
-          SHA_TAG="${GITHUB_SHA::12}"
-          docker buildx build \
-            --platform linux/amd64 \
-            -t "$IMAGE:$SHA_TAG" \
-            -t "$IMAGE:latest" \
-            --push \
-            .
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Upload compose file
-        uses: appleboy/scp-action@v0.1.7
+        uses: docker/build-push-action@v6
         with:
-          host: ${{ secrets.PROD_SSH_HOST }}
-          username: ${{ secrets.PROD_SSH_USER }}
-          key: ${{ secrets.PROD_SSH_KEY }}
-          source: "docker-compose.prod.yml"
-          target: "${{ secrets.PROD_APP_DIR }}/"
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
-      - name: Deploy over SSH
+      # Deploy to server using your PROD_* secrets
+      - name: Deploy to VPS over SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.PROD_SSH_HOST }}
@@ -67,36 +57,27 @@ jobs:
           script_stop: true
           script: |
             set -e
-            APP_DIR="${{ secrets.PROD_APP_DIR }}"
-            OWNER_LC="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
-            IMAGE="ghcr.io/${OWNER_LC}/${{ env.IMAGE_NAME }}"
-            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${OWNER_LC}" --password-stdin
-            mkdir -p "$APP_DIR"
-            cd "$APP_DIR"
-            # Create or update .env.production from GitHub Secrets
-            cat > .env.production <<'EOF'
-            SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
-            DEBUG=False
-            ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
-            CSRF_TRUSTED_ORIGINS=${{ secrets.CSRF_TRUSTED_ORIGINS }}
-            SECURE_SSL_REDIRECT=True
-            SESSION_COOKIE_SECURE=True
-            CSRF_COOKIE_SECURE=True
-            SECURE_PROXY_SSL_HEADER=HTTP_X_FORWARDED_PROTO,https
+            sudo mkdir -p /opt/metatask
+            sudo chown -R $USER:$USER /opt/metatask
+            cd /opt/metatask
 
-            DB_NAME=${{ secrets.DB_NAME }}
-            DB_USER=${{ secrets.DB_USER }}
-            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            DB_HOST=db
-            DB_PORT=5432
+            if [ ! -d ".git" ]; then
+              git clone --depth 1 https://github.com/${{ github.repository }} ./
+            else
+              git fetch --all
+              git checkout main
+              git pull
+            fi
 
-            REDIS_URL=redis://redis:6379/0
-            GUNICORN_WORKERS=3
-            GUNICORN_TIMEOUT=120
-            EOF
-            chmod 600 .env.production
+            if [ ! -f ".env" ]; then
+              echo ".env missing in /opt/metatask. Create it from .env.example before deploying."
+              exit 1
+            fi
 
-            test -f docker-compose.prod.yml
+            # Log in to GHCR on the server to pull images
+            echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
+
             docker image prune -f
