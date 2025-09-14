@@ -21,4 +21,4 @@ EXPOSE 8000
 
 
 
-CMD ["sh", "-c", "echo DATABASE_URL_IS: $DATABASE_URL && sleep 30"]
+CMD ["./entrypoint.sh"]
