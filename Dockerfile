@@ -19,7 +19,6 @@ RUN chmod +x /app/entrypoint.sh
 ENV DJANGO_SETTINGS_MODULE=core.settings
 EXPOSE 8000
 
+
+
 CMD ["sh", "-c", "echo DATABASE_URL_IS: $DATABASE_URL && sleep 30"]
-
-
-CMD ["./entrypoint.sh"]
