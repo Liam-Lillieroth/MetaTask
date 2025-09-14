@@ -59,7 +59,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: celery -A mediap worker -l info
+    command: celery -A core worker -l info
     volumes:
       - media_volume:/app/media
 
@@ -76,7 +76,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: celery -A mediap beat -l info
+    command: celery -A core beat -l info
 
   caddy:
     image: caddy:2

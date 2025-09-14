@@ -58,7 +58,7 @@ services:
     image: ghcr.io/${GHCR_OWNER:-liam-lillieroth}/metatask:latest
     restart: unless-stopped
     env_file: [/opt/metatask/.env]
-    command: ["bash", "-lc", "celery -A mediap worker -l info"]
+    command: ["bash", "-lc", "celery -A core worker -l info"]
     depends_on:
       redis:
         condition: service_started

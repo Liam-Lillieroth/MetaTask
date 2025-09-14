@@ -130,7 +130,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'mediap.urls'
+ROOT_URLCONF = 'core.urls'
 
 TEMPLATES = [
     {
@@ -147,7 +147,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'mediap.wsgi.application'
+WSGI_APPLICATION = 'core.wsgi.application'
 
 
 # Database
